@@ -50,9 +50,8 @@ services:
   nginx:
     image: nginx:alpine
     container_name: nginx
-    ports:
-      - "80:80"
-      - "443:443"
+    expose:
+      - "80"
     volumes:
       - static_volume:/app/static_root
       - ./http.conf:/etc/nginx/conf.d/default.conf  # Change this line to "./https.conf:/etc/nginx/conf.d/default.conf" to enable SSL
