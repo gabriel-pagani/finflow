@@ -125,6 +125,33 @@ AUTH_USER_MODEL = 'app.User'
 
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+USE_X_FORWARDED_HOST = True
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+
+    SECURE_REDIRECT_EXEMPT = [r'^\.well-known/acme-challenge/']
+
+    SESSION_COOKIE_SECURE = True
+
+    CSRF_COOKIE_SECURE = True
+
+    SECURE_HSTS_SECONDS = 31536000
+
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+    SECURE_HSTS_PRELOAD = True
+
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+    SESSION_COOKIE_HTTPONLY = True
+
+    X_FRAME_OPTIONS = 'DENY'
+
+    SECURE_REFERRER_POLICY = 'same-origin'
+
 # Auth LDAP
 from django_auth_ldap.config import LDAPSearch, ActiveDirectoryGroupType
 from ldap import SCOPE_SUBTREE
