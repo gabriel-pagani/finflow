@@ -13,6 +13,9 @@ restart-system:
 reset-system:
 	@cd deploy/ && docker compose down -v && rm -rf ../database/ && docker compose up -d --build
 
+reset-system-cache:
+	@docker compose -f deploy/docker-compose.yml exec redis redis-cli FLUSHDB
+
 clean-system:
 	@cd deploy/ && docker compose down -v && docker system prune -a --volumes --force && rm -rf ../database/
 
