@@ -157,9 +157,11 @@ if not DEBUG:
 
     SECURE_REFERRER_POLICY = 'same-origin'
 
-API_AUTH_MAX_ATTEMPTS = int(os.getenv('API_AUTH_MAX_ATTEMPTS', '5'))
+API_AUTH_MAX_ATTEMPTS_PER_USER = int(os.getenv('API_AUTH_MAX_ATTEMPTS_PER_USER', '5'))
 
-API_AUTH_LOCKOUT_SECONDS = int(os.getenv('API_AUTH_LOCKOUT_SECONDS', '3600'))
+API_AUTH_MAX_ATTEMPTS_PER_IP = int(os.getenv('API_AUTH_MAX_ATTEMPTS_PER_IP', '20'))
+
+API_AUTH_LOCKOUT_SECONDS = int(os.getenv('API_AUTH_LOCKOUT_SECONDS', '900'))
 
 # Auth LDAP
 from django_auth_ldap.config import LDAPSearch, ActiveDirectoryGroupType
