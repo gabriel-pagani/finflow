@@ -68,6 +68,13 @@ DATABASES = {
     }
 }
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://redis:6379/0'),
+    }
+}
+
 PASSWORD_HASHERS = [
     "project.hashers.CustomArgon2PasswordHasher",
 ]
@@ -149,6 +156,10 @@ if not DEBUG:
     X_FRAME_OPTIONS = 'DENY'
 
     SECURE_REFERRER_POLICY = 'same-origin'
+
+API_AUTH_MAX_ATTEMPTS = int(os.getenv('API_AUTH_MAX_ATTEMPTS', '5'))
+
+API_AUTH_LOCKOUT_SECONDS = int(os.getenv('API_AUTH_LOCKOUT_SECONDS', '3600'))
 
 # Auth LDAP
 from django_auth_ldap.config import LDAPSearch, ActiveDirectoryGroupType
