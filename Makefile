@@ -11,10 +11,10 @@ restart-system:
 	@cd deploy/ && docker compose down && docker compose up -d
 
 reset-system:
-	@cd deploy/ && docker compose down -v && rm -rf ../database/ certbot/ && docker compose up -d --build
+	@cd deploy/ && docker compose down -v && rm -rf ../database/ && docker compose up -d --build
 
 clean-system:
-	@cd deploy/ && docker compose down -v && docker system prune -a --volumes --force && cd .. && rm -rf database/ deploy/certbot/
+	@cd deploy/ && docker compose down -v && docker system prune -a --volumes --force && rm -rf ../database/
 
 make-migrations:
 	@cd deploy/ && docker compose run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)

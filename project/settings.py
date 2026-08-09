@@ -132,8 +132,6 @@ USE_X_FORWARDED_HOST = True
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
 
-    SECURE_REDIRECT_EXEMPT = [r'^\.well-known/acme-challenge/']
-
     SESSION_COOKIE_SECURE = True
 
     CSRF_COOKIE_SECURE = True
