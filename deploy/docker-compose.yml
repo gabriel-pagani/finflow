@@ -1,9 +1,9 @@
 name: finflow
 
 services:
-  database:
+  postgres:
     image: postgres:16
-    container_name: database
+    container_name: postgres
     expose:
       - "5432"
     volumes:
@@ -19,12 +19,12 @@ services:
       - network
     restart: unless-stopped
 
-  app:
+  django:
     build:
       context: ../
       dockerfile: deploy/Dockerfile
-    image: template
-    container_name: app
+    image: django
+    container_name: django
     expose:
       - "8000"
     volumes:
@@ -32,7 +32,7 @@ services:
     env_file:
       - .env
     depends_on:
-      database:
+      postgres:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate --noinput &&
@@ -54,11 +54,9 @@ services:
       - "80"
     volumes:
       - static_volume:/app/static_root
-      - ./http.conf:/etc/nginx/conf.d/default.conf  # Change this line to "./https.conf:/etc/nginx/conf.d/default.conf" to enable SSL
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - ./http.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      app:
+      django:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 80"]
@@ -68,34 +66,6 @@ services:
     networks:
       - network
     restart: unless-stopped
-  
-  # Uncomment this code snippet to enable SSL
-  # certbot:
-  #   image: certbot/certbot
-  #   container_name: certbot
-  #   volumes:
-  #     - ./certbot/conf:/etc/letsencrypt
-  #     - ./certbot/www:/var/www/certbot
-  #   depends_on:
-  #     nginx:
-  #       condition: service_healthy
-  #   command: "certonly --non-interactive --webroot -w /var/www/certbot --email $DEFAULT_EMAIL -d $DOMAIN --agree-tos --no-eff-email"
-  #   networks:
-  #     - network
-
-  # certbot-renew:
-  #   image: certbot/certbot
-  #   container_name: certbot-renew
-  #   volumes:
-  #     - ./certbot/conf:/etc/letsencrypt
-  #     - ./certbot/www:/var/www/certbot
-  #   depends_on:
-  #     certbot:
-  #       condition: service_completed_successfully
-  #   entrypoint: sh -c "while true; do certbot renew --webroot -w /var/www/certbot; sleep 12h; done"
-  #   networks:
-  #     - network
-  #   restart: unless-stopped
 
   cloudflare:
     image: cloudflare/cloudflared:latest
