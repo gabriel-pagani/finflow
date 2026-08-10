@@ -152,6 +152,14 @@ class TransactionAdmin(VersionAdmin):
 
     @admin.action(description='Duplicar Transações selecionadas', permissions=['add'])
     def duplicate_transactions(self, request, queryset):
+        derived_count = queryset.filter(models.Q(installment__isnull=False) | models.Q(investment__isnull=False)).count()
+        if derived_count:
+            self.message_user(request, f'{derived_count} transação(ões) ignorada(s) por ter(em) origem em parcelamento ou investimento.', messages.WARNING)
+
+        queryset = queryset.filter(installment__isnull=True, investment__isnull=True)
+        if not queryset.exists():
+            return None
+
         with reversion.create_revision():
             reversion.set_user(request.user)
             reversion.set_comment('Duplicado a partir de transação existente.')
