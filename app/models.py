@@ -177,7 +177,7 @@ class Investment(models.Model):
 
     @property
     def balance(self):
-        return max(self.applied_value + self.yielded_value - self.redeemed_value, Decimal('0.00'))
+        return self.applied_value + self.yielded_value - self.redeemed_value
 
     @property
     def category_display(self):
@@ -254,6 +254,22 @@ class Redemption(InvestmentEntry):
     VALUE_LABEL = 'Valor Resgatado'
 
     value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Resgatado')
+
+    def clean(self):
+        super().clean()
+        if self.investment_id and self.value is not None:
+            investment = self.investment
+            # Ao editar, o próprio resgate não conta contra o saldo disponível.
+            redeemed = investment.redemptions.exclude(pk=self.pk).aggregate(
+                total=models.Sum('value')
+            )['total'] or Decimal('0.00')
+
+            available = investment.applied_value + investment.yielded_value - redeemed
+
+            if self.value > available:
+                raise ValidationError({
+                    'value': f'O resgate não pode ser maior que o saldo disponível de R${available}.'
+                })
 
     class Meta(InvestmentEntry.Meta):
         abstract = False
