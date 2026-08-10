@@ -171,5 +171,5 @@ class TransactionAdmin(VersionAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj and (obj.installment_id or obj.investment_id):
-            return ('user', 'account', 'type', 'method', 'category', 'description', 'value', 'installment', 'parcel', 'investment', 'contribution', 'redemption', 'datetime',)
+            return ('user', 'account', 'type', 'method', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption',)
         return ('installment', 'parcel', 'investment', 'contribution', 'redemption',)
