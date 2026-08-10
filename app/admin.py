@@ -3,7 +3,7 @@ from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, Account, Category, BusinessRule, Installment, Investment, Contribution, Redemption, Transaction
+from .models import User, Group, Account, Category, BusinessRule, Installment, Investment, Contribution, Redemption, Yield, Transaction
 
 
 # User Admin
@@ -96,13 +96,19 @@ class RedemptionInline(admin.TabularInline):
     fields = ('value', 'datetime',)
 
 
+class YieldInline(admin.TabularInline):
+    model = Yield
+    extra = 0
+    fields = ('value', 'datetime',)
+
+
 @admin.register(Investment)
 class InvestmentAdmin(VersionAdmin):
-    list_display = ('user', 'account', 'description', 'category_display', 'applied_value', 'redeemed_value',)
+    list_display = ('user', 'account', 'description', 'category_display', 'applied_value', 'yielded_value', 'redeemed_value', 'balance',)
     list_filter = ('user', 'account', 'category',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
-    inlines = (ContributionInline, RedemptionInline,)
+    inlines = (ContributionInline, YieldInline, RedemptionInline,)
 
     @admin.display(description='Categoria', ordering='category__description')
     def category_display(self, obj):
@@ -112,9 +118,17 @@ class InvestmentAdmin(VersionAdmin):
     def applied_value(self, obj):
         return obj.applied_value
 
+    @admin.display(description='Total Rendido')
+    def yielded_value(self, obj):
+        return obj.yielded_value
+
     @admin.display(description='Total Resgatado')
     def redeemed_value(self, obj):
         return obj.redeemed_value
+
+    @admin.display(description='Saldo')
+    def balance(self, obj):
+        return obj.balance
 
     def get_readonly_fields(self, request, obj=None):
         if obj:

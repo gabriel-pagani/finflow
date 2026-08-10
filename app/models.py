@@ -172,8 +172,12 @@ class Investment(models.Model):
         return self.redemptions.aggregate(total=models.Sum('value'))['total'] or Decimal('0.00')
 
     @property
+    def yielded_value(self):
+        return self.yields.aggregate(total=models.Sum('value'))['total'] or Decimal('0.00')
+
+    @property
     def balance(self):
-        return self.applied_value - self.redeemed_value
+        return max(self.applied_value + self.yielded_value - self.redeemed_value, Decimal('0.00'))
 
     @property
     def category_display(self):
@@ -192,6 +196,7 @@ class Investment(models.Model):
 class InvestmentEntry(models.Model):
     TYPE = None
     VALUE_LABEL = 'Valor'
+    GENERATES_TRANSACTION = True
 
     investment = models.ForeignKey(Investment, on_delete=models.CASCADE, related_name='%(class)ss', verbose_name='Investimento')
     value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor')
@@ -221,7 +226,8 @@ class InvestmentEntry(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        self.generate_transactions()
+        if self.GENERATES_TRANSACTION:
+            self.generate_transactions()
 
     def __str__(self):
         return f'R${self.value} ({self.datetime:%d/%m/%Y})'
@@ -253,6 +259,18 @@ class Redemption(InvestmentEntry):
         abstract = False
         verbose_name = 'Resgate'
         verbose_name_plural = 'Resgates'
+
+
+class Yield(InvestmentEntry):
+    VALUE_LABEL = 'Valor Rendido'
+    GENERATES_TRANSACTION = False
+
+    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Rendido')
+
+    class Meta(InvestmentEntry.Meta):
+        abstract = False
+        verbose_name = 'Rendimento'
+        verbose_name_plural = 'Rendimentos'
 
 
 class Transaction(models.Model):
