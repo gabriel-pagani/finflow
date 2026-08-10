@@ -1,4 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.contrib.admin.actions import delete_selected as admin_delete_selected
+from django.db import models
 from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
@@ -142,7 +144,7 @@ class TransactionAdmin(VersionAdmin):
     list_filter = ('user', 'account', 'type', 'method', 'category',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
-    actions = ('duplicate_transactions',)
+    actions = ('duplicate_transactions', 'delete_selected',)
 
     @admin.display(description='Categoria', ordering='category__description')
     def category_display(self, obj):
@@ -175,6 +177,18 @@ class TransactionAdmin(VersionAdmin):
         return ('installment', 'parcel', 'investment', 'contribution', 'redemption',)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.is_derived:
+        if obj and obj.is_derived and request.resolver_match and request.resolver_match.url_name in ('app_transaction_change', 'app_transaction_delete'):
             return False
         return super().has_delete_permission(request, obj)
+
+    @admin.action(description='Remover Transações selecionadas', permissions=['delete'])
+    def delete_selected(self, request, queryset):
+        derived_count = queryset.filter(models.Q(installment__isnull=False) | models.Q(investment__isnull=False)).count()
+        if derived_count:
+            self.message_user(request, f'{derived_count} transação(ões) ignorada(s) por ter(em) origem em parcelamento ou investimento. Exclua o parcelamento ou investimento de origem.', messages.WARNING)
+
+        queryset = queryset.filter(installment__isnull=True, investment__isnull=True)
+        if not queryset.exists():
+            return None
+
+        return admin_delete_selected(self, request, queryset)
