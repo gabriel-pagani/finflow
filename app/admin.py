@@ -150,7 +150,7 @@ class TransactionAdmin(VersionAdmin):
     def category_display(self, obj):
         return obj.category_display
 
-    @admin.action(description='Duplicar Transações selecionados', permissions=['add'])
+    @admin.action(description='Duplicar Transações selecionadas', permissions=['add'])
     def duplicate_transactions(self, request, queryset):
         with reversion.create_revision():
             reversion.set_user(request.user)
@@ -169,7 +169,7 @@ class TransactionAdmin(VersionAdmin):
                 )
                 count += 1
 
-        self.message_user(request, f'{count} transação(ões) duplicada(s) com sucesso.')
+        self.message_user(request, f'{count} transação(ões) duplicada(s) com sucesso.', messages.SUCCESS)
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.is_derived:
