@@ -170,6 +170,11 @@ class TransactionAdmin(VersionAdmin):
         self.message_user(request, f'{count} transação(ões) duplicada(s) com sucesso.')
 
     def get_readonly_fields(self, request, obj=None):
-        if obj and (obj.installment_id or obj.investment_id):
+        if obj and obj.is_derived:
             return ('user', 'account', 'type', 'method', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption',)
         return ('installment', 'parcel', 'investment', 'contribution', 'redemption',)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.is_derived:
+            return False
+        return super().has_delete_permission(request, obj)

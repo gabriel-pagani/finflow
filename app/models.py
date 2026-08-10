@@ -298,6 +298,10 @@ class Transaction(models.Model):
                 raise ValidationError('Combinação de conta, tipo e método não permitida pelas regras de negócio.')
 
     @property
+    def is_derived(self):
+        return bool(self.installment_id or self.investment_id)
+
+    @property
     def category_display(self):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'
 
