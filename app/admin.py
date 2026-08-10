@@ -69,8 +69,8 @@ class BusinessRuleAdmin(VersionAdmin):
 
 @admin.register(Installment)
 class InstallmentAdmin(VersionAdmin):
-    list_display = ('user', 'account', 'type', 'method', 'category_display', 'description', 'value', 'installments', 'datetime',)
-    list_filter = ('user', 'account', 'type', 'method', 'category',)
+    list_display = ('user', 'account', 'category_display', 'description', 'value', 'installments', 'datetime',)
+    list_filter = ('user', 'account', 'category',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
 
@@ -80,7 +80,7 @@ class InstallmentAdmin(VersionAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
-            return ('user', 'account', 'type', 'method', 'category', 'description', 'value', 'installments', 'datetime',)
+            return ('user', 'account', 'category', 'description', 'value', 'installments', 'datetime',)
         return ()
 
 

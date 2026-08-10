@@ -87,19 +87,20 @@ class BusinessRule(models.Model):
 class Installment(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='installments', verbose_name='Usuário')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name='Conta')
-    type = models.CharField(max_length=20, choices=Type.choices, verbose_name='Tipo')
-    method = models.CharField(max_length=20, choices=Method.choices, verbose_name='Método')
     category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, verbose_name='Categoria')
     description = models.CharField(max_length=200, blank=True, null=True, verbose_name='Descrição')
     value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Total')
     installments = models.PositiveSmallIntegerField(verbose_name='Número de Parcelas')
     datetime = models.DateTimeField(verbose_name='Data e Hora')
 
+    TYPE = Type.OUT
+    METHOD = Method.CREDIT
+
     def clean(self):
         super().clean()
-        if self.account_id and self.type and self.method:
-            if not BusinessRule.objects.filter(account=self.account, type=self.type, method=self.method).exists():
-                raise ValidationError('Combinação de conta, tipo e método não permitida pelas regras de negócio.')
+        if self.account_id:
+            if not BusinessRule.objects.filter(account=self.account, type=self.TYPE, method=self.METHOD).exists():
+                raise ValidationError(f'A conta não permite {Type(self.TYPE).label.lower()} em {Method(self.METHOD).label}, necessário para registrar as parcelas.')
         if self.installments is not None and self.installments < 2:
             raise ValidationError({'installments': 'Um parcelamento deve ter no mínimo 2 parcelas.'})
 
@@ -115,8 +116,8 @@ class Installment(models.Model):
             transactions.append(Transaction(
                 user=self.user,
                 account=self.account,
-                type=self.type,
-                method=self.method,
+                type=self.TYPE,
+                method=self.METHOD,
                 category=self.category,
                 description=self.description,
                 value=parcel_value,
