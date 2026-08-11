@@ -62,15 +62,44 @@ function formatCurrency(value) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function formatCompact(value) {
+    // Valor curto para os rótulos sobre as barras, que ficam lado a lado.
+    if (Math.abs(value) >= 1000) {
+        return 'R$ ' + (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
+    }
+    return 'R$ ' + value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+}
+
 function buildChart(elementId, buildOption) {
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    const chart = echarts.init(element);
-    chart.setOption(buildOption());
+    // Sem devicePixelRatio o ECharts desenha o canvas a 1x e o navegador
+    // amplia, deixando texto e linhas borrados em tela HiDPI ou com zoom.
+    function create() {
+        const instance = echarts.init(element, null, {
+            devicePixelRatio: window.devicePixelRatio || 1,
+            renderer: 'canvas',
+        });
+        instance.setOption(buildOption());
+        return instance;
+    }
 
+    let chart = create();
     let wasMobile = isMobile();
+    let ratio = window.devicePixelRatio;
+
     window.addEventListener('resize', () => {
+        // O zoom do navegador muda o devicePixelRatio, e o resize sozinho não
+        // reamostra o canvas: só recriando o gráfico volta a ficar nítido.
+        if (window.devicePixelRatio !== ratio) {
+            ratio = window.devicePixelRatio;
+            wasMobile = isMobile();
+            chart.dispose();
+            chart = create();
+            return;
+        }
+
         // Só reconstrói ao cruzar o breakpoint; senão apenas redimensiona.
         if (isMobile() !== wasMobile) {
             wasMobile = isMobile();
@@ -104,9 +133,11 @@ function renderBarChart(elementId, { labels, series }) {
             xAxis: {
                 type: 'category',
                 data: labels,
+                // interval 0 força todos os meses a aparecerem; sem isso o
+                // ECharts pula rótulos e some com metade dos períodos.
                 axisLabel: mobile
                     ? { interval: 0, rotate: 45, fontSize: 10 }
-                    : {},
+                    : { interval: 0, fontSize: 11 },
             },
             // Sem os valores na lateral: o número de cada barra já aparece
             // sobre ela e o tooltip mostra o valor exato.
@@ -123,7 +154,9 @@ function renderBarChart(elementId, { labels, series }) {
                 label: {
                     show: !mobile,
                     position: 'top',
-                    formatter: (params) => formatCurrency(params.value),
+                    // Compacto porque com duas séries lado a lado o valor cheio
+                    // de uma barra encostava no da vizinha.
+                    formatter: (params) => formatCompact(params.value),
                     fontSize: 10,
                 },
             })),
@@ -148,17 +181,28 @@ function renderDonutChart(elementId, data) {
                       itemHeight: 10,
                       textStyle: { fontSize: 11 },
                   }
-                : { type: 'scroll', orient: 'vertical', right: 0, top: 'center' },
+                : {
+                      type: 'scroll',
+                      orient: 'vertical',
+                      right: 8,
+                      top: 'center',
+                      itemWidth: 12,
+                      itemHeight: 12,
+                  },
             series: [{
                 type: 'pie',
-                radius: mobile ? ['40%', '62%'] : ['45%', '70%'],
-                center: mobile ? ['50%', '42%'] : ['38%', '50%'],
+                radius: mobile ? ['40%', '62%'] : ['48%', '72%'],
+                center: mobile ? ['50%', '42%'] : ['34%', '50%'],
                 data: data,
                 label: {
                     show: !mobile,
                     formatter: (params) => formatCurrency(params.value),
                     fontSize: 10,
                 },
+                // Evita que as fatias finas empilhem os rótulos umas sobre as
+                // outras: o ECharts espaça os vizinhos ao longo da linha-guia.
+                labelLayout: { hideOverlap: true },
+                minAngle: 2,
             }],
         };
     });
