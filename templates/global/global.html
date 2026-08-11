@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{% static 'global/css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'global/css/global.css' %}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     {% if user.is_authenticated %}
         <header class="topbar">
             <a class="brand" href="{% url 'app:overview' %}">FinFlow</a>

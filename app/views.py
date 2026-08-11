@@ -211,7 +211,7 @@ class TransactionListView(FilteredTransactionsMixin, OwnedListView):
 
     model = Transaction
     template_name = 'app/transaction_list.html'
-    paginate_by = 10
+    paginate_by = 25
 
     def get_filters(self):
         filters = super().get_filters()

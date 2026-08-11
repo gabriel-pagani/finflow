@@ -21,11 +21,48 @@ main {
     /* Ocupa a largura da tela; o teto alto só evita linhas quilométricas
        em monitores ultrawide. */
     max-width: 2100px;
+    width: 100%;
     margin: 0 auto;
     padding: 16px 24px 24px;
     display: flex;
     flex-direction: column;
     gap: 16px;
+}
+
+/* Páginas que devem preencher a altura da janela em vez de parar na altura
+   do conteúdo. O body vira coluna para o main poder esticar. */
+body.page-fill {
+    display: flex;
+    flex-direction: column;
+    /* auto anula o height:100% do reset, que travaria o crescimento */
+    height: auto;
+    min-height: 100vh;
+}
+
+body.page-fill main {
+    flex: 1;
+    min-height: 0;
+}
+
+/* O card cresce com a sobra e a tabela absorve o espaço, deixando a
+   paginação colada no rodapé do card. */
+.card.fill-height {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.card.fill-height .table-scroll {
+    flex: 1;
+    /* o max-height deixa de mandar quando o card já limita a altura */
+    max-height: none;
+}
+
+/* h1 e paginação mantêm o tamanho; só a tabela estica ou encolhe. */
+.card.fill-height > h1,
+.card.fill-height > .pagination {
+    flex: none;
 }
 
 /* Topbar */
