@@ -7,7 +7,7 @@ services:
     expose:
       - "5432"
     volumes:
-      - ../database:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     env_file:
       - .env
     healthcheck:
@@ -101,6 +101,7 @@ services:
 
 volumes:
   static_volume:
+  postgres_data:
   redis_data:
 
 networks:
