@@ -1,0 +1,643 @@
+:root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --border: #e2e4e8;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --accent: #3f4d7a;
+    --income: #5aa469;
+    --outcome: #c0504d;
+    --radius: 10px;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+}
+
+main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Topbar */
+.topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.brand {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.topbar nav {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.topbar nav a {
+    color: var(--muted);
+    text-decoration: none;
+    padding: 4px 0;
+}
+
+.topbar nav a:hover {
+    color: var(--accent);
+}
+
+.logout {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+}
+
+/* Cards */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+}
+
+.card h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 24px 16px;
+    text-align: center;
+}
+
+.metric strong {
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.metric span {
+    color: var(--muted);
+}
+
+
+.metric-income { background: #eef7f0; }
+.metric-outcome { background: #fdefee; }
+.metric-invested { background: #eef0f8; }
+.metric-balance { background: #fdf8e8; }
+
+/* Charts */
+.charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 16px;
+}
+
+.chart {
+    width: 100%;
+    height: 380px;
+}
+
+/* Filters */
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+/* Só os campos diretos do grid empilham rótulo sobre input; as labels
+   dentro do multiselect são linhas de checkbox e ficam na horizontal. */
+.filters-grid > label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--muted);
+}
+
+.filters-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Multiselect */
+.multiselect {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--muted);
+    /* cria o contexto para o painel absoluto e mantém o dropdown acima dos vizinhos */
+    position: relative;
+}
+
+.multiselect-details[open] {
+    /* enquanto aberto, fica na frente dos outros campos do grid */
+    position: relative;
+    z-index: 20;
+}
+
+.multiselect-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    list-style: none;
+    box-sizing: border-box;
+}
+
+/* remove o triângulo nativo do <summary> */
+.multiselect-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.multiselect-toggle::after {
+    content: '';
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--muted);
+}
+
+.multiselect-details[open] .multiselect-toggle {
+    border-color: var(--accent);
+}
+
+.multiselect-toggle span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.multiselect-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 16px rgb(0 0 0 / 12%);
+    z-index: 20;
+}
+
+.multiselect-options {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.multiselect-panel .multiselect-option {
+    display: flex;
+    /* row explícito: o grid de filtros empilha labels por padrão */
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+}
+
+.multiselect-option:hover {
+    background: var(--bg);
+}
+
+.multiselect-option input {
+    /* checkbox precisa da aparência nativa que a regra geral de input remove */
+    appearance: auto;
+    -webkit-appearance: auto;
+    width: 16px;
+    height: 16px;
+    flex: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* Forms and inputs */
+input,
+select,
+button,
+.button {
+    font: inherit;
+    line-height: 20px;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+input[type="date"] {
+    /* mantém o ícone de calendário que appearance:none removeria */
+    appearance: auto;
+    -webkit-appearance: auto;
+}
+
+select {
+    /* seta própria, já que appearance:none removeu a nativa */
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                      linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 15px, calc(100% - 13px) 15px;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 32px;
+}
+
+button,
+.button {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+}
+
+button.danger {
+    background: var(--outcome);
+}
+
+.card h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+/* List summary */
+.list-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-bottom: 12px;
+    color: var(--muted);
+}
+
+.summary-income {
+    color: var(--income);
+}
+
+.summary-outcome {
+    color: var(--outcome);
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+th {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+td.right,
+th.right {
+    text-align: right;
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+
+td a {
+    color: var(--accent);
+    margin-left: 10px;
+}
+
+/* A tabela rola dentro do card para a paginação continuar visível sem
+   precisar descer a página inteira. O desconto cobre a soma do que fica fixo
+   acima e abaixo dela: topbar (~57) + padding do main (40) + gap (20)
+   + card de filtros (~150) + padding do card (32) + h1 (~43) + resumo (~33)
+   + paginação (~65). */
+.table-scroll {
+    max-height: calc(100vh - 480px);
+    min-height: 200px;
+    overflow-y: auto;
+}
+
+/* Cabeçalho fixo enquanto a tabela rola. A borda vai como box-shadow porque
+   border-collapse descarta a borda de células sticky. */
+.table-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+}
+
+.pagination-info {
+    font-size: 13px;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pagination-controls a,
+.pagination-controls .disabled,
+.pagination-current {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    min-width: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.pagination-controls a {
+    background: var(--surface);
+    color: var(--accent);
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.pagination-controls a:hover {
+    background: var(--bg);
+    border-color: var(--accent);
+}
+
+.pagination-controls .disabled {
+    color: var(--border);
+    background: var(--surface);
+}
+
+.pagination-current {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+}
+
+.messages {
+    background: #eef7f0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+}
+
+/* ==========================================================================
+   Celular — nada aqui afeta a aparência no computador (min-width: 769px).
+   ========================================================================== */
+@media (max-width: 768px) {
+    main {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    /* Topbar: marca e ações na primeira linha, menu ocupando a segunda */
+    .topbar {
+        padding: 10px 12px;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .brand {
+        font-size: 17px;
+        margin-right: auto;
+    }
+
+    .topbar nav {
+        order: 3;
+        width: 100%;
+        gap: 6px;
+        /* itens dividem a largura; acomoda uma página a mais sem quebrar */
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    }
+
+    .topbar nav a {
+        padding: 8px 4px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        text-align: center;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+
+    .logout {
+        margin-left: 0;
+        gap: 8px;
+    }
+
+    /* O nome do usuário não agrega no celular e espremia os botões. */
+    .logout span {
+        display: none;
+    }
+
+    .logout .button,
+    .logout button {
+        height: 36px;
+        padding: 0 12px;
+        font-size: 13px;
+    }
+
+    /* Cards: dois por linha, com números menores para caber */
+    .cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .card {
+        padding: 12px;
+    }
+
+    .metric {
+        padding: 16px 10px;
+        gap: 4px;
+    }
+
+    .metric strong {
+        font-size: 20px;
+    }
+
+    .metric span {
+        font-size: 12px;
+    }
+
+    /* Gráficos: uma coluna (o minmax de 420px estourava a tela) */
+    .charts {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .chart {
+        height: 300px;
+    }
+
+    /* Filtros: um campo por linha, botão de largura total */
+    .filters-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    /* 16px evita o zoom automático do iOS ao focar um campo */
+    input,
+    select {
+        font-size: 16px;
+        height: 42px;
+    }
+
+    button,
+    .button {
+        height: 42px;
+    }
+
+    .filters-grid button {
+        width: 100%;
+    }
+
+    .filters-actions {
+        width: 100%;
+    }
+
+    .filters-actions > * {
+        flex: 1;
+    }
+
+    /* Alvo de toque maior, alinhado aos demais campos no celular */
+    .multiselect-toggle {
+        height: 42px;
+        font-size: 16px;
+    }
+
+    .multiselect-option {
+        padding: 10px 8px;
+        font-size: 16px;
+    }
+
+    .multiselect-option input {
+        width: 18px;
+        height: 18px;
+    }
+
+    .multiselect-options {
+        max-height: 50vh;
+    }
+
+    /* Tabela: rola na horizontal dentro do card, sem esticar a página */
+    .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -12px;
+        padding: 0 12px;
+        /* Aqui os filtros viram uma coluna só e ocupam bem mais altura, mas o
+           resumo quebra em várias linhas e o padding é menor; 340 é o líquido. */
+        max-height: calc(100vh - 340px);
+    }
+
+    .table-scroll table {
+        min-width: 640px;
+    }
+
+    th,
+    td {
+        padding: 8px;
+        white-space: nowrap;
+    }
+
+    /* Paginação centralizada, alvos maiores para o dedo */
+    .pagination {
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .pagination-info {
+        width: 100%;
+        text-align: center;
+    }
+
+    .pagination-controls a,
+    .pagination-controls .disabled,
+    .pagination-current {
+        height: 38px;
+        min-width: 38px;
+    }
+}
+
+/* Telas bem estreitas: um card por linha e ações mais compactas. */
+@media (max-width: 380px) {
+    .cards {
+        grid-template-columns: 1fr;
+    }
+
+    .brand {
+        font-size: 16px;
+    }
+
+    .logout .button,
+    .logout button {
+        padding: 0 10px;
+        font-size: 12px;
+    }
+}

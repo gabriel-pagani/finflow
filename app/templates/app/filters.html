@@ -1,0 +1,28 @@
+<form class="card filters" method="get">
+    <h2>Filtros</h2>
+    <div class="filters-grid">
+        <label>
+            Início
+            <input type="date" name="start" value="{{ filters.start }}">
+        </label>
+        <label>
+            Fim
+            <input type="date" name="end" value="{{ filters.end }}">
+        </label>
+
+        {% include 'app/multiselect.html' with name='account' legend='Conta' empty='Todas' gender='f' options=accounts selected=filters.account %}
+        {% include 'app/multiselect.html' with name='category' legend='Categoria' empty='Todas' gender='f' options=categories selected=filters.category %}
+
+        {% if types %}
+            {% include 'app/multiselect.html' with name='type' legend='Tipo' empty='Todos' choices=types selected=filters.type %}
+        {% endif %}
+        {% if method_choices %}
+            {% include 'app/multiselect.html' with name='method' legend='Método' empty='Todos' choices=method_choices selected=filters.method %}
+        {% endif %}
+
+        <div class="filters-actions">
+            <button type="submit">Aplicar</button>
+            <a class="button" href="{{ request.path }}">Limpar</a>
+        </div>
+    </div>
+</form>

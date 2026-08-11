@@ -1,0 +1,43 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}FinFlow{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'global/css/reset.css' %}">
+    <link rel="stylesheet" href="{% static 'global/css/global.css' %}">
+</head>
+<body>
+    {% if user.is_authenticated %}
+        <header class="topbar">
+            <a class="brand" href="{% url 'app:overview' %}">FinFlow</a>
+            <nav>
+                <a href="{% url 'app:overview' %}">Visão Geral</a>
+                <a href="{% url 'app:forecast' %}">Previsão</a>
+                <a href="{% url 'app:transaction_list' %}">Transações</a>
+            </nav>
+            <form class="logout" method="post" action="{% url 'admin:logout' %}">
+                {% csrf_token %}
+                <span>{{ user.get_short_name|default:user.username }}</span>
+                {% if user.is_staff %}
+                    <a class="button" href="{% url 'admin:index' %}">Administração</a>
+                {% endif %}
+                <button type="submit">Sair</button>
+            </form>
+        </header>
+    {% endif %}
+
+    <main>
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{% static 'global/js/echarts.js' %}"></script>
+    <script src="{% static 'global/js/global.js' %}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

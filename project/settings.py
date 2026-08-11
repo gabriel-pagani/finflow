@@ -105,6 +105,10 @@ TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 
+USE_L10N = True
+
+USE_THOUSAND_SEPARATOR = True
+
 USE_TZ = True
 
 STATICFILES_DIRS = [
@@ -129,6 +133,12 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media_root'
 
 AUTH_USER_MODEL = 'app.User'
+
+LOGIN_URL = 'admin:login'
+
+LOGIN_REDIRECT_URL = 'app:overview'
+
+LOGOUT_REDIRECT_URL = 'app:overview'
 
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 

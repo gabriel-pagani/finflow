@@ -1,0 +1,57 @@
+{% extends 'global/global.html' %}
+
+{% block title %}Visão Geral - FinFlow{% endblock %}
+
+{% block content %}
+    {% include 'app/filters.html' %}
+
+    <section class="cards">
+        <div class="card metric metric-income">
+            <strong>R$ {{ cards.income|floatformat:2 }}</strong>
+            <span>Valor Total de Entradas</span>
+        </div>
+        <div class="card metric metric-outcome">
+            <strong>R$ {{ cards.outcome|floatformat:2 }}</strong>
+            <span>Valor Total de Saídas</span>
+        </div>
+        <div class="card metric metric-invested">
+            <strong>R$ {{ cards.invested|floatformat:2 }}</strong>
+            <span>Valor Total em Investimentos</span>
+        </div>
+        <div class="card metric metric-balance">
+            <strong>R$ {{ cards.balance|floatformat:2 }}</strong>
+            <span>Saldo Atual</span>
+        </div>
+    </section>
+
+    <section class="charts">
+        <div class="card">
+            <h2>Valor de Entradas e Saídas por Período</h2>
+            <div id="chart-months" class="chart"></div>
+        </div>
+        <div class="card">
+            <h2>Valor Gasto por Categoria</h2>
+            <div id="chart-categories" class="chart"></div>
+        </div>
+    </section>
+
+    {{ chart_months|json_script:"data-months" }}
+    {{ chart_categories|json_script:"data-categories" }}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const months = JSON.parse(document.getElementById('data-months').textContent);
+    const categories = JSON.parse(document.getElementById('data-categories').textContent);
+
+    renderBarChart('chart-months', {
+        labels: months.labels,
+        series: [
+            { name: 'Entrada', data: months.income, color: '#5aa469' },
+            { name: 'Saída', data: months.outcome, color: '#c0504d' },
+        ],
+    });
+
+    renderDonutChart('chart-categories', categories);
+</script>
+{% endblock %}
