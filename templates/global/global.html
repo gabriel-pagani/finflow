@@ -18,7 +18,7 @@
             </nav>
             <form class="logout" method="post" action="{% url 'admin:logout' %}">
                 {% csrf_token %}
-                <span>Bem-vindo(a), {{ user.get_short_name|default:user.username }}!</span>
+                <span>Bem-vindo(a), {{ user.get_short_name|default:user.username }}.</span>
                 {% if user.is_staff %}
                     <a class="button" href="{% url 'admin:index' %}">Administração</a>
                 {% endif %}
