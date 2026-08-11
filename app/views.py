@@ -95,8 +95,14 @@ class OverviewView(FilteredTransactionsMixin, TemplateView):
         }
         balance = to_float(balance_totals.get(Type.IN)) - to_float(balance_totals.get(Type.OUT))
 
+        # Saldo investido é posição acumulada, como o card de saldo: só o
+        # filtro de conta se aplica, não o de período nem o de categoria.
+        investments = Investment.objects.filter(user=self.request.user)
+        if context['filters']['account']:
+            investments = investments.filter(account_id__in=context['filters']['account'])
+
         invested = Decimal('0.00')
-        for investment in Investment.objects.filter(user=self.request.user):
+        for investment in investments:
             invested += investment.balance
 
         by_month = (
