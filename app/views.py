@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
@@ -17,6 +18,19 @@ def month_label(value):
 
 def to_float(value):
     return float(value or Decimal('0.00'))
+
+
+class LoginView(auth_views.LoginView):
+    """Tela de login do sistema. O portal de administração segue com o login próprio."""
+
+    template_name = 'app/login.html'
+    redirect_authenticated_user = True
+
+
+class LogoutView(auth_views.LogoutView):
+    """Encerra a sessão e devolve o usuário para a tela de login."""
+
+    next_page = 'app:login'
 
 
 class FilteredTransactionsMixin(LoginRequiredMixin):
