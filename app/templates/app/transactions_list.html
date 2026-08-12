@@ -1,0 +1,140 @@
+{% extends 'global/global.html' %}
+{% load l10n %}
+
+{% block title %}Transações - FinFlow{% endblock %}
+
+{% block body_class %}page-fill{% endblock %}
+
+{% block content %}
+    {% include 'app/filters.html' %}
+
+    <section class="card fill-height">
+        <div class="card-header">
+            <h1>Transações</h1>
+            <button type="button" data-transaction-new>Nova Transação</button>
+        </div>
+
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Conta</th>
+                    <th>Tipo</th>
+                    <th>Método</th>
+                    <th>Categoria</th>
+                    <th>Descrição</th>
+                    <th class="right">Valor</th>
+                    <th class="right">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in object_list %}
+                    {% comment %}
+                    As transações de parcelamento e investimento entram só como
+                    leitura: quem manda nelas é o registro de origem, no admin.
+                    {% endcomment %}
+                    {% comment %}
+                    unlocalize nos ids: com USE_THOUSAND_SEPARATOR o pk 1294
+                    sairia como "1.294" e a URL montada pelo JS não casaria com
+                    a rota <int:pk>, devolvendo 404.
+                    {% endcomment %}
+                    <tr {% if not transaction.is_derived %}class="row-editable"
+                        data-transaction
+                        data-id="{{ transaction.pk|unlocalize }}"
+                        data-datetime="{{ transaction.datetime|date:'Y-m-d\TH:i' }}"
+                        data-account="{{ transaction.account_id|unlocalize }}"
+                        data-type="{{ transaction.type }}"
+                        data-method="{{ transaction.method }}"
+                        data-category="{% if transaction.category_id %}{{ transaction.category_id|unlocalize }}{% endif %}"
+                        data-description="{{ transaction.description|default:'' }}"
+                        data-value="{{ transaction.value|stringformat:'.2f' }}"
+                        data-label="{{ transaction }}"
+                        tabindex="0" role="button"
+                        title="Clique para editar"{% else %}class="row-locked"{% endif %}>
+                        <td>{{ transaction.datetime|date:'d/m/Y H:i' }}</td>
+                        <td>{{ transaction.account }}</td>
+                        <td>{{ transaction.get_type_display }}</td>
+                        <td>{{ transaction.get_method_display }}</td>
+                        <td>{{ transaction.category_display }}</td>
+                        <td>{{ transaction.description|default:'-' }}</td>
+                        <td class="right">R$ {{ transaction.value|floatformat:2 }}</td>
+                        <td class="right nowrap">
+                            {% if transaction.is_derived %}
+                                <span class="row-origin" title="Editada pelo registro de origem, na administração">
+                                    {% if transaction.installment_id %}Parcelamento{% else %}Investimento{% endif %}
+                                </span>
+                            {% else %}
+                                <button type="button" class="icon-button" data-transaction-edit title="Editar">Editar</button>
+                                <button type="button" class="icon-button danger" data-transaction-delete title="Remover">Remover</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8">Nenhuma transação encontrada para os filtros selecionados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
+        {% include 'app/pagination.html' %}
+    </section>
+
+    {% comment %}
+    Um modal só, reaproveitado por criação e edição: o JS troca a action do
+    form e preenche os campos a partir dos data-attributes da linha.
+    {% endcomment %}
+    <dialog class="modal" data-transaction-modal>
+        <form method="post" data-transaction-form>
+            {% csrf_token %}
+            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+
+            <h2 data-modal-title>Nova Transação</h2>
+
+            <div class="modal-grid">
+                {% for field in form %}
+                    <div class="modal-field{% if field.name == 'description' %} modal-field-wide{% endif %}">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="modal-actions">
+                {% comment %}
+                Só faz sentido na edição; o JS o esconde ao abrir em modo de
+                criação. Fica à esquerda, separado das ações de confirmação,
+                para não ser clicado por engano no lugar de Salvar.
+                {% endcomment %}
+                <button type="button" class="danger modal-action-delete" data-modal-delete hidden>Excluir</button>
+                <button type="button" class="secondary" data-modal-close>Cancelar</button>
+                <button type="submit">Salvar</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog class="modal" data-delete-modal>
+        <form method="post" data-delete-form>
+            {% csrf_token %}
+            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+
+            <h2>Remover Transação</h2>
+            <p class="modal-text">Tem certeza que deseja remover <strong data-delete-label></strong>? Esta ação não pode ser desfeita.</p>
+
+            <div class="modal-actions">
+                <button type="button" class="secondary" data-modal-close>Cancelar</button>
+                <button type="submit" class="danger">Remover</button>
+            </div>
+        </form>
+    </dialog>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        setupTransactionCrud({
+            createUrl: "{% url 'app:transaction_create' %}",
+            updateUrl: "{% url 'app:transaction_update' 0 %}",
+            deleteUrl: "{% url 'app:transaction_delete' 0 %}",
+        });
+    </script>
+{% endblock %}

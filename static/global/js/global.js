@@ -45,6 +45,118 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-multiselect]').forEach(setupMultiselect);
 });
 
+/* Transaction CRUD -------------------------------------------------------- */
+
+function setupTransactionCrud(urls) {
+    const modal = document.querySelector('[data-transaction-modal]');
+    const deleteModal = document.querySelector('[data-delete-modal]');
+    if (!modal || !deleteModal) return;
+
+    const form = modal.querySelector('[data-transaction-form]');
+    const title = modal.querySelector('[data-modal-title]');
+    const modalDelete = modal.querySelector('[data-modal-delete]');
+    const deleteForm = deleteModal.querySelector('[data-delete-form]');
+    const deleteLabel = deleteModal.querySelector('[data-delete-label]');
+
+    // Linha aberta no modal de edição, para o botão Excluir saber o alvo.
+    let editingRow = null;
+
+    // As rotas vêm com o pk 0 como molde, já que o {% url %} exige um valor.
+    // O segmento é trocado inteiro: casar só "0/" pegaria qualquer zero da
+    // URL, e ancorar no fim nunca casaria, já que o pk vem antes da ação.
+    function urlFor(template, id) {
+        return template.replace(/\/0\//, '/' + id + '/');
+    }
+
+    function field(name) {
+        return form.querySelector(`[name="${name}"]`);
+    }
+
+    function openCreate() {
+        form.action = urls.createUrl;
+        title.textContent = 'Nova Transação';
+        form.reset();
+        editingRow = null;
+        if (modalDelete) modalDelete.hidden = true;
+        modal.showModal();
+    }
+
+    function openEdit(row) {
+        const data = row.dataset;
+        form.action = urlFor(urls.updateUrl, data.id);
+        title.textContent = 'Editar Transação';
+        editingRow = row;
+        if (modalDelete) modalDelete.hidden = false;
+
+        field('datetime').value = data.datetime;
+        field('account').value = data.account;
+        field('type').value = data.type;
+        field('method').value = data.method;
+        field('category').value = data.category;
+        field('description').value = data.description;
+        field('value').value = data.value;
+
+        modal.showModal();
+    }
+
+    function openDelete(row) {
+        deleteForm.action = urlFor(urls.deleteUrl, row.dataset.id);
+        deleteLabel.textContent = row.dataset.label;
+        deleteModal.showModal();
+    }
+
+    // Cancelar a confirmação não volta para a edição: o modal já foi fechado e
+    // reabri-lo sozinho seria surpreendente.
+    deleteModal.addEventListener('close', () => {
+        editingRow = null;
+    });
+
+    const newButton = document.querySelector('[data-transaction-new]');
+    if (newButton) newButton.addEventListener('click', openCreate);
+
+    // Excluir dentro do formulário de edição: fecha este modal e cai na mesma
+    // confirmação usada pelo botão da linha. Empilhar dois <dialog> modais
+    // prenderia o foco no primeiro, então a troca é sequencial.
+    if (modalDelete) {
+        modalDelete.addEventListener('click', () => {
+            if (!editingRow) return;
+            const row = editingRow;
+            modal.close();
+            openDelete(row);
+        });
+    }
+
+    document.querySelectorAll('[data-modal-close]').forEach((button) => {
+        button.addEventListener('click', () => button.closest('dialog').close());
+    });
+
+    // Clicar no fundo escuro fecha, comportamento que o <dialog> não dá de graça.
+    [modal, deleteModal].forEach((dialog) => {
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) dialog.close();
+        });
+    });
+
+    document.querySelectorAll('[data-transaction]').forEach((row) => {
+        row.addEventListener('click', (event) => {
+            // Os botões da própria linha têm ação própria; o resto da linha edita.
+            if (event.target.closest('[data-transaction-delete]')) {
+                openDelete(row);
+                return;
+            }
+            openEdit(row);
+        });
+
+        // Teclado: a linha é focável, então Enter e Espaço abrem a edição.
+        row.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openEdit(row);
+            }
+        });
+    });
+}
+
 /* Charts ------------------------------------------------------------------ */
 
 const CHART_PALETTE = [

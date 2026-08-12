@@ -1,4 +1,4 @@
-{% comment %}
+{% load l10n %}{% comment %}
 Dropdown de múltipla escolha.
 
 Aceita dois formatos de opção:
@@ -18,7 +18,7 @@ enviam normalmente, então o filtro funciona mesmo com script desabilitado.
             <div class="multiselect-options">
                 {% for option in options %}
                     <label class="multiselect-option">
-                        <input type="checkbox" name="{{ name }}" value="{{ option.pk }}"
+                        <input type="checkbox" name="{{ name }}" value="{{ option.pk|unlocalize }}"
                                {% if option.pk|stringformat:'s' in selected %}checked{% endif %}>
                         <span>{{ option }}</span>
                     </label>

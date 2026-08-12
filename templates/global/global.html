@@ -15,7 +15,7 @@
             <nav>
                 <a href="{% url 'app:overview' %}">Visão Geral</a>
                 <a href="{% url 'app:forecast' %}">Previsão</a>
-                <a href="{% url 'app:transaction_list' %}">Transações</a>
+                <a href="{% url 'app:transactions_list' %}">Transações</a>
             </nav>
             <form class="logout" method="post" action="{% url 'app:logout' %}">
                 {% csrf_token %}
@@ -31,7 +31,7 @@
     <main>
         {% if messages %}
             <ul class="messages">
-                {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+                {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
             </ul>
         {% endif %}
         {% block content %}{% endblock %}
