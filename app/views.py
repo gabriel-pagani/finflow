@@ -5,7 +5,8 @@ from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.db.models import Sum
+from django.contrib.postgres.lookups import Unaccent
+from django.db.models import Sum, Value
 from django.db.models.functions import TruncMonth
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -257,7 +258,9 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
         if filters['method']:
             queryset = queryset.filter(method__in=filters['method'])
         if filters['search']:
-            queryset = queryset.filter(description__icontains=filters['search'])
+            queryset = queryset.annotate(
+                description_unaccent=Unaccent('description'),
+            ).filter(description_unaccent__icontains=Unaccent(Value(filters['search'])))
 
         return queryset
 
