@@ -20,6 +20,13 @@
             {% include 'app/multiselect.html' with name='method' legend='Método' empty='Todos' choices=method_choices selected=filters.method %}
         {% endif %}
 
+        {% if search_enabled %}
+            <label>
+                Descrição
+                <input type="search" name="search" value="{{ filters.search }}" placeholder="Ex.: Almoço" autocomplete="off">
+            </label>
+        {% endif %}
+
         <div class="filters-actions">
             <button type="submit">Aplicar</button>
             <a class="button" href="{{ request.path }}">Limpar</a>

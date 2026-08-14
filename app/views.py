@@ -245,6 +245,7 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
         filters = super().get_filters()
         filters['type'] = [v for v in self.request.GET.getlist('type') if v in Type.values]
         filters['method'] = [v for v in self.request.GET.getlist('method') if v in Method.values]
+        filters['search'] = self.request.GET.get('search', '').strip()
         return filters
 
     def get_queryset(self):
@@ -255,6 +256,8 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
             queryset = queryset.filter(type__in=filters['type'])
         if filters['method']:
             queryset = queryset.filter(method__in=filters['method'])
+        if filters['search']:
+            queryset = queryset.filter(description__icontains=filters['search'])
 
         return queryset
 
@@ -272,6 +275,10 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
 
         context['types'] = Type.choices
         context['method_choices'] = Method.choices
+
+        # A busca por descrição só faz sentido aqui: os painéis agregam valores,
+        # não listam as descrições que o filtro recortaria.
+        context['search_enabled'] = True
 
         # Formulário do modal de criação. Na edição o JS preenche os campos a
         # partir dos data-attributes da linha, sem ida extra ao servidor.
