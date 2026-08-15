@@ -29,7 +29,7 @@ make-migrations:
 	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
 
 create-superuser:
-	@docker compose -f deploy/docker-compose.yml exec django python manage.py shell -c "from app.models import User; User.objects.filter(username='admin').exists() or User.objects.create_superuser(username='admin', password='123456')"
+	@docker compose -f deploy/docker-compose.yml exec django python manage.py createsuperuser
 
 container-terminal:
 	@docker compose -f deploy/docker-compose.yml exec $(container) sh
