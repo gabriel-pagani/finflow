@@ -11,6 +11,7 @@ from django.db.models.functions import TruncMonth
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 import reversion
@@ -312,8 +313,14 @@ class TransactionWriteMixin(LoginRequiredMixin):
     def get_success_url(self):
         # Devolve o usuário para a listagem com os filtros e a página que ele
         # estava vendo, em vez de jogá-lo no topo da lista sem filtro.
+        # A validação é a do próprio Django: um simples startswith('/') deixaria
+        # passar '//evil.com', que o navegador lê como protocol-relative.
         back = self.request.POST.get('back')
-        if back and back.startswith('/'):
+        if back and url_has_allowed_host_and_scheme(
+            back,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
             return back
         return reverse('app:transactions_list')
 
