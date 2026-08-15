@@ -30,6 +30,10 @@ make-migrations:
 
 create-superuser:
 	@docker compose -f deploy/docker-compose.yml exec django python manage.py createsuperuser
+	@docker compose -f deploy/docker-compose.yml exec -T django python manage.py shell < app/utils/create_totp.py
+
+create-totp:
+	@docker compose -f deploy/docker-compose.yml exec -T -e TOTP_USER="$(user)" django python manage.py shell < app/utils/create_totp.py
 
 container-terminal:
 	@docker compose -f deploy/docker-compose.yml exec $(container) sh
