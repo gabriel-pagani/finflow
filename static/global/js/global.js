@@ -43,7 +43,48 @@ function setupMultiselect(root) {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-multiselect]').forEach(setupMultiselect);
+    bootstrapCharts();
+    bootstrapTransactionCrud();
 });
+
+/* Bootstrap --------------------------------------------------------------- */
+
+// A inicialização é dirigida por data-attributes em vez de <script> inline
+// para que a CSP possa recusar script inline sem 'unsafe-inline'.
+
+function readJsonScript(id) {
+    const node = document.getElementById(id);
+    return node ? JSON.parse(node.textContent) : null;
+}
+
+function bootstrapCharts() {
+    document.querySelectorAll('[data-bar-chart]').forEach((element) => {
+        const data = readJsonScript(element.dataset.barChart);
+        if (!data) return;
+
+        // Cada série carrega o próprio rótulo e cor no JSON, para que a view
+        // decida o que exibir sem precisar de um ramo por template aqui.
+        renderBarChart(element.id, { labels: data.labels, series: data.series });
+    });
+
+    document.querySelectorAll('[data-donut-chart]').forEach((element) => {
+        const data = readJsonScript(element.dataset.donutChart);
+        if (!data) return;
+
+        renderDonutChart(element.id, data);
+    });
+}
+
+function bootstrapTransactionCrud() {
+    const root = document.querySelector('[data-transaction-urls]');
+    if (!root) return;
+
+    setupTransactionCrud({
+        createUrl: root.dataset.createUrl,
+        updateUrl: root.dataset.updateUrl,
+        deleteUrl: root.dataset.deleteUrl,
+    });
+}
 
 /* Transaction CRUD -------------------------------------------------------- */
 

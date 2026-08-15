@@ -158,10 +158,14 @@ class OverviewView(FilteredTransactionsMixin, TemplateView):
             'invested': to_float(invested),
             'balance': balance,
         }
+        # As séries já saem daqui com nome e cor: o template só aponta o
+        # elemento para este JSON, sem script inline para montá-las.
         context['chart_months'] = {
             'labels': [month_label(month) for month in months],
-            'income': [income_series[month] for month in months],
-            'outcome': [outcome_series[month] for month in months],
+            'series': [
+                {'name': 'Entrada', 'data': [income_series[month] for month in months], 'color': '#5aa469'},
+                {'name': 'Saída', 'data': [outcome_series[month] for month in months], 'color': '#c0504d'},
+            ],
         }
         context['chart_categories'] = [
             {'name': row['category__description'] or 'Categoria Não Identificada', 'value': to_float(row['total'])}
@@ -210,7 +214,9 @@ class ForecastView(FilteredTransactionsMixin, TemplateView):
         context['total'] = to_float(transactions.aggregate(total=Sum('value'))['total'])
         context['chart_months'] = {
             'labels': [month_label(row['month']) for row in by_month],
-            'values': [to_float(row['total']) for row in by_month],
+            'series': [
+                {'name': 'Gasto Previsto', 'data': [to_float(row['total']) for row in by_month], 'color': '#c0504d'},
+            ],
         }
         context['chart_categories'] = [
             {'name': row['category__description'] or 'Categoria Não Identificada', 'value': to_float(row['total'])}

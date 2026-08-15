@@ -130,11 +130,8 @@
 {% endblock %}
 
 {% block scripts %}
-    <script>
-        setupTransactionCrud({
-            createUrl: "{% url 'app:transaction_create' %}",
-            updateUrl: "{% url 'app:transaction_update' 0 %}",
-            deleteUrl: "{% url 'app:transaction_delete' 0 %}",
-        });
-    </script>
+    <div data-transaction-urls
+         data-create-url="{% url 'app:transaction_create' %}"
+         data-update-url="{% url 'app:transaction_update' 0 %}"
+         data-delete-url="{% url 'app:transaction_delete' 0 %}"></div>
 {% endblock %}

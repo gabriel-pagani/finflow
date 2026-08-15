@@ -27,31 +27,14 @@
     <section class="charts">
         <div class="card">
             <h2>Valor de Entradas e Saídas por Período</h2>
-            <div id="chart-months" class="chart"></div>
+            <div id="chart-months" class="chart" data-bar-chart="data-months"></div>
         </div>
         <div class="card">
             <h2>Valor Gasto por Categoria</h2>
-            <div id="chart-categories" class="chart"></div>
+            <div id="chart-categories" class="chart" data-donut-chart="data-categories"></div>
         </div>
     </section>
 
     {{ chart_months|json_script:"data-months" }}
     {{ chart_categories|json_script:"data-categories" }}
-{% endblock %}
-
-{% block scripts %}
-<script>
-    const months = JSON.parse(document.getElementById('data-months').textContent);
-    const categories = JSON.parse(document.getElementById('data-categories').textContent);
-
-    renderBarChart('chart-months', {
-        labels: months.labels,
-        series: [
-            { name: 'Entrada', data: months.income, color: '#5aa469' },
-            { name: 'Saída', data: months.outcome, color: '#c0504d' },
-        ],
-    });
-
-    renderDonutChart('chart-categories', categories);
-</script>
 {% endblock %}
