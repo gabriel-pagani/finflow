@@ -209,3 +209,10 @@ if not DEBUG:
     X_FRAME_OPTIONS = 'DENY'
 
     SECURE_REFERRER_POLICY = 'same-origin'
+
+    # O prefixo __Host- faz o navegador recusar o cookie se ele não vier por
+    # HTTPS, com Path=/ e sem Domain. Assim um subdomínio comprometido não
+    # consegue plantar um cookie que se passe por este (cookie tossing).
+    SESSION_COOKIE_NAME = '__Host-sessionid'
+
+    CSRF_COOKIE_NAME = '__Host-csrftoken'
