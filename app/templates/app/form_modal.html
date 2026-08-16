@@ -1,0 +1,43 @@
+{% comment %}
+Modal de formulário, compartilhado pelos três tipos de lançamento. Recebe:
+  kind       identifica o modal para o JS ('transaction', 'installment', 'transfer')
+  title      título exibido no topo
+  action     URL do POST (a de transação é trocada pelo JS ao abrir em edição)
+  form       formulário a renderizar
+  deletable  mostra o botão Excluir, escondido até o modal abrir em edição
+
+O tipo vai em data-modal="{{ kind }}" em vez de um data-attribute próprio por
+modal: como atributo é valor, o Django o escapa normalmente, enquanto um nome
+de atributo interpolado sairia como texto.
+{% endcomment %}
+<dialog class="modal" data-modal="{{ kind }}">
+    <form method="post" action="{{ action }}" data-modal-form>
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ request.get_full_path }}">
+
+        <h2 data-modal-title>{{ title }}</h2>
+
+        <div class="modal-grid">
+            {% for field in form %}
+                <div class="modal-field{% if field.name == 'description' %} modal-field-wide{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<span class="modal-hint">{{ field.help_text }}</span>{% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="modal-actions">
+            {% comment %}
+            Só faz sentido na edição; o JS o esconde ao abrir em modo de
+            criação. Fica à esquerda, separado das ações de confirmação,
+            para não ser clicado por engano no lugar de Salvar.
+            {% endcomment %}
+            {% if deletable %}
+                <button type="button" class="danger modal-action-delete" data-modal-delete hidden>Excluir</button>
+            {% endif %}
+            <button type="button" class="secondary" data-modal-close>Cancelar</button>
+            <button type="submit">Salvar</button>
+        </div>
+    </form>
+</dialog>

@@ -15,8 +15,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 import reversion
-from .forms import TransactionForm
-from .models import Account, Category, Type, Method, Nature, Installment, Investment, Transaction
+from .forms import InstallmentForm, TransactionForm, TransferForm
+from .models import Account, Category, Type, Method, Nature, Installment, Investment, Transaction, Transfer
 
 
 MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -296,20 +296,21 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
         # não listam as descrições que o filtro recortaria.
         context['search_enabled'] = True
 
-        # Formulário do modal de criação. Na edição o JS preenche os campos a
-        # partir dos data-attributes da linha, sem ida extra ao servidor.
+        # Formulários dos modais de criação. Na edição o JS preenche os campos
+        # a partir dos data-attributes da linha, sem ida extra ao servidor.
         context['form'] = TransactionForm(user=self.request.user)
+        context['installment_form'] = InstallmentForm(user=self.request.user)
+        context['transfer_form'] = TransferForm(user=self.request.user)
         return context
 
 
-class TransactionWriteMixin(LoginRequiredMixin):
-    """Base das telas de escrita: só transações avulsas do próprio usuário."""
+class ModalWriteMixin(LoginRequiredMixin):
+    """Base das telas de escrita, todas servidas pelos modais da listagem.
 
-    model = Transaction
-    form_class = TransactionForm
-
-    def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user)
+    Não há template de formulário próprio: o GET volta para a lista, o POST
+    inválido devolve os erros como mensagens e o sucesso retorna à página que o
+    usuário estava vendo.
+    """
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -343,29 +344,76 @@ class TransactionWriteMixin(LoginRequiredMixin):
         return redirect(self.get_success_url())
 
 
-class TransactionCreateView(TransactionWriteMixin, CreateView):
-    """Cria uma transação avulsa para o usuário logado."""
+class RevisionCreateMixin:
+    """Criação com trilha de auditoria, a mesma do admin (VersionAdmin).
+
+    Sem o create_revision o histórico ficaria cego para o que sai destas telas.
+    Cada view informa o rótulo do que criou, usado na mensagem e no comentário
+    da revisão.
+    """
+
+    success_message = None
+    revision_comment = 'Criado pela tela de transações.'
 
     def form_valid(self, form):
-        # Mesma trilha de auditoria do admin (VersionAdmin): sem isto o
-        # histórico ficaria cego para o que é feito por esta tela.
         with reversion.create_revision():
             reversion.set_user(self.request.user)
-            reversion.set_comment('Criado pela tela de transações.')
+            reversion.set_comment(self.revision_comment)
             response = super().form_valid(form)
 
-        messages.success(self.request, 'Transação criada com sucesso.')
+        messages.success(self.request, self.success_message)
         return response
 
 
+class TransactionWriteMixin(ModalWriteMixin):
+    """Escrita de transações avulsas do próprio usuário."""
+
+    model = Transaction
+    form_class = TransactionForm
+
+    def get_queryset(self):
+        return Transaction.objects.filter(user=self.request.user)
+
+
+class TransactionCreateView(RevisionCreateMixin, TransactionWriteMixin, CreateView):
+    """Cria uma transação avulsa para o usuário logado."""
+
+    success_message = 'Transação criada com sucesso.'
+
+
+class InstallmentCreateView(RevisionCreateMixin, ModalWriteMixin, CreateView):
+    """Cria um parcelamento, que por sua vez gera as transações das parcelas.
+
+    Só a criação é exposta: alterar o parcelamento depois exigiria regerar as
+    parcelas, e isso continua sendo assunto do admin.
+    """
+
+    model = Installment
+    form_class = InstallmentForm
+    success_message = 'Parcelamento criado com sucesso.'
+
+
+class TransferCreateView(RevisionCreateMixin, ModalWriteMixin, CreateView):
+    """Cria uma transferência, que gera o par de transações (saída e entrada)."""
+
+    model = Transfer
+    form_class = TransferForm
+    success_message = 'Transferência criada com sucesso.'
+
+
 class DerivedProtectedMixin:
-    """Bloqueia edição e exclusão de transações geradas por parcelamento ou
-    investimento: elas pertencem ao registro de origem, mexido só no admin."""
+    """Bloqueia a edição de transações geradas por um registro de origem: os
+    valores delas derivam do parcelamento, da transferência ou do investimento,
+    e mexer numa perna isolada deixaria o conjunto inconsistente.
+
+    A exclusão não passa por aqui: ela apaga o registro de origem inteiro,
+    que é o gesto coerente com o que o usuário vê na tela.
+    """
 
     def get_object(self, queryset=None):
         transaction = super().get_object(queryset)
         if transaction.is_derived:
-            raise PermissionDenied('Transações de parcelamento ou investimento são editadas pelo registro de origem, no portal de administração.')
+            raise PermissionDenied('Transações de parcelamento, transferência ou investimento são editadas pelo registro de origem, no portal de administração.')
         return transaction
 
 
@@ -382,8 +430,19 @@ class TransactionUpdateView(DerivedProtectedMixin, TransactionWriteMixin, Update
         return response
 
 
-class TransactionDeleteView(DerivedProtectedMixin, TransactionWriteMixin, DeleteView):
-    """Apaga uma transação avulsa do usuário logado."""
+class TransactionDeleteView(TransactionWriteMixin, DeleteView):
+    """Apaga uma transação do usuário logado.
+
+    A transação avulsa se apaga sozinha. A que veio de um parcelamento ou de
+    uma transferência apaga o registro de origem inteiro, e o CASCADE leva as
+    demais transações dele junto: remover uma parcela isolada deixaria o
+    parcelamento com um buraco, e uma perna de transferência sozinha viraria
+    entrada ou saída de dinheiro que não existiu.
+
+    Investimento continua fora: a origem dele acumula aplicações, resgates e
+    rendimentos, e apagar tudo isso a partir de uma transação seria destrutivo
+    demais para o gesto feito na tela.
+    """
 
     # O DeleteView só precisa confirmar; herdar o TransactionForm faria o POST
     # ser validado contra campos que a confirmação nem envia.
@@ -395,12 +454,27 @@ class TransactionDeleteView(DerivedProtectedMixin, TransactionWriteMixin, Delete
         kwargs.pop('instance', None)
         return kwargs
 
+    def get_object(self, queryset=None):
+        transaction = super().get_object(queryset)
+        if transaction.investment_id:
+            raise PermissionDenied('Transações de investimento são removidas pelo registro de origem, no portal de administração.')
+        return transaction
+
     def form_valid(self, form):
+        # O alvo real da remoção: a origem, quando existe, ou a própria
+        # transação. O CASCADE das transações filhas cuida do resto. A mensagem
+        # nomeia o que saiu junto, senão o usuário clica numa linha e vê várias
+        # desaparecerem sem explicação.
+        origin, message = self.object.deletable_origin
+        target = origin or self.object
+
         # Revisão antes de apagar: guarda o último estado e o autor da remoção.
         with reversion.create_revision():
             reversion.set_user(self.request.user)
             reversion.set_comment('Removido pela tela de transações.')
-            reversion.add_to_revision(self.object)
+            reversion.add_to_revision(target)
 
-        messages.success(self.request, 'Transação removida com sucesso.')
-        return super().form_valid(form)
+        target.delete()
+
+        messages.success(self.request, message or 'Transação removida com sucesso.')
+        return redirect(self.get_success_url())

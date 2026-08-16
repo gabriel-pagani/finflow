@@ -31,16 +31,26 @@
             <tbody>
                 {% for transaction in object_list %}
                     {% comment %}
-                    As transações de parcelamento e investimento entram só como
-                    leitura: quem manda nelas é o registro de origem, no admin.
+                    As transações derivadas não se editam: quem manda nos
+                    valores é o registro de origem. Remover, porém, é possível
+                    para parcelamento e transferência — o clique apaga a origem
+                    inteira, e o data-origin-warning avisa disso na confirmação.
+                    Investimento segue só leitura, mexido no admin.
                     {% endcomment %}
                     {% comment %}
                     unlocalize nos ids: com USE_THOUSAND_SEPARATOR o pk 1294
                     sairia como "1.294" e a URL montada pelo JS não casaria com
                     a rota <int:pk>, devolvendo 404.
                     {% endcomment %}
-                    <tr {% if not transaction.is_derived %}class="row-editable"
+                    <tr {% if transaction.is_derived %}class="row-locked"
+                        {% if transaction.is_deletable %}
+                        data-transaction-row
+                        data-id="{{ transaction.pk|unlocalize }}"
+                        data-label="{{ transaction }}"
+                        data-origin-warning="{{ transaction.delete_warning }}"
+                        {% endif %}{% else %}class="row-editable"
                         data-transaction
+                        data-transaction-row
                         data-id="{{ transaction.pk|unlocalize }}"
                         data-datetime="{{ transaction.datetime|date:'Y-m-d\TH:i' }}"
                         data-account="{{ transaction.account_id|unlocalize }}"
@@ -52,7 +62,7 @@
                         data-value="{{ transaction.value|stringformat:'.2f' }}"
                         data-label="{{ transaction }}"
                         tabindex="0" role="button"
-                        title="Clique para editar"{% else %}class="row-locked"{% endif %}>
+                        title="Clique para editar"{% endif %}>
                         <td>{{ transaction.datetime|date:'d/m/Y H:i' }}</td>
                         <td>{{ transaction.account }}</td>
                         {% if transaction.type == 'IN' %}
@@ -67,7 +77,15 @@
                         <td class="right {% if transaction.type == 'IN' %}cell-income{% else %}cell-outcome{% endif %}">R$ {% if transaction.type == 'OUT' %}-{% endif %}{{ transaction.value|floatformat:2 }}</td>
                         <td class="right nowrap">
                             {% if transaction.is_derived %}
+                                {% comment %}
+                                A origem continua nomeada na linha: é ela que
+                                explica por que não há Editar, e é ela que o
+                                Remover apaga.
+                                {% endcomment %}
                                 <span class="row-origin">{{ transaction.origin_display }}</span>
+                                {% if transaction.is_deletable %}
+                                    <button type="button" class="icon-button danger" data-transaction-delete title="Remover {{ transaction.origin_display|lower }}">Remover</button>
+                                {% endif %}
                             {% else %}
                                 <button type="button" class="icon-button" data-transaction-edit title="Editar">Editar</button>
                                 <button type="button" class="icon-button danger" data-transaction-delete title="Remover">Remover</button>
@@ -85,37 +103,45 @@
     </section>
 
     {% comment %}
-    Um modal só, reaproveitado por criação e edição: o JS troca a action do
-    form e preenche os campos a partir dos data-attributes da linha.
+    "Nova Transação" abre primeiro esta escolha: os três lançamentos partem do
+    mesmo botão, e só depois de escolhido o tipo é que o formulário aparece.
     {% endcomment %}
-    <dialog class="modal" data-transaction-modal>
-        <form method="post" data-transaction-form>
-            {% csrf_token %}
-            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+    <dialog class="modal modal-narrow" data-kind-modal>
+        <h2>Nova Transação</h2>
+        <p class="modal-text">O que você quer lançar?</p>
 
-            <h2 data-modal-title>Nova Transação</h2>
+        <div class="kind-options">
+            <button type="button" class="kind-option" data-kind-choice="transaction">
+                <strong>Transação Avulsa</strong>
+                <span>Um lançamento único de entrada ou saída.</span>
+            </button>
+            <button type="button" class="kind-option" data-kind-choice="installment">
+                <strong>Parcelamento</strong>
+                <span>Compra no crédito dividida em parcelas mensais.</span>
+            </button>
+            <button type="button" class="kind-option" data-kind-choice="transfer">
+                <strong>Transferência</strong>
+                <span>Movimentação de valor entre duas contas suas.</span>
+            </button>
+        </div>
 
-            <div class="modal-grid">
-                {% for field in form %}
-                    <div class="modal-field{% if field.name == 'description' %} modal-field-wide{% endif %}">
-                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                    </div>
-                {% endfor %}
-            </div>
-
-            <div class="modal-actions">
-                {% comment %}
-                Só faz sentido na edição; o JS o esconde ao abrir em modo de
-                criação. Fica à esquerda, separado das ações de confirmação,
-                para não ser clicado por engano no lugar de Salvar.
-                {% endcomment %}
-                <button type="button" class="danger modal-action-delete" data-modal-delete hidden>Excluir</button>
-                <button type="button" class="secondary" data-modal-close>Cancelar</button>
-                <button type="submit">Salvar</button>
-            </div>
-        </form>
+        <div class="modal-actions">
+            <button type="button" class="secondary" data-modal-close>Cancelar</button>
+        </div>
     </dialog>
+
+    {% comment %}
+    O modal de transação atende criação e edição: o JS troca a action do form e
+    preenche os campos a partir dos data-attributes da linha. Parcelamento e
+    transferência só criam — editá-los exigiria regerar as transações filhas,
+    o que segue sendo assunto do admin.
+    {% endcomment %}
+    {% url 'app:transaction_create' as transaction_url %}
+    {% url 'app:installment_create' as installment_url %}
+    {% url 'app:transfer_create' as transfer_url %}
+    {% include 'app/form_modal.html' with kind='transaction' title='Nova Transação' action=transaction_url form=form deletable=True %}
+    {% include 'app/form_modal.html' with kind='installment' title='Novo Parcelamento' action=installment_url form=installment_form deletable=False %}
+    {% include 'app/form_modal.html' with kind='transfer' title='Nova Transferência' action=transfer_url form=transfer_form deletable=False %}
 
     <dialog class="modal" data-delete-modal>
         <form method="post" data-delete-form>
@@ -124,6 +150,11 @@
 
             <h2>Remover Transação</h2>
             <p class="modal-text">Tem certeza que deseja remover <strong data-delete-label></strong>? Esta ação não pode ser desfeita.</p>
+            {% comment %}
+            Preenchido pelo JS só nas linhas derivadas, com a frase que o model
+            monta: é lá que se sabe o gênero de cada origem.
+            {% endcomment %}
+            <p class="modal-text modal-warning" data-delete-warning hidden></p>
 
             <div class="modal-actions">
                 <button type="button" class="secondary" data-modal-close>Cancelar</button>

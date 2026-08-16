@@ -379,9 +379,62 @@ class Transaction(models.Model):
     # Ficam juntos de propósito: uma origem nova tem de entrar nos dois.
     DERIVED_FIELDS = ('installment', 'investment', 'transfer')
 
+    # Origens que o usuário pode apagar pela tela de transações, levando junto
+    # as transações que elas geraram. Investimento fica de fora: ele acumula
+    # aplicações, resgates e rendimentos, e apagar tudo isso a partir de uma
+    # única transação seria destrutivo demais para o gesto que o usuário fez.
+    #
+    # As frases moram aqui, e não no template ou no JS, porque dependem do
+    # gênero de cada origem: 'warning' avisa antes, na confirmação, e 'success'
+    # confirma o que saiu depois.
+    DELETABLE_ORIGINS = {
+        'installment': {
+            'warning': 'Esta é uma parcela: o parcelamento será removido por inteiro, com todas as suas parcelas.',
+            'success': 'Parcelamento removido com sucesso, junto de todas as suas parcelas.',
+        },
+        'transfer': {
+            'warning': 'Esta é uma perna de transferência: a transferência será removida por inteiro, com as duas transações que ela gerou.',
+            'success': 'Transferência removida com sucesso, junto das duas transações que ela gerou.',
+        },
+    }
+
     @property
     def is_derived(self):
         return bool(self.installment_id or self.investment_id or self.transfer_id)
+
+    @property
+    def deletable_origin_field(self):
+        """Nome do campo de origem que esta transação apaga junto de si.
+
+        Devolve None para a avulsa (que se apaga sozinha) e para a de
+        investimento (cuja origem não é removível por aqui). Responde sem
+        carregar a origem, para a listagem poder perguntar linha a linha.
+        """
+        for field in self.DELETABLE_ORIGINS:
+            if getattr(self, f'{field}_id'):
+                return field
+        return None
+
+    @property
+    def is_deletable(self):
+        """A linha oferece o botão de remover: avulsa ou de origem removível."""
+        return not self.is_derived or self.deletable_origin_field is not None
+
+    @property
+    def delete_warning(self):
+        """Aviso do que mais sai junto, exibido na confirmação. Vazio quando a
+        transação se apaga sozinha."""
+        field = self.deletable_origin_field
+        return self.DELETABLE_ORIGINS[field]['warning'] if field else ''
+
+    @property
+    def deletable_origin(self):
+        """Registro de origem que esta transação apaga junto de si, e a frase
+        que confirma o que saiu. (None, None) quando ela se apaga sozinha."""
+        field = self.deletable_origin_field
+        if not field:
+            return None, None
+        return getattr(self, field), self.DELETABLE_ORIGINS[field]['success']
 
     @classmethod
     def derived_q(cls):

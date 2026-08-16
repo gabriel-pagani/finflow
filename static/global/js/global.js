@@ -86,18 +86,57 @@ function bootstrapTransactionCrud() {
     });
 }
 
+/* Kind picker ------------------------------------------------------------- */
+
+// Escolha do que lançar, entre o botão "Nova Transação" e o formulário. Cada
+// opção abre o modal do seu tipo; o avulso não é aberto aqui porque precisa do
+// reset e da action de criação que só o CRUD de transação conhece.
+function setupKindPicker(openTransactionCreate) {
+    const newButton = document.querySelector('[data-transaction-new]');
+    if (!newButton) return;
+
+    const picker = document.querySelector('[data-kind-modal]');
+    if (!picker) {
+        newButton.addEventListener('click', openTransactionCreate);
+        return;
+    }
+
+    newButton.addEventListener('click', () => picker.showModal());
+
+    picker.querySelectorAll('[data-kind-choice]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const kind = button.dataset.kindChoice;
+
+            // Fecha antes de abrir o próximo: dois <dialog> modais empilhados
+            // prendem o foco no primeiro, como já acontece na exclusão.
+            picker.close();
+
+            if (kind === 'transaction') {
+                openTransactionCreate();
+                return;
+            }
+
+            const modal = document.querySelector(`[data-modal="${kind}"]`);
+            if (!modal) return;
+            modal.querySelector('[data-modal-form]').reset();
+            modal.showModal();
+        });
+    });
+}
+
 /* Transaction CRUD -------------------------------------------------------- */
 
 function setupTransactionCrud(urls) {
-    const modal = document.querySelector('[data-transaction-modal]');
+    const modal = document.querySelector('[data-modal="transaction"]');
     const deleteModal = document.querySelector('[data-delete-modal]');
     if (!modal || !deleteModal) return;
 
-    const form = modal.querySelector('[data-transaction-form]');
+    const form = modal.querySelector('[data-modal-form]');
     const title = modal.querySelector('[data-modal-title]');
     const modalDelete = modal.querySelector('[data-modal-delete]');
     const deleteForm = deleteModal.querySelector('[data-delete-form]');
     const deleteLabel = deleteModal.querySelector('[data-delete-label]');
+    const deleteWarning = deleteModal.querySelector('[data-delete-warning]');
 
     // Linha aberta no modal de edição, para o botão Excluir saber o alvo.
     let editingRow = null;
@@ -144,6 +183,17 @@ function setupTransactionCrud(urls) {
     function openDelete(row) {
         deleteForm.action = urlFor(urls.deleteUrl, row.dataset.id);
         deleteLabel.textContent = row.dataset.label;
+
+        // Linha derivada apaga o registro de origem inteiro, e com ele as
+        // outras transações que vieram junto. Avisar antes é o que separa o
+        // gesto pretendido da surpresa de ver a lista encolher. A frase vem
+        // pronta do servidor, que sabe o gênero de cada origem.
+        if (deleteWarning) {
+            const warning = row.dataset.originWarning;
+            deleteWarning.textContent = warning || '';
+            deleteWarning.hidden = !warning;
+        }
+
         deleteModal.showModal();
     }
 
@@ -153,8 +203,9 @@ function setupTransactionCrud(urls) {
         editingRow = null;
     });
 
-    const newButton = document.querySelector('[data-transaction-new]');
-    if (newButton) newButton.addEventListener('click', openCreate);
+    // "Nova Transação" abre a escolha do tipo; o formulário avulso é só uma das
+    // saídas dela. Sem o seletor no DOM o botão volta a abrir direto o avulso.
+    setupKindPicker(openCreate);
 
     // Excluir dentro do formulário de edição: fecha este modal e cai na mesma
     // confirmação usada pelo botão da linha. Empilhar dois <dialog> modais
@@ -172,22 +223,29 @@ function setupTransactionCrud(urls) {
         button.addEventListener('click', () => button.closest('dialog').close());
     });
 
-    // Clicar no fundo escuro fecha, comportamento que o <dialog> não dá de graça.
-    [modal, deleteModal].forEach((dialog) => {
+    // Clicar no fundo escuro fecha, comportamento que o <dialog> não dá de
+    // graça. Vale para todo modal da página, inclusive os de parcelamento e
+    // transferência, que não têm JS próprio além disto.
+    document.querySelectorAll('dialog.modal').forEach((dialog) => {
         dialog.addEventListener('click', (event) => {
             if (event.target === dialog) dialog.close();
         });
     });
 
-    document.querySelectorAll('[data-transaction]').forEach((row) => {
-        row.addEventListener('click', (event) => {
-            // Os botões da própria linha têm ação própria; o resto da linha edita.
-            if (event.target.closest('[data-transaction-delete]')) {
-                openDelete(row);
-                return;
-            }
-            openEdit(row);
+    // Remover vale para toda linha removível, inclusive a derivada, que não é
+    // editável mas apaga a própria origem. Por isso o listener fica no botão, e
+    // não na linha: só a avulsa reage ao clique no corpo dela.
+    document.querySelectorAll('[data-transaction-row] [data-transaction-delete]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            // Nas linhas editáveis o clique também sobe para o handler da
+            // linha, que abriria a edição por cima da confirmação.
+            event.stopPropagation();
+            openDelete(button.closest('[data-transaction-row]'));
         });
+    });
+
+    document.querySelectorAll('[data-transaction]').forEach((row) => {
+        row.addEventListener('click', () => openEdit(row));
 
         // Teclado: a linha é focável, então Enter e Espaço abrem a edição.
         row.addEventListener('keydown', (event) => {

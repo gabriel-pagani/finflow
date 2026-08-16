@@ -577,6 +577,9 @@ td a {
     color: var(--muted);
     font-size: 11px;
     white-space: nowrap;
+    /* Separa o rótulo do botão Remover, que agora vem ao lado dele nas linhas
+       de parcelamento e transferência. */
+    margin-right: 6px;
 }
 
 .icon-button {
@@ -652,6 +655,15 @@ button.secondary {
     margin-top: 12px;
 }
 
+/* Aviso de que a remoção vai além da linha clicada: destacado porque é a
+   informação que muda a decisão do usuário. */
+.modal-warning {
+    padding: 10px 12px;
+    border: 1px solid var(--outcome);
+    border-radius: 6px;
+    color: var(--text);
+}
+
 .modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -663,6 +675,56 @@ button.secondary {
    Salvar, onde seria clicada por engano. */
 .modal-action-delete {
     margin-right: auto;
+}
+
+/* A escolha do tipo de lançamento não tem formulário: cabe em menos largura
+   que os modais de campos. */
+.modal-narrow {
+    width: min(420px, calc(100vw - 32px));
+}
+
+.kind-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+/* Cada opção é um botão de bloco, com o nome e a explicação empilhados: a
+   regra geral de button centraliza, alinha em linha e trava a altura em 36px,
+   tudo o oposto daqui — por isso o height:auto, sem o qual o padding não tem
+   para onde crescer e o texto encosta nas bordas. */
+.kind-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    height: auto;
+    padding: 14px 16px;
+    text-align: left;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.kind-option:hover {
+    border-color: var(--accent);
+    background: var(--bg);
+}
+
+.kind-option strong {
+    line-height: 20px;
+}
+
+.kind-option span {
+    color: var(--muted);
+    font-weight: 400;
+    /* A explicação quebra em duas linhas no celular; sem line-height próprio
+       ela herdaria os 20px da regra geral, apertados para texto corrido. */
+    line-height: 18px;
+    white-space: normal;
 }
 
 /* hidden precisa vencer o display:inline-flex da regra geral de button. */
