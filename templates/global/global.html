@@ -11,7 +11,10 @@
 <body class="{% block body_class %}{% endblock %}">
     {% if user.is_authenticated %}
         <header class="topbar">
-            <a class="brand" href="{% url 'app:overview' %}">FinFlow</a>
+            <a class="brand" href="{% url 'app:overview' %}">
+                <img src="{% static 'global/images/dark-blue-logo.png' %}">
+                FinFlow
+            </a>
             <nav>
                 <a href="{% url 'app:overview' %}">Visão Geral</a>
                 <a href="{% url 'app:forecast' %}">Previsão</a>

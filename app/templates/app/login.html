@@ -1,4 +1,5 @@
 {% extends 'global/global.html' %}
+{% load static %}
 
 {% block title %}Entrar - FinFlow{% endblock %}
 
@@ -6,7 +7,10 @@
 
 {% block content %}
     <section class="card login-card">
-        <h1>FinFlow</h1>
+        <h1>
+            <img src="{% static 'global/images/dark-blue-logo.png' %}">
+            FinFlow
+        </h1>
 
         {% if form.errors %}
             <p class="login-error">Usuário e/ou senha inválidos!</p>

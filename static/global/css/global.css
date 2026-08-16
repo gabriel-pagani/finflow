@@ -81,6 +81,17 @@ body.page-fill main {
     font-weight: 700;
     color: var(--accent);
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 32px casa com os arquivos gerados (32/64/96 no srcset); mudar o tamanho
+   aqui sem regerar os PNGs traz a serrilha de volta. */
+.brand img {
+    width: 32px;
+    height: 32px;
+    flex: none;
 }
 
 .topbar nav {
@@ -653,21 +664,32 @@ button.secondary {
 
 .login-card {
     width: 100%;
-    max-width: 360px;
+     max-width: 400px;
 }
 
 .login-card h1 {
-    font-size: 20px;
+    font-size: 45px;
     font-weight: 700;
     color: var(--accent);
-    text-align: center;
-    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 28px;
+    padding-top: 36px;
+}
+
+.login-card h1 img {
+    width: 72px;
+    height: 72px;
+    flex: none;
 }
 
 .login-card form {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
 }
 
 .login-field {
