@@ -1,11 +1,10 @@
 from django.contrib import admin, messages
 from django.contrib.admin.actions import delete_selected as admin_delete_selected
-from django.db import models
 from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, Account, Category, BusinessRule, Installment, Investment, Contribution, Redemption, Yield, Transaction
+from .models import User, Group, Account, Category, BusinessRule, Installment, Investment, Contribution, Redemption, Yield, Transfer, Transaction
 
 
 # User Admin
@@ -86,6 +85,25 @@ class InstallmentAdmin(VersionAdmin):
         return ()
 
 
+@admin.register(Transfer)
+class TransferAdmin(VersionAdmin):
+    list_display = ('user', 'origin', 'destination', 'category_display', 'description', 'value', 'datetime',)
+    list_filter = ('user', 'origin', 'destination', 'category',)
+    search_fields = ('description',)
+    autocomplete_fields = ('category',)
+
+    @admin.display(description='Categoria', ordering='category__description')
+    def category_display(self, obj):
+        return obj.category_display
+
+    def get_readonly_fields(self, request, obj=None):
+        # Mesma trava do Parcelamento: as duas pernas saem no save inicial, e
+        # editá-las depois exigiria regerar o par para o saldo não desencontrar.
+        if obj:
+            return ('user', 'origin', 'destination', 'category', 'description', 'value', 'datetime',)
+        return ()
+
+
 class ContributionInline(admin.TabularInline):
     model = Contribution
     extra = 0
@@ -152,11 +170,11 @@ class TransactionAdmin(VersionAdmin):
 
     @admin.action(description='Duplicar Transações selecionadas', permissions=['add'])
     def duplicate_transactions(self, request, queryset):
-        derived_count = queryset.filter(models.Q(installment__isnull=False) | models.Q(investment__isnull=False)).count()
+        derived_count = queryset.filter(Transaction.derived_q()).count()
         if derived_count:
-            self.message_user(request, f'{derived_count} transação(ões) ignorada(s) por ter(em) origem em parcelamento ou investimento.', messages.WARNING)
+            self.message_user(request, f'{derived_count} transação(ões) ignorada(s) por ter(em) origem em parcelamento, investimento ou transferência.', messages.WARNING)
 
-        queryset = queryset.filter(installment__isnull=True, investment__isnull=True)
+        queryset = queryset.filter(**Transaction.standalone_filters())
         if not queryset.exists():
             return None
 
@@ -182,8 +200,8 @@ class TransactionAdmin(VersionAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.is_derived:
-            return ('user', 'account', 'type', 'method', 'nature', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption',)
-        return ('installment', 'parcel', 'investment', 'contribution', 'redemption',)
+            return ('user', 'account', 'type', 'method', 'nature', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer',)
+        return ('installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer',)
 
     def has_delete_permission(self, request, obj=None):
         if obj and obj.is_derived and request.resolver_match and request.resolver_match.url_name in ('app_transaction_change', 'app_transaction_delete'):
@@ -192,11 +210,11 @@ class TransactionAdmin(VersionAdmin):
 
     @admin.action(description='Remover Transações selecionadas', permissions=['delete'])
     def delete_selected(self, request, queryset):
-        derived_count = queryset.filter(models.Q(installment__isnull=False) | models.Q(investment__isnull=False)).count()
+        derived_count = queryset.filter(Transaction.derived_q()).count()
         if derived_count:
-            self.message_user(request, f'{derived_count} transação(ões) ignorada(s) por ter(em) origem em parcelamento ou investimento. Exclua o parcelamento ou investimento de origem.', messages.WARNING)
+            self.message_user(request, f'{derived_count} transação(ões) ignorada(s) por ter(em) origem em parcelamento, investimento ou transferência. Exclua o registro de origem.', messages.WARNING)
 
-        queryset = queryset.filter(installment__isnull=True, investment__isnull=True)
+        queryset = queryset.filter(**Transaction.standalone_filters())
         if not queryset.exists():
             return None
 

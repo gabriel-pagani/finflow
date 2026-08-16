@@ -280,6 +280,75 @@ class Yield(InvestmentEntry):
         verbose_name_plural = 'Rendimentos'
 
 
+class Transfer(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transfers', verbose_name='Usuário')
+    origin = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='transfers_out', verbose_name='Conta de Origem')
+    destination = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='transfers_in', verbose_name='Conta de Destino')
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, verbose_name='Categoria')
+    description = models.CharField(max_length=200, blank=True, null=True, verbose_name='Descrição')
+    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor')
+    datetime = models.DateTimeField(verbose_name='Data e Hora')
+
+    # A saída é débito, dinheiro que já deixou a conta. A entrada é não se
+    # aplica: o dinheiro só voltou para o próprio usuário, e classificá-la como
+    # débito a colocaria no mesmo balde de uma receita de verdade.
+    METHOD = Method.DEBIT
+    DESTINATION_METHOD = Method.NOT_APPLICABLE
+
+    def clean(self):
+        super().clean()
+
+        if self.origin_id and self.destination_id and self.origin_id == self.destination_id:
+            raise ValidationError({'destination': 'A conta de destino deve ser diferente da conta de origem.'})
+
+        if self.value is not None and self.value <= 0:
+            raise ValidationError({'value': 'O valor deve ser maior que zero.'})
+
+        # Mesma checagem do Parcelamento, uma perna de cada vez: sem as duas
+        # regras a transferência gravaria metade e deixaria o saldo torto.
+        if self.origin_id and not BusinessRule.objects.filter(account=self.origin, type=Type.OUT, method=self.METHOD).exists():
+            raise ValidationError({'origin': f'A conta de origem não permite saída em {Method(self.METHOD).label}, necessário para registrar a transferência.'})
+
+        if self.destination_id and not BusinessRule.objects.filter(account=self.destination, type=Type.IN, method=self.DESTINATION_METHOD).exists():
+            raise ValidationError({'destination': f'A conta de destino não permite entrada em {Method(self.DESTINATION_METHOD).label}, necessário para registrar a transferência.'})
+
+    def generate_transactions(self):
+        self.transactions.all().delete()
+
+        common = {
+            'user': self.user,
+            'nature': Nature.INTERNAL,
+            'category': self.category,
+            'description': self.description,
+            'value': self.value,
+            'datetime': self.datetime,
+            'transfer': self,
+        }
+
+        Transaction.objects.bulk_create([
+            Transaction(account=self.origin, type=Type.OUT, method=self.METHOD, **common),
+            Transaction(account=self.destination, type=Type.IN, method=self.DESTINATION_METHOD, **common),
+        ])
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if is_new:
+            self.generate_transactions()
+
+    @property
+    def category_display(self):
+        return str(self.category) if self.category_id else 'Categoria Não Identificada'
+
+    def __str__(self):
+        return f'R${self.value} ({self.origin} → {self.destination})'
+
+    class Meta:
+        ordering = ['-datetime']
+        verbose_name = 'Transferência'
+        verbose_name_plural = 'Transferências'
+
+
 class Transaction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transactions_owned', verbose_name='Usuário')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name='Conta')
@@ -298,15 +367,34 @@ class Transaction(models.Model):
     contribution = models.ForeignKey(Contribution, on_delete=models.CASCADE, related_name='transactions', blank=True, null=True, verbose_name='Aplicação')
     redemption = models.ForeignKey(Redemption, on_delete=models.CASCADE, related_name='transactions', blank=True, null=True, verbose_name='Resgate')
 
+    transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name='transactions', blank=True, null=True, verbose_name='Transferência')
+
     def clean(self):
         super().clean()
         if self.account_id and self.type and self.method:
             if not BusinessRule.objects.filter(account=self.account, type=self.type, method=self.method).exists():
                 raise ValidationError('Combinação de conta, tipo e método não permitida pelas regras de negócio.')
 
+    # Espelho do is_derived para uso em queryset, onde a property não alcança.
+    # Ficam juntos de propósito: uma origem nova tem de entrar nos dois.
+    DERIVED_FIELDS = ('installment', 'investment', 'transfer')
+
     @property
     def is_derived(self):
-        return bool(self.installment_id or self.investment_id)
+        return bool(self.installment_id or self.investment_id or self.transfer_id)
+
+    @classmethod
+    def derived_q(cls):
+        """Filtro das transações que têm registro de origem."""
+        query = models.Q()
+        for field in cls.DERIVED_FIELDS:
+            query |= models.Q(**{f'{field}__isnull': False})
+        return query
+
+    @classmethod
+    def standalone_filters(cls):
+        """Filtro inverso: só as transações avulsas, que se editam direto."""
+        return {f'{field}__isnull': True for field in cls.DERIVED_FIELDS}
 
     @property
     def category_display(self):
@@ -319,6 +407,9 @@ class Transaction(models.Model):
             return f'{self.category_display} (R${self.value}) - Resgate'
         if self.contribution_id:
             return f'{self.category_display} (R${self.value}) - Aplicação'
+        if self.transfer_id:
+            sentido = 'Envio' if self.type == Type.OUT else 'Recebimento'
+            return f'{self.category_display} (R${self.value}) - Transferência ({sentido})'
         return f'{self.category_display} (R${self.value})'
 
     class Meta:
