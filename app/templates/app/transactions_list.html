@@ -68,7 +68,7 @@
                         <td class="right nowrap">
                             {% if transaction.is_derived %}
                                 <span class="row-origin" title="Editada pelo registro de origem, na administração">
-                                    {% if transaction.installment_id %}Parcelamento{% else %}Investimento{% endif %}
+                                    {{ transaction.origin_display }}
                                 </span>
                             {% else %}
                                 <button type="button" class="icon-button" data-transaction-edit title="Editar">Editar</button>

@@ -400,6 +400,13 @@ class Transaction(models.Model):
     def category_display(self):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'
 
+    @property
+    def origin_display(self):
+        for field in self.DERIVED_FIELDS:
+            if getattr(self, f'{field}_id'):
+                return self._meta.get_field(field).verbose_name
+        return ''
+
     def __str__(self):
         if self.installment_id:
             return f'{self.category_display} (R${self.value}) - {self.parcel}/{self.installment.installments}'
