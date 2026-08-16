@@ -396,6 +396,17 @@ button.danger {
     color: var(--outcome);
 }
 
+/* Tipo e valor das transações: verde para entrada, vermelho para saída. */
+.cell-income {
+    color: var(--income);
+    font-weight: 500;
+}
+
+.cell-outcome {
+    color: var(--outcome);
+    font-weight: 500;
+}
+
 /* Tables */
 table {
     width: 100%;
@@ -557,14 +568,8 @@ td a {
     outline-offset: -2px;
 }
 
-/* Origem em parcelamento/investimento: read-only, editável só no admin. */
-.row-origin {
-    color: var(--muted);
-    font-size: 12px;
-}
-
 /* Marca a transação que entra só no saldo, não nos gráficos. */
-.row-nature {
+.row-origin {
     display: inline-block;
     padding: 1px 6px;
     border: 1px solid var(--border);
