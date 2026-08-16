@@ -16,7 +16,7 @@ from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 import reversion
 from .forms import TransactionForm
-from .models import Account, Category, Type, Method, Installment, Investment, Transaction
+from .models import Account, Category, Type, Method, Nature, Installment, Investment, Transaction
 
 
 MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -87,6 +87,11 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
 
         return queryset
 
+    def get_analytic_transactions(self, filters):
+        """Recorte dos painéis: fora movimentação interna e ajuste, que só
+        remanejam ou corrigem saldo e inflariam entrada e saída dos dois lados."""
+        return self.get_transactions(filters).filter(nature=Nature.REGULAR)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filters'] = self.get_filters()
@@ -103,7 +108,7 @@ class OverviewView(FilteredTransactionsMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        transactions = self.get_transactions(context['filters'])
+        transactions = self.get_analytic_transactions(context['filters'])
 
         totals = {
             row['type']: row['total']
@@ -112,7 +117,8 @@ class OverviewView(FilteredTransactionsMixin, TemplateView):
         income = to_float(totals.get(Type.IN))
         outcome = to_float(totals.get(Type.OUT))
 
-        # Saldo é posição acumulada: ignora o recorte de período e de categoria.
+        # Saldo é posição acumulada: ignora o recorte de período e de categoria,
+        # e conta toda natureza — é justamente para ele que interna e ajuste existem.
         balance_totals = {
             row['type']: row['total']
             for row in self.get_base_transactions(context['filters']).values('type').annotate(total=Sum('value'))
@@ -194,7 +200,7 @@ class ForecastView(FilteredTransactionsMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        transactions = self.get_transactions(context['filters']).filter(type=Type.OUT)
+        transactions = self.get_analytic_transactions(context['filters']).filter(type=Type.OUT)
 
         by_month = (
             transactions

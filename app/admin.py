@@ -140,8 +140,8 @@ class InvestmentAdmin(VersionAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(VersionAdmin):
-    list_display = ('user', 'account', 'type', 'method', 'category_display', 'description', 'value', 'datetime',)
-    list_filter = ('user', 'account', 'type', 'method', 'category',)
+    list_display = ('user', 'account', 'type', 'method', 'nature', 'category_display', 'description', 'value', 'datetime',)
+    list_filter = ('user', 'account', 'type', 'method', 'nature', 'category',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
     actions = ('duplicate_transactions', 'delete_selected',)
@@ -170,6 +170,7 @@ class TransactionAdmin(VersionAdmin):
                     account=transaction.account,
                     type=transaction.type,
                     method=transaction.method,
+                    nature=transaction.nature,
                     category=transaction.category,
                     description=transaction.description,
                     value=transaction.value,
@@ -181,7 +182,7 @@ class TransactionAdmin(VersionAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.is_derived:
-            return ('user', 'account', 'type', 'method', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption',)
+            return ('user', 'account', 'type', 'method', 'nature', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption',)
         return ('installment', 'parcel', 'investment', 'contribution', 'redemption',)
 
     def has_delete_permission(self, request, obj=None):

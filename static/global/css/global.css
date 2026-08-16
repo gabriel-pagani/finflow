@@ -563,6 +563,17 @@ td a {
     font-size: 12px;
 }
 
+/* Marca a transação que entra só no saldo, não nos gráficos. */
+.row-nature {
+    display: inline-block;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
 .icon-button {
     height: 28px;
     padding: 0 10px;

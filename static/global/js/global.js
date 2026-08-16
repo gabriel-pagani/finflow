@@ -133,6 +133,7 @@ function setupTransactionCrud(urls) {
         field('account').value = data.account;
         field('type').value = data.type;
         field('method').value = data.method;
+        field('nature').value = data.nature;
         field('category').value = data.category;
         field('description').value = data.description;
         field('value').value = data.value;

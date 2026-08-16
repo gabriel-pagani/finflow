@@ -45,6 +45,12 @@ class Method(models.TextChoices):
     NOT_APPLICABLE = 'NOT_APPLICABLE', 'Não Se Aplica'
 
 
+class Nature(models.TextChoices):
+    REGULAR = 'REGULAR', 'Normal'
+    INTERNAL = 'INTERNAL', 'Movimentação Interna'
+    ADJUSTMENT = 'ADJUSTMENT', 'Ajuste de Saldo'
+
+
 class Account(models.Model):
     description = models.CharField(max_length=100, unique=True, verbose_name='Conta')
 
@@ -279,6 +285,7 @@ class Transaction(models.Model):
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name='Conta')
     type = models.CharField(max_length=20, choices=Type.choices, verbose_name='Tipo')
     method = models.CharField(max_length=20, choices=Method.choices, verbose_name='Método')
+    nature = models.CharField(max_length=20, choices=Nature.choices, default=Nature.REGULAR, verbose_name='Natureza')
     category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, verbose_name='Categoria')
     description = models.CharField(max_length=200, blank=True, null=True, verbose_name='Descrição')
     value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor')

@@ -46,6 +46,7 @@
                         data-account="{{ transaction.account_id|unlocalize }}"
                         data-type="{{ transaction.type }}"
                         data-method="{{ transaction.method }}"
+                        data-nature="{{ transaction.nature }}"
                         data-category="{% if transaction.category_id %}{{ transaction.category_id|unlocalize }}{% endif %}"
                         data-description="{{ transaction.description|default:'' }}"
                         data-value="{{ transaction.value|stringformat:'.2f' }}"
@@ -58,7 +59,12 @@
                         <td>{{ transaction.get_method_display }}</td>
                         <td>{{ transaction.category_display }}</td>
                         <td>{{ transaction.description|default:'-' }}</td>
-                        <td class="right">R$ {{ transaction.value|floatformat:2 }}</td>
+                        <td class="right">
+                            {% if transaction.nature != 'REGULAR' %}
+                                <span class="row-nature">{{ transaction.get_nature_display }}</span>
+                            {% endif %}
+                            R$ {{ transaction.value|floatformat:2 }}
+                        </td>
                         <td class="right nowrap">
                             {% if transaction.is_derived %}
                                 <span class="row-origin" title="Editada pelo registro de origem, na administração">

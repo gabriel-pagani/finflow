@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import NON_FIELD_ERRORS
 from django.utils import timezone
-from .models import Account, Category, Transaction
+from .models import Account, Category, Nature, Transaction
 
 
 # Mensagem exata levantada por Transaction.clean(); serve de gancho para
@@ -24,7 +24,7 @@ class TransactionForm(forms.ModelForm):
 
     class Meta:
         model = Transaction
-        fields = ('datetime', 'account', 'type', 'method', 'category', 'description', 'value',)
+        fields = ('datetime', 'account', 'type', 'method', 'nature', 'category', 'description', 'value',)
         widgets = {
             'datetime': DateTimeLocalInput(),
             'value': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
@@ -39,8 +39,18 @@ class TransactionForm(forms.ModelForm):
         self.fields['category'].queryset = Category.objects.all()
         self.fields['category'].empty_label = 'Categoria Não Identificada'
 
+        # Natureza é a exceção do formulário: quem não a informa está lançando
+        # movimento comum, então o POST sem o campo cai no default do model em
+        # vez de ser recusado por obrigatoriedade.
+        self.fields['nature'].required = False
+
         if not self.instance.pk:
             self.fields['datetime'].initial = timezone.localtime().replace(second=0, microsecond=0)
+
+    def clean_nature(self):
+        # required=False devolve string vazia, que o campo não aceita; sem esta
+        # tradução o lançamento comum quebraria na validação do model.
+        return self.cleaned_data.get('nature') or Nature.REGULAR
 
     def clean_value(self):
         value = self.cleaned_data['value']
