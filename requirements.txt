@@ -12,5 +12,5 @@ packaging==26.2
 psycopg2==2.9.12
 pycparser==3.0
 redis==8.1.0
-sqlparse==0.5.5
+sqlparse==0.6.0
 tzdata==2026.3
