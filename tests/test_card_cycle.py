@@ -2,9 +2,9 @@
 
 A regra tem duas metades, e é a combinação delas que erra na prática. A
 primeira decide a fatura: comprou no dia do fechamento ou depois, a compra vai
-para a seguinte; antes disso, fica na atual. A segunda ajusta o calendário:
-fechamento e vencimento que caem em sábado ou domingo são empurrados para a
-segunda-feira.
+para a seguinte; antes disso, fica na atual. A segunda ajusta o calendário, e
+só de um lado: o fechamento é sempre o dia cadastrado, mesmo em fim de semana,
+enquanto o vencimento que cai em sábado ou domingo anda para a segunda-feira.
 
 As datas destes casos foram escolhidas por serem dias de semana e de fim de
 semana reais de 2026, e não por conveniência: um fechamento fixado num sábado
@@ -54,14 +54,15 @@ def test_next_business_day(day, expected):
     assert next_business_day(day) == expected
 
 
-def test_closing_and_due_dates_land_on_business_days(card):
-    """As duas datas do ciclo caem no sábado de junho de 2026, e as duas andam.
+def test_only_the_due_date_moves_off_the_weekend(card):
+    """As duas datas do ciclo caem no sábado de junho de 2026, e só uma anda.
 
-    Fechamento dia 20 (sábado) vira segunda 22; vencimento dia 27 (sábado) vira
-    segunda 29. Em julho nenhuma das duas cai no fim de semana e ambas ficam
-    onde foram configuradas — é o que separa o ajuste de um deslocamento fixo.
+    Fechamento dia 20 fica no sábado 20, porque encerrar a fatura não depende
+    de banco aberto; vencimento dia 27 (sábado) vira segunda 29. Em julho
+    nenhuma das duas cai no fim de semana e ambas ficam onde foram
+    configuradas — é o que separa o ajuste de um deslocamento fixo.
     """
-    assert card.closing_date(2026, 6) == date(2026, 6, 22)
+    assert card.closing_date(2026, 6) == date(2026, 6, 20)
     assert card.due_date(2026, 6) == date(2026, 6, 29)
 
     assert card.closing_date(2026, 7) == date(2026, 7, 20)
@@ -73,8 +74,8 @@ def test_short_month_clamps_the_day(alice, account, business_rules):
     card = Card.objects.create(user=alice, account=account, last_digits='3131', closing_day=31, due_day=10)
 
     # Fevereiro de 2026 termina no dia 28, um sábado: o fechamento é limitado ao
-    # tamanho do mês e só então empurrado para a segunda.
-    assert card.closing_date(2026, 2) == date(2026, 3, 2)
+    # tamanho do mês e para aí, sem escorregar para março.
+    assert card.closing_date(2026, 2) == date(2026, 2, 28)
 
 
 # --------------------------------------------------------------------------
@@ -95,16 +96,16 @@ def test_purchase_after_closing_goes_to_the_next_invoice(card):
     assert card.invoice_due_date(date(2026, 5, 21)) == date(2026, 6, 29)
 
 
-def test_weekend_closing_keeps_the_purchase_in_the_current_invoice(card):
-    """Junho de 2026: o fechamento do dia 20 é sábado e vai para a segunda 22.
+def test_weekend_closing_still_closes_the_invoice(card):
+    """Junho de 2026: o fechamento do dia 20 é sábado e fecha no sábado mesmo.
 
-    Comprar no próprio sábado é comprar antes do fechamento, e a compra ainda
-    entra na fatura de junho — que vence dia 29, porque o dia 27 é sábado.
+    Comprar no dia 20 já é comprar depois do fechamento, e a compra vai para a
+    fatura de julho. Só a véspera, sexta 19, ainda entra na de junho — que
+    vence dia 29, porque aí sim o dia 27 é sábado e o vencimento anda.
     """
-    assert card.closing_date(2026, 6) == date(2026, 6, 22)
-    assert card.invoice_due_date(date(2026, 6, 20)) == date(2026, 6, 29)
-    # Na segunda o fechamento já chegou, e a compra vai para a fatura de julho.
-    assert card.invoice_due_date(date(2026, 6, 22)) == date(2026, 7, 27)
+    assert card.closing_date(2026, 6) == date(2026, 6, 20)
+    assert card.invoice_due_date(date(2026, 6, 19)) == date(2026, 6, 29)
+    assert card.invoice_due_date(date(2026, 6, 20)) == date(2026, 7, 27)
 
 
 def test_due_day_before_closing_day_falls_in_the_next_month(alice, account, business_rules):
@@ -115,17 +116,18 @@ def test_due_day_before_closing_day_falls_in_the_next_month(alice, account, busi
     assert card.invoice_due_date(date(2026, 3, 25)) == date(2026, 5, 5)
 
 
-def test_month_end_closing_pushed_across_the_month_boundary(alice, account, business_rules):
-    """Fechamento de 28/02/2026 (sábado) escorrega para 02/03.
+def test_month_end_closing_stays_inside_the_month(alice, account, business_rules):
+    """O fechamento de 28/02/2026 é sábado e não escorrega para março.
 
-    Entre 1º e 2 de março a fatura aberta ainda é a de fevereiro, e é para ela
-    que a compra vai — não para a de março, que só fecha no fim do mês.
+    Comprar no dia 28 já é da fatura de março, que vence em 10/04; a véspera
+    ainda é da de fevereiro, que vence em 10/03. Nenhuma compra de março cai na
+    fatura de fevereiro, porque ela fechou antes de o mês virar.
     """
     card = Card.objects.create(user=alice, account=account, last_digits='2828', closing_day=31, due_day=10)
 
-    assert card.closing_date(2026, 2) == date(2026, 3, 2)
-    assert card.invoice_due_date(date(2026, 3, 1)) == card.due_date(2026, 2)
-    assert card.invoice_due_date(date(2026, 3, 2)) == card.due_date(2026, 3)
+    assert card.closing_date(2026, 2) == date(2026, 2, 28)
+    assert card.invoice_due_date(date(2026, 2, 27)) == date(2026, 3, 10)
+    assert card.invoice_due_date(date(2026, 2, 28)) == date(2026, 4, 10)
 
 
 # --------------------------------------------------------------------------

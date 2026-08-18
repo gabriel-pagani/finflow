@@ -135,39 +135,45 @@ class Card(models.Model):
             raise ValidationError({'account': f'A conta não permite {Type(self.TYPE).label.lower()} em {Method(self.METHOD).label}, necessário para registrar as compras do cartão.'})
 
     def cycle_day(self, year, month, day):
-        """Um dia do ciclo num mês, já ajustado para dia útil.
+        """Um dia do ciclo num mês, limitado ao tamanho dele.
 
-        O dia é limitado ao tamanho do mês antes de qualquer coisa — quem fecha
-        dia 31 fecha dia 28 em fevereiro — e só então sai do fim de semana.
+        Quem fecha dia 31 fecha dia 28 em fevereiro: o dia configurado nunca
+        sai do mês a que pertence.
         """
-        return next_business_day(date(year, month, min(day, monthrange(year, month)[1])))
+        return date(year, month, min(day, monthrange(year, month)[1]))
 
     def closing_date(self, year, month):
-        """Dia em que fecha a fatura do mês informado."""
+        """Dia em que fecha a fatura do mês informado.
+
+        É sempre o dia informado no cadastro, mesmo em sábado ou domingo:
+        fechar é a operadora encerrar a fatura, e para isso não é preciso
+        banco aberto.
+        """
         return self.cycle_day(year, month, self.closing_day)
 
     def due_date(self, year, month):
-        """Vencimento da fatura que fecha no mês informado.
+        """Vencimento, em dia útil, da fatura que fecha no mês informado.
 
         Vencer não é fechar: quando o dia de vencimento não passa o de
         fechamento, ele é do mês seguinte. Um cartão que fecha dia 25 e vence
         dia 5 vence sempre no mês depois daquele em que fechou.
+
+        E, ao contrário do fechamento, pagar depende de banco aberto: um
+        vencimento que cai no fim de semana anda para a segunda-feira.
         """
         if self.due_day <= self.closing_day:
             reference = add_months(date(year, month, 1), 1)
             year, month = reference.year, reference.month
-        return self.cycle_day(year, month, self.due_day)
+        return next_business_day(self.cycle_day(year, month, self.due_day))
 
     def invoice_cycle(self, day):
         """Mês da fatura que recebe uma compra feita em `day`.
 
         É a primeira que ainda não fechou: comprou no dia do fechamento ou
-        depois, cai na seguinte; antes disso, na atual. A busca começa um mês
-        atrás porque um fechamento de fim de mês empurrado para o dia útil
-        seguinte escorrega para o mês de depois, e enquanto ele não chega a
-        fatura aberta ainda é a do mês anterior.
+        depois, cai na seguinte; antes disso, na atual. Basta olhar o mês da
+        compra, porque o fechamento nunca escorrega para fora do mês dele.
         """
-        cycle = add_months(date(day.year, day.month, 1), -1)
+        cycle = date(day.year, day.month, 1)
         while self.closing_date(cycle.year, cycle.month) <= day:
             cycle = add_months(cycle, 1)
         return cycle
