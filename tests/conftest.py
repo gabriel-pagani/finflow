@@ -8,6 +8,7 @@ import pytest
 from app.models import (
     Account,
     BusinessRule,
+    Card,
     Category,
     Contribution,
     Installment,
@@ -159,6 +160,27 @@ def make_transaction(account, category, business_rules):
         }
         fields.update(kwargs)
         return Transaction.objects.create(**fields)
+    return _make
+
+
+@pytest.fixture
+def make_card(account, business_rules):
+    """Cria um cartão para o usuário informado.
+
+    O cartão tem dono, mas a conta é cadastro global: dois usuários podem ter
+    cartão na mesma conta, e é justamente esse cruzamento que os testes de
+    isolamento exercitam.
+    """
+    def _make(user, **kwargs):
+        fields = {
+            'user': user,
+            'account': account,
+            'last_digits': '1234',
+            'closing_day': 20,
+            'due_day': 27,
+        }
+        fields.update(kwargs)
+        return Card.objects.create(**fields)
     return _make
 
 

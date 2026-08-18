@@ -376,10 +376,13 @@ class TestDonoVemDaSessao:
         assert response.status_code == 302
         assert Transaction.objects.get(description='Tentativa').user_id == bob.pk
 
-    def test_parcelamento_criado_ignora_user_do_post(self, bob_logged, alice, bob, account, category, business_rules):
+    def test_parcelamento_criado_ignora_user_do_post(self, bob_logged, alice, bob, account, category, business_rules, make_card):
+        # Parcelamento é sempre crédito, e o crédito exige cartão: sem um do
+        # Bob o POST pararia na validação, antes de chegar ao que o caso prova.
         response = bob_logged.post(reverse('app:installment_create'), {
             'user': alice.pk,
             'account': account.pk,
+            'card': make_card(bob).pk,
             'category': category.pk,
             'description': 'Parcelado',
             'value': '300.00',

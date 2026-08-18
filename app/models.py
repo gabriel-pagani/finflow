@@ -1,8 +1,16 @@
+from calendar import monthrange
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_DOWN
 from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
+from django.utils import timezone
+
+
+# Sábado e domingo no weekday() do Python, que conta a partir da segunda.
+WEEKEND = (5, 6)
 
 
 def add_months(dt, months):
@@ -12,6 +20,18 @@ def add_months(dt, months):
     day = min(dt.day, [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
 
     return dt.replace(year=year, month=month, day=day)
+
+
+def next_business_day(day):
+    """Empurra sábado e domingo para a segunda-feira seguinte.
+
+    Feriado não entra na conta: o sistema não mantém calendário deles, e supor
+    um significaria escolher entre nacional, estadual e municipal sem ter como
+    saber qual vale para o cartão.
+    """
+    while day.weekday() in WEEKEND:
+        day += timedelta(days=1)
+    return day
 
 
 class User(AbstractUser):
@@ -90,14 +110,116 @@ class BusinessRule(models.Model):
         verbose_name_plural = 'Regras de Negócio'
 
 
+class Card(models.Model):
+    """Cartão de crédito de uma conta, e o ciclo que decide a data das compras.
+
+    Fechamento e vencimento são guardados como dia do mês, não como data: o
+    ciclo se repete todo mês, e o que a compra precisa saber é em qual volta
+    dele ela caiu.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cards', verbose_name='Usuário')
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='cards', verbose_name='Conta')
+    last_digits = models.CharField(max_length=4, validators=[RegexValidator(r'^\d{4}$', 'Informe exatamente os quatro últimos dígitos.')], verbose_name='Últimos Quatro Dígitos')
+    closing_day = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name='Dia de Fechamento')
+    due_day = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name='Dia de Vencimento')
+
+    TYPE = Type.OUT
+    METHOD = Method.CREDIT
+
+    def clean(self):
+        super().clean()
+        # Mesma checagem do Parcelamento: um cartão numa conta que não aceita
+        # saída em crédito não teria como lançar uma única compra.
+        if self.account_id and not BusinessRule.objects.filter(account=self.account, type=self.TYPE, method=self.METHOD).exists():
+            raise ValidationError({'account': f'A conta não permite {Type(self.TYPE).label.lower()} em {Method(self.METHOD).label}, necessário para registrar as compras do cartão.'})
+
+    def cycle_day(self, year, month, day):
+        """Um dia do ciclo num mês, já ajustado para dia útil.
+
+        O dia é limitado ao tamanho do mês antes de qualquer coisa — quem fecha
+        dia 31 fecha dia 28 em fevereiro — e só então sai do fim de semana.
+        """
+        return next_business_day(date(year, month, min(day, monthrange(year, month)[1])))
+
+    def closing_date(self, year, month):
+        """Dia em que fecha a fatura do mês informado."""
+        return self.cycle_day(year, month, self.closing_day)
+
+    def due_date(self, year, month):
+        """Vencimento da fatura que fecha no mês informado.
+
+        Vencer não é fechar: quando o dia de vencimento não passa o de
+        fechamento, ele é do mês seguinte. Um cartão que fecha dia 25 e vence
+        dia 5 vence sempre no mês depois daquele em que fechou.
+        """
+        if self.due_day <= self.closing_day:
+            reference = add_months(date(year, month, 1), 1)
+            year, month = reference.year, reference.month
+        return self.cycle_day(year, month, self.due_day)
+
+    def invoice_cycle(self, day):
+        """Mês da fatura que recebe uma compra feita em `day`.
+
+        É a primeira que ainda não fechou: comprou no dia do fechamento ou
+        depois, cai na seguinte; antes disso, na atual. A busca começa um mês
+        atrás porque um fechamento de fim de mês empurrado para o dia útil
+        seguinte escorrega para o mês de depois, e enquanto ele não chega a
+        fatura aberta ainda é a do mês anterior.
+        """
+        cycle = add_months(date(day.year, day.month, 1), -1)
+        while self.closing_date(cycle.year, cycle.month) <= day:
+            cycle = add_months(cycle, 1)
+        return cycle
+
+    def invoice_due_date(self, day, cycles=0):
+        """Vencimento que uma compra feita em `day` vai carregar.
+
+        `cycles` adianta faturas, para as parcelas: 0 é a que recebeu a compra,
+        1 é a de um mês depois. Cada uma tem o vencimento calculado do próprio
+        ciclo, e não somando um mês sobre a anterior — senão a parcela seguinte
+        herdaria o empurrão de fim de semana que só valia para a primeira.
+        """
+        cycle = add_months(self.invoice_cycle(day), cycles)
+        return self.due_date(cycle.year, cycle.month)
+
+    def invoice_datetime(self, moment, cycles=0):
+        """Data e hora com que a compra feita em `moment` entra na conta.
+
+        A hora informada é preservada: quem decide a fatura é o dia. A conversão
+        para o fuso local vem antes da comparação porque é o calendário do
+        usuário, não o UTC, que diz se a compra passou do fechamento.
+        """
+        local = timezone.localtime(moment) if timezone.is_aware(moment) else moment
+        due = self.invoice_due_date(local.date(), cycles)
+        return local.replace(year=due.year, month=due.month, day=due.day)
+
+    @property
+    def in_use(self):
+        """O cartão já tem lançamento preso a ele, e por isso não se apaga."""
+        return self.transactions.exists() or self.installments.exists()
+
+    def __str__(self):
+        return f'{self.account} (final {self.last_digits})'
+
+    class Meta:
+        ordering = ['account__description', 'last_digits']
+        # O final se repete entre usuários: dois cartões distintos podem
+        # terminar nos mesmos quatro dígitos, e a conta é cadastro global.
+        unique_together = ('user', 'account', 'last_digits')
+        verbose_name = 'Cartão'
+        verbose_name_plural = 'Cartões'
+
+
 class Installment(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='installments', verbose_name='Usuário')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name='Conta')
+    card = models.ForeignKey(Card, on_delete=models.PROTECT, blank=True, null=True, related_name='installments', verbose_name='Cartão')
     category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, verbose_name='Categoria')
     description = models.CharField(max_length=200, blank=True, null=True, verbose_name='Descrição')
     value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Total')
     installments = models.PositiveSmallIntegerField(verbose_name='Número de Parcelas')
-    datetime = models.DateTimeField(verbose_name='Data e Hora')
+    datetime = models.DateTimeField(verbose_name='Data e Hora da Compra')
 
     TYPE = Type.OUT
     METHOD = Method.CREDIT
@@ -109,8 +231,22 @@ class Installment(models.Model):
                 raise ValidationError(f'A conta não permite {Type(self.TYPE).label.lower()} em {Method(self.METHOD).label}, necessário para registrar as parcelas.')
         if self.installments is not None and self.installments < 2:
             raise ValidationError({'installments': 'Um parcelamento deve ter no mínimo 2 parcelas.'})
+        if self.card_id:
+            if self.account_id and self.card.account_id != self.account_id:
+                raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})
+            if self.user_id and self.card.user_id != self.user_id:
+                raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
 
     def generate_transactions(self):
+        """Cria uma transação por parcela, a partir da data da compra.
+
+        Com cartão, a 1ª parcela cai no vencimento da fatura em que a compra
+        entrou, e as demais somam um mês a partir dele. Sem cartão não há ciclo
+        a consultar, e a data informada é a da própria 1ª parcela.
+
+        O cálculo parte sempre de `datetime`, que guarda a compra e não o
+        vencimento: regerar as parcelas dá o mesmo resultado quantas vezes for.
+        """
         self.transactions.all().delete()
 
         base_value = (self.value / self.installments).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
@@ -119,15 +255,17 @@ class Installment(models.Model):
         transactions = []
         for i in range(self.installments):
             parcel_value = last_value if i == self.installments - 1 else base_value
+            parcel_datetime = self.card.invoice_datetime(self.datetime, i) if self.card_id else add_months(self.datetime, i)
             transactions.append(Transaction(
                 user=self.user,
                 account=self.account,
+                card=self.card,
                 type=self.TYPE,
                 method=self.METHOD,
                 category=self.category,
                 description=self.description,
                 value=parcel_value,
-                datetime=add_months(self.datetime, i),
+                datetime=parcel_datetime,
                 installment=self,
                 parcel=i + 1,
             ))
@@ -352,6 +490,7 @@ class Transfer(models.Model):
 class Transaction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transactions_owned', verbose_name='Usuário')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name='Conta')
+    card = models.ForeignKey(Card, on_delete=models.PROTECT, blank=True, null=True, related_name='transactions', verbose_name='Cartão')
     type = models.CharField(max_length=20, choices=Type.choices, verbose_name='Tipo')
     method = models.CharField(max_length=20, choices=Method.choices, verbose_name='Método')
     nature = models.CharField(max_length=20, choices=Nature.choices, default=Nature.REGULAR, verbose_name='Natureza')
@@ -374,6 +513,15 @@ class Transaction(models.Model):
         if self.account_id and self.type and self.method:
             if not BusinessRule.objects.filter(account=self.account, type=self.type, method=self.method).exists():
                 raise ValidationError('Combinação de conta, tipo e método não permitida pelas regras de negócio.')
+        if self.card_id:
+            # O cartão é o que dita a data da compra, e só faz sentido no dono
+            # dele, na conta dele e no método que ele representa.
+            if self.account_id and self.card.account_id != self.account_id:
+                raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})
+            if self.user_id and self.card.user_id != self.user_id:
+                raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
+            if self.method and self.method != Method.CREDIT:
+                raise ValidationError({'card': f'O cartão só se aplica a lançamentos em {Method.CREDIT.label}.'})
 
     # Espelho do is_derived para uso em queryset, onde a property não alcança.
     # Ficam juntos de propósito: uma origem nova tem de entrar nos dois.

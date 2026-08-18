@@ -19,7 +19,7 @@ de atributo interpolado sairia como texto.
 
         <div class="modal-grid">
             {% for field in form %}
-                <div class="modal-field{% if field.name == 'description' %} modal-field-wide{% endif %}">
+                <div class="modal-field{% if field.name == 'description' %} modal-field-wide{% endif %}" data-field="{{ field.name }}">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
                     {% if field.help_text %}<span class="modal-hint">{{ field.help_text }}</span>{% endif %}

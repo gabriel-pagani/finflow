@@ -19,6 +19,7 @@
                 <a href="{% url 'app:overview' %}">Visão Geral</a>
                 <a href="{% url 'app:forecast' %}">Previsão</a>
                 <a href="{% url 'app:transactions_list' %}">Transações</a>
+                <a href="{% url 'app:cards_list' %}">Cartões</a>
             </nav>
             <form class="logout" method="post" action="{% url 'app:logout' %}">
                 {% csrf_token %}

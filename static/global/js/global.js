@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-multiselect]').forEach(setupMultiselect);
     bootstrapCharts();
     bootstrapTransactionCrud();
+    bootstrapCardCrud();
 });
 
 /* Bootstrap --------------------------------------------------------------- */
@@ -80,6 +81,17 @@ function bootstrapTransactionCrud() {
     if (!root) return;
 
     setupTransactionCrud({
+        createUrl: root.dataset.createUrl,
+        updateUrl: root.dataset.updateUrl,
+        deleteUrl: root.dataset.deleteUrl,
+    });
+}
+
+function bootstrapCardCrud() {
+    const root = document.querySelector('[data-card-urls]');
+    if (!root) return;
+
+    setupCardCrud({
         createUrl: root.dataset.createUrl,
         updateUrl: root.dataset.updateUrl,
         deleteUrl: root.dataset.deleteUrl,
@@ -152,12 +164,27 @@ function setupTransactionCrud(urls) {
         return form.querySelector(`[name="${name}"]`);
     }
 
+    // Cartão só existe no crédito: nos demais métodos o campo nem aparece.
+    // Escondê-lo não basta — o select continuaria enviando a primeira opção, e
+    // o servidor recusa cartão fora do crédito. O disabled é o que o tira do
+    // POST; o navegador não envia campo desabilitado.
+    function syncCardField() {
+        const wrapper = form.querySelector('[data-field="card"]');
+        const select = field('card');
+        if (!wrapper || !select) return;
+
+        const credit = field('method').value === 'CREDIT';
+        wrapper.hidden = !credit;
+        select.disabled = !credit;
+    }
+
     function openCreate() {
         form.action = urls.createUrl;
         title.textContent = 'Nova Transação';
         form.reset();
         editingRow = null;
         if (modalDelete) modalDelete.hidden = true;
+        syncCardField();
         modal.showModal();
     }
 
@@ -170,12 +197,14 @@ function setupTransactionCrud(urls) {
 
         field('datetime').value = data.datetime;
         field('account').value = data.account;
+        field('card').value = data.card;
         field('type').value = data.type;
         field('method').value = data.method;
         field('nature').value = data.nature;
         field('category').value = data.category;
         field('description').value = data.description;
         field('value').value = data.value;
+        syncCardField();
 
         modal.showModal();
     }
@@ -202,6 +231,10 @@ function setupTransactionCrud(urls) {
     deleteModal.addEventListener('close', () => {
         editingRow = null;
     });
+
+    // Trocar o método durante o preenchimento mostra ou esconde o cartão, sem
+    // esperar o envio para o usuário descobrir que ele era exigido.
+    if (field('method')) field('method').addEventListener('change', syncCardField);
 
     // "Nova Transação" abre a escolha do tipo; o formulário avulso é só uma das
     // saídas dela. Sem o seletor no DOM o botão volta a abrir direto o avulso.
@@ -265,6 +298,116 @@ const CHART_PALETTE = [
 ];
 
 const MOBILE_BREAKPOINT = 768;
+
+/* Card CRUD --------------------------------------------------------------- */
+
+// Mesmo desenho do CRUD de transações — um modal para criar e editar, outro
+// para confirmar a remoção — sem o seletor de tipo e sem as linhas travadas,
+// que não existem aqui: cartão é cadastro, e todo cartão do usuário é dele.
+function setupCardCrud(urls) {
+    const modal = document.querySelector('[data-modal="card"]');
+    const deleteModal = document.querySelector('[data-card-delete-modal]');
+    if (!modal || !deleteModal) return;
+
+    const form = modal.querySelector('[data-modal-form]');
+    const title = modal.querySelector('[data-modal-title]');
+    const modalDelete = modal.querySelector('[data-modal-delete]');
+    const deleteForm = deleteModal.querySelector('[data-card-delete-form]');
+    const deleteLabel = deleteModal.querySelector('[data-card-delete-label]');
+
+    let editingRow = null;
+
+    function urlFor(template, id) {
+        return template.replace(/\/0\//, '/' + id + '/');
+    }
+
+    // Os campos são preenchidos pelo próprio nome, e não um a um: o dataset
+    // entrega data-last-digits como lastDigits, que é o name do campo em
+    // camelCase. Assim um campo novo no formulário não exige mexer aqui.
+    function fill(data) {
+        form.querySelectorAll('[name]').forEach((input) => {
+            const key = input.name.replace(/_(.)/g, (match, letter) => letter.toUpperCase());
+            if (key in data) input.value = data[key];
+        });
+    }
+
+    function openCreate() {
+        form.action = urls.createUrl;
+        title.textContent = 'Novo Cartão';
+        form.reset();
+        editingRow = null;
+        if (modalDelete) modalDelete.hidden = true;
+        modal.showModal();
+    }
+
+    function openEdit(row) {
+        form.action = urlFor(urls.updateUrl, row.dataset.id);
+        title.textContent = 'Editar Cartão';
+        editingRow = row;
+        if (modalDelete) modalDelete.hidden = false;
+
+        fill(row.dataset);
+        modal.showModal();
+    }
+
+    function openDelete(row) {
+        deleteForm.action = urlFor(urls.deleteUrl, row.dataset.id);
+        deleteLabel.textContent = row.dataset.label;
+        deleteModal.showModal();
+    }
+
+    deleteModal.addEventListener('close', () => {
+        editingRow = null;
+    });
+
+    const newButton = document.querySelector('[data-card-new]');
+    if (newButton) newButton.addEventListener('click', openCreate);
+
+    // Excluir de dentro da edição: fecha este modal antes de abrir a
+    // confirmação, porque dois <dialog> modais empilhados prendem o foco no
+    // primeiro.
+    if (modalDelete) {
+        modalDelete.addEventListener('click', () => {
+            if (!editingRow) return;
+            const row = editingRow;
+            modal.close();
+            openDelete(row);
+        });
+    }
+
+    modal.querySelectorAll('[data-modal-close]').forEach((button) => {
+        button.addEventListener('click', () => modal.close());
+    });
+    deleteModal.querySelectorAll('[data-modal-close]').forEach((button) => {
+        button.addEventListener('click', () => deleteModal.close());
+    });
+
+    document.querySelectorAll('dialog.modal').forEach((dialog) => {
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) dialog.close();
+        });
+    });
+
+    document.querySelectorAll('[data-card-row] [data-card-delete]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            // O clique também sobe para o handler da linha, que abriria a
+            // edição por cima da confirmação.
+            event.stopPropagation();
+            openDelete(button.closest('[data-card-row]'));
+        });
+    });
+
+    document.querySelectorAll('[data-card-row]').forEach((row) => {
+        row.addEventListener('click', () => openEdit(row));
+
+        row.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openEdit(row);
+            }
+        });
+    });
+}
 
 function isMobile() {
     return window.innerWidth <= MOBILE_BREAKPOINT;

@@ -15,8 +15,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 import reversion
-from .forms import InstallmentForm, TransactionForm, TransferForm
-from .models import Account, Category, Type, Method, Nature, Installment, Investment, Transaction, Transfer
+from .forms import CardForm, InstallmentForm, TransactionForm, TransferForm
+from .models import Account, Card, Category, Type, Method, Nature, Installment, Investment, Transaction, Transfer
 
 
 MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -317,11 +317,15 @@ class ModalWriteMixin(LoginRequiredMixin):
         kwargs['user'] = self.request.user
         return kwargs
 
+    # Listagem que serve os modais desta view, e para onde o GET e o sucesso
+    # voltam quando não há um 'back' aproveitável.
+    list_route = 'app:transactions_list'
+
     def get(self, request, *args, **kwargs):
         # Estas rotas existem só para receber o POST dos modais; não há template
         # de formulário próprio. Um GET (link colado, F5, histórico) volta para
         # a lista em vez de estourar TemplateDoesNotExist.
-        return redirect('app:transactions_list')
+        return redirect(self.list_route)
 
     def get_success_url(self):
         # Devolve o usuário para a listagem com os filtros e a página que ele
@@ -335,7 +339,7 @@ class ModalWriteMixin(LoginRequiredMixin):
             require_https=self.request.is_secure(),
         ):
             return back
-        return reverse('app:transactions_list')
+        return reverse(self.list_route)
 
     def form_invalid(self, form):
         for errors in form.errors.values():
@@ -399,6 +403,95 @@ class TransferCreateView(RevisionCreateMixin, ModalWriteMixin, CreateView):
     model = Transfer
     form_class = TransferForm
     success_message = 'Transferência criada com sucesso.'
+
+
+class CardsListView(OwnedListView):
+    """Cartões do usuário logado, com criação e edição pelos modais da página.
+
+    Fica fora da listagem de transações porque é cadastro, não lançamento: o
+    cartão é consultado por toda compra no crédito, e não se cria um a cada
+    compra.
+    """
+
+    model = Card
+    template_name = 'app/cards_list.html'
+    paginate_by = 25
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('account')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = CardForm(user=self.request.user)
+        return context
+
+
+class CardWriteMixin(ModalWriteMixin):
+    """Escrita dos cartões do próprio usuário."""
+
+    model = Card
+    form_class = CardForm
+    list_route = 'app:cards_list'
+
+    def get_queryset(self):
+        return Card.objects.filter(user=self.request.user)
+
+
+class CardCreateView(RevisionCreateMixin, CardWriteMixin, CreateView):
+    success_message = 'Cartão cadastrado com sucesso.'
+    revision_comment = 'Criado pela tela de cartões.'
+
+
+class CardUpdateView(CardWriteMixin, UpdateView):
+    """Edita um cartão do usuário logado.
+
+    Mudar o ciclo não remexe no que já foi lançado: as transações guardam a
+    data que valia quando foram criadas, e recalculá-las mudaria faturas que o
+    usuário já conferiu. O ciclo novo vale das próximas compras em diante.
+    """
+
+    def form_valid(self, form):
+        with reversion.create_revision():
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Editado pela tela de cartões.')
+            response = super().form_valid(form)
+
+        messages.success(self.request, 'Cartão atualizado com sucesso. O ciclo novo vale para as próximas compras; lançamentos já feitos mantêm a data que tinham.')
+        return response
+
+
+class CardDeleteView(CardWriteMixin, DeleteView):
+    """Apaga um cartão do usuário logado, se nada depender dele.
+
+    O cartão em uso é protegido: apagá-lo levaria junto, por PROTECT, a decisão
+    de data de transações e parcelamentos já lançados. Quem quer parar de usar
+    um cartão pode simplesmente deixar de escolhê-lo.
+    """
+
+    # Como no DeleteView de transação: a confirmação só precisa do POST, e
+    # herdar o CardForm faria validar campos que ela nem envia.
+    form_class = forms.Form
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs.pop('user', None)
+        kwargs.pop('instance', None)
+        return kwargs
+
+    def form_valid(self, form):
+        if self.object.in_use:
+            messages.error(self.request, f'O cartão {self.object} não pode ser removido: há transações ou parcelamentos lançados nele.')
+            return redirect(self.get_success_url())
+
+        with reversion.create_revision():
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Removido pela tela de cartões.')
+            reversion.add_to_revision(self.object)
+
+        self.object.delete()
+
+        messages.success(self.request, 'Cartão removido com sucesso.')
+        return redirect(self.get_success_url())
 
 
 class DerivedProtectedMixin:

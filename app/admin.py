@@ -4,7 +4,7 @@ from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, Account, Category, BusinessRule, Installment, Investment, Contribution, Redemption, Yield, Transfer, Transaction
+from .models import User, Group, Account, Category, BusinessRule, Card, Installment, Investment, Contribution, Redemption, Yield, Transfer, Transaction
 
 
 # User Admin
@@ -68,10 +68,17 @@ class BusinessRuleAdmin(VersionAdmin):
     search_fields = ('account__description',)
 
 
+@admin.register(Card)
+class CardAdmin(VersionAdmin):
+    list_display = ('user', 'account', 'last_digits', 'closing_day', 'due_day',)
+    list_filter = ('user', 'account',)
+    search_fields = ('last_digits', 'account__description',)
+
+
 @admin.register(Installment)
 class InstallmentAdmin(VersionAdmin):
-    list_display = ('user', 'account', 'category_display', 'description', 'value', 'installments', 'datetime',)
-    list_filter = ('user', 'account', 'category',)
+    list_display = ('user', 'account', 'card', 'category_display', 'description', 'value', 'installments', 'datetime',)
+    list_filter = ('user', 'account', 'card', 'category',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
 
@@ -81,7 +88,7 @@ class InstallmentAdmin(VersionAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
-            return ('user', 'account', 'category', 'description', 'value', 'installments', 'datetime',)
+            return ('user', 'account', 'card', 'category', 'description', 'value', 'installments', 'datetime',)
         return ()
 
 
@@ -158,8 +165,8 @@ class InvestmentAdmin(VersionAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(VersionAdmin):
-    list_display = ('user', 'account', 'type', 'method', 'nature', 'category_display', 'description', 'value', 'datetime',)
-    list_filter = ('user', 'account', 'type', 'method', 'nature', 'category',)
+    list_display = ('user', 'account', 'card', 'type', 'method', 'nature', 'category_display', 'description', 'value', 'datetime',)
+    list_filter = ('user', 'account', 'card', 'type', 'method', 'nature', 'category',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
     actions = ('duplicate_transactions', 'delete_selected',)
@@ -186,6 +193,7 @@ class TransactionAdmin(VersionAdmin):
                 Transaction.objects.create(
                     user=transaction.user,
                     account=transaction.account,
+                    card=transaction.card,
                     type=transaction.type,
                     method=transaction.method,
                     nature=transaction.nature,
@@ -200,7 +208,7 @@ class TransactionAdmin(VersionAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.is_derived:
-            return ('user', 'account', 'type', 'method', 'nature', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer',)
+            return ('user', 'account', 'card', 'type', 'method', 'nature', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer',)
         return ('installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer',)
 
     def has_delete_permission(self, request, obj=None):

@@ -54,6 +54,7 @@
                         data-id="{{ transaction.pk|unlocalize }}"
                         data-datetime="{{ transaction.datetime|date:'Y-m-d\TH:i' }}"
                         data-account="{{ transaction.account_id|unlocalize }}"
+                        data-card="{% if transaction.card_id %}{{ transaction.card_id|unlocalize }}{% endif %}"
                         data-type="{{ transaction.type }}"
                         data-method="{{ transaction.method }}"
                         data-nature="{{ transaction.nature }}"

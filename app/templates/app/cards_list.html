@@ -1,0 +1,98 @@
+{% extends 'global/global.html' %}
+{% load l10n %}
+
+{% block title %}Cartões - FinFlow{% endblock %}
+
+{% block body_class %}page-fill{% endblock %}
+
+{% block content %}
+    <section class="card fill-height">
+        <div class="card-header">
+            <h1>Cartões</h1>
+            <button type="button" data-card-new>Novo Cartão</button>
+        </div>
+
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Conta</th>
+                    <th>Final</th>
+                    <th class="right">Fechamento</th>
+                    <th class="right">Vencimento</th>
+                    <th class="right">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for card in object_list %}
+                    {% comment %}
+                    unlocalize nos números: com USE_THOUSAND_SEPARATOR o pk 1294
+                    sairia como "1.294" e a URL montada pelo JS não casaria com a
+                    rota <int:pk>. Vale também para os dias, que voltam para
+                    dentro do formulário na edição.
+                    {% endcomment %}
+                    <tr class="row-editable"
+                        data-card-row
+                        data-id="{{ card.pk|unlocalize }}"
+                        data-account="{{ card.account_id|unlocalize }}"
+                        data-last-digits="{{ card.last_digits }}"
+                        data-closing-day="{{ card.closing_day|unlocalize }}"
+                        data-due-day="{{ card.due_day|unlocalize }}"
+                        data-label="{{ card }}"
+                        tabindex="0" role="button"
+                        title="Clique para editar">
+                        <td>{{ card.account }}</td>
+                        <td>•••• •••• •••• {{ card.last_digits }}</td>
+                        <td class="right">Dia {{ card.closing_day|unlocalize }}</td>
+                        <td class="right">Dia {{ card.due_day|unlocalize }}</td>
+                        <td class="right nowrap">
+                            <button type="button" class="icon-button" data-card-edit title="Editar">Editar</button>
+                            <button type="button" class="icon-button danger" data-card-delete title="Remover">Remover</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5">Nenhum cartão cadastrado. Cadastre um para lançar compras no crédito.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
+        {% include 'app/pagination.html' %}
+    </section>
+
+    {% comment %}
+    Um só modal para criação e edição: o JS troca a action do formulário e
+    preenche os campos a partir dos data-attributes da linha, sem ida extra ao
+    servidor — mesmo desenho da tela de transações.
+    {% endcomment %}
+    {% url 'app:card_create' as card_url %}
+    {% include 'app/form_modal.html' with kind='card' title='Novo Cartão' action=card_url form=form deletable=True %}
+
+    <dialog class="modal" data-card-delete-modal>
+        <form method="post" data-card-delete-form>
+            {% csrf_token %}
+            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+
+            <h2>Remover Cartão</h2>
+            <p class="modal-text">Tem certeza que deseja remover <strong data-card-delete-label></strong>? Esta ação não pode ser desfeita.</p>
+            {% comment %}
+            Um cartão com lançamentos é recusado pela view, que conhece o que
+            depende dele. O aviso aqui é só para a decisão não ser tomada às
+            cegas.
+            {% endcomment %}
+            <p class="modal-text modal-warning">Cartões com transações ou parcelamentos lançados não podem ser removidos.</p>
+
+            <div class="modal-actions">
+                <button type="button" class="secondary" data-modal-close>Cancelar</button>
+                <button type="submit" class="danger">Remover</button>
+            </div>
+        </form>
+    </dialog>
+{% endblock %}
+
+{% block scripts %}
+    <div data-card-urls
+         data-create-url="{% url 'app:card_create' %}"
+         data-update-url="{% url 'app:card_update' 0 %}"
+         data-delete-url="{% url 'app:card_delete' 0 %}"></div>
+{% endblock %}
