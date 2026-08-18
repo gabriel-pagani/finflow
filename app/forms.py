@@ -165,7 +165,7 @@ class TransactionForm(CardChoiceMixin, OwnedForm):
         # escondido. A data digitada é a da compra, e o que fica gravado é o
         # vencimento — dizer isso na tela evita o susto de salvar um lançamento
         # e vê-lo aparecer semanas à frente.
-        # self.setup_card_field('A data informada é a da compra: o lançamento é gravado no vencimento da fatura correspondente.')
+        self.setup_card_field('A data informada é a da compra: o lançamento é gravado no vencimento da fatura correspondente.')
 
         # Natureza é a exceção do formulário: quem não a informa está lançando
         # movimento comum, então o POST sem o campo cai no default do model em
