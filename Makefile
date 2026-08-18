@@ -1,5 +1,5 @@
 build-system:
-	@docker compose -f deploy/docker-compose.yml up -d --build
+	@make backup-database && docker compose -f deploy/docker-compose.yml up -d --build
 
 start-system:
 	@docker compose -f deploy/docker-compose.yml up -d
@@ -11,7 +11,7 @@ restart-system:
 	@docker compose -f deploy/docker-compose.yml down && docker compose -f deploy/docker-compose.yml up -d
 
 reset-system:
-	@docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
+	@make backup-database && docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
 
 backup-database:
 	@mkdir -p backups
@@ -23,7 +23,7 @@ reset-system-cache:
 	@docker compose -f deploy/docker-compose.yml exec redis redis-cli FLUSHDB
 
 clean-system:
-	@docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
+	@make backup-database && docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
 
 make-migrations:
 	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
