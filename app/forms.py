@@ -112,7 +112,7 @@ class CardChoiceMixin:
     def setup_card_field(self, help_text):
         field = self.fields['card']
         field.queryset = Card.objects.filter(user=self.user).select_related('account')
-        field.help_text = help_text
+        # field.help_text = help_text
         # empty_label=None tira o '---------' do select: com o campo visível
         # apenas no crédito, a lista só precisa dos cartões de verdade.
         field.empty_label = None
