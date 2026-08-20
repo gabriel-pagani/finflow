@@ -1,9 +1,8 @@
-name: finflow
+name: ${PROJECT_NAME:-finflow}
 
 services:
   postgres:
     image: postgres:18
-    container_name: postgres
     expose:
       - "5432"
     volumes:
@@ -21,7 +20,6 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: redis
     expose:
       - "6379"
     command: redis-server --appendonly yes --save ""
@@ -40,8 +38,7 @@ services:
     build:
       context: ../
       dockerfile: deploy/Dockerfile
-    image: django
-    container_name: django
+    image: ${PROJECT_NAME:-finflow}-django
     expose:
       - "8000"
     volumes:
@@ -68,7 +65,6 @@ services:
 
   nginx:
     image: nginx:1.30-alpine
-    container_name: nginx
     expose:
       - "80"
     volumes:
@@ -88,7 +84,6 @@ services:
 
   cloudflare:
     image: cloudflare/cloudflared:latest
-    container_name: cloudflare
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TOKEN}
