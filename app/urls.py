@@ -22,6 +22,17 @@ urlpatterns = [
 
     # API para agentes externos (n8n). Fica sob /api/ e autentica por token, sem
     # sessão: as rotas acima continuam sendo as da interface, com login e CSRF.
-    path('api/context/', api.ContextView.as_view(), name='api_context'),
+    #
+    # A consulta é repartida por assunto porque o custo do agente se mede em
+    # tokens por mensagem: as regras não mudam entre uma pergunta e outra, e ele
+    # não precisa recebê-las de novo a cada saldo consultado.
+    path('api/', api.IndexView.as_view(), name='api_index'),
+    path('api/documentation/', api.DocumentationView.as_view(), name='api_documentation'),
+    path('api/options/', api.OptionsView.as_view(), name='api_options'),
+    path('api/analytics/', api.AnalyticsView.as_view(), name='api_analytics'),
     path('api/transactions/', api.TransactionCreateView.as_view(), name='api_transaction_create'),
+
+    # Composição das rotas acima, mantida para o fluxo que já apontava para cá
+    # não quebrar no deploy.
+    path('api/context/', api.ContextView.as_view(), name='api_context'),
 ]

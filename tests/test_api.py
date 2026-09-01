@@ -4,17 +4,27 @@ O que estes casos protegem é o contrato com o n8n. A escrita reusa os
 formulários da interface, então a regra em si já é coberta pelos testes dela; o
 que se verifica aqui é que a API realmente passa por eles — que ela não aceita o
 que a tela recusa, e que o cálculo de fatura acontece também por esta porta.
+
+Na consulta, o que se protege é outra coisa: que cada rota carregue só o seu
+assunto (é disso que sai a economia de tokens do agente) e que um filtro pedido
+seja de fato o filtro aplicado. Um recorte que o agente pede e não recebe é pior
+do que um erro: ele apresenta ao usuário um número de outro conjunto.
 """
 
 import json
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 
 from app.models import ApiToken, Method, Nature, Transaction, Type
 
 
+INDEX_URL = '/api/'
+DOCUMENTATION_URL = '/api/documentation/'
+OPTIONS_URL = '/api/options/'
+ANALYTICS_URL = '/api/analytics/'
 CONTEXT_URL = '/api/context/'
 CREATE_URL = '/api/transactions/'
 
@@ -102,55 +112,82 @@ def test_metodo_errado_responde_json(client, auth):
 
 
 # --------------------------------------------------------------------------
-# Consulta
+# Consulta — rotas separadas
+#
+# A separação existe para o agente não pagar a documentação inteira a cada
+# pergunta. Um caso que só olhasse o conteúdo deixaria a regressão passar: o que
+# se verifica aqui é também o que cada rota NÃO carrega.
 # --------------------------------------------------------------------------
 
+def get(client, url, headers, **params):
+    return client.get(url, params, headers=headers).json()
+
+
 @pytest.mark.django_db
-def test_consulta_traz_opcoes_e_documentacao(client, auth, account, category, business_rules):
-    body = client.get(CONTEXT_URL, headers=auth).json()
+def test_indice_lista_as_rotas(client, auth):
+    body = get(client, INDEX_URL, auth)
 
     assert body['ok'] is True
-    assert [a['description'] for a in body['options']['accounts']] == ['Conta Corrente', 'Poupanca']
-    assert [c['description'] for c in body['options']['categories']] == ['Alimentacao']
-    assert {t['value'] for t in body['options']['types']} == {'IN', 'OUT'}
-    assert {m['value'] for m in body['options']['methods']} == {'CREDIT', 'DEBIT', 'NOT_APPLICABLE'}
+    assert 'GET /api/analytics/' in body['endpoints']
+
+
+@pytest.mark.django_db
+def test_documentacao_traz_as_regras(client, auth):
+    body = get(client, DOCUMENTATION_URL, auth)
 
     # A documentação é o que ensina o agente a montar o lançamento; sem ela a
     # consulta seria só uma lista de ids sem regra.
     assert 'ciclo_do_cartao' in body['documentation']
     assert 'parcelamento' in body['documentation']
+    assert 'analise' in body['documentation']
 
 
 @pytest.mark.django_db
-def test_consulta_lista_combinacoes_permitidas(client, auth, account):
+def test_documentacao_devolve_so_as_secoes_pedidas(client, auth):
+    body = get(client, DOCUMENTATION_URL, auth, sections='ciclo_do_cartao,erros')
+
+    assert set(body['documentation']) == {'ciclo_do_cartao', 'erros'}
+    # O índice das seções vai junto: sem ele o agente não sabe o que mais existe
+    # para pedir, e acaba baixando tudo por precaução.
+    assert 'parcelamento' in body['sections']
+
+
+@pytest.mark.django_db
+def test_documentacao_recusa_secao_inexistente(client, auth):
+    response = client.get(DOCUMENTATION_URL, {'sections': 'inventada'}, headers=auth)
+
+    assert response.status_code == 400
+    assert 'inventada' in response.json()['message']
+
+
+@pytest.mark.django_db
+def test_opcoes_nao_carregam_a_documentacao(client, auth, account, category, business_rules):
+    body = get(client, OPTIONS_URL, auth)
+
+    assert [a['description'] for a in body['options']['accounts']] == ['Conta Corrente', 'Poupanca']
+    assert [c['description'] for c in body['options']['categories']] == ['Alimentacao']
+    assert {t['value'] for t in body['options']['types']} == {'IN', 'OUT'}
+    assert {m['value'] for m in body['options']['methods']} == {'CREDIT', 'DEBIT', 'NOT_APPLICABLE'}
+    # É esta ausência que separa esta rota da antiga /api/context/.
+    assert 'documentation' not in body
+
+
+@pytest.mark.django_db
+def test_opcoes_listam_combinacoes_permitidas(client, auth, account):
     from app.models import BusinessRule
     BusinessRule.objects.create(account=account, type=Type.OUT, method=Method.DEBIT)
 
-    body = client.get(CONTEXT_URL, headers=auth).json()
+    body = get(client, OPTIONS_URL, auth)
     conta = next(a for a in body['options']['accounts'] if a['id'] == account.id)
 
     assert conta['allowed_combinations'] == [{'type': 'OUT', 'method': 'DEBIT', 'label': 'Saída em Débito'}]
 
 
 @pytest.mark.django_db
-def test_consulta_so_enxerga_dados_do_dono(client, auth, alice, bob, make_transaction, make_card):
-    make_transaction(alice, description='Da Alice')
-    make_transaction(bob, description='Do Bob')
-    make_card(bob, last_digits='9999')
-
-    body = client.get(CONTEXT_URL, headers=auth).json()
-
-    descricoes = {t['description'] for t in body['recent_transactions']}
-    assert descricoes == {'Da Alice'}
-    assert body['options']['cards'] == []
-
-
-@pytest.mark.django_db
-def test_consulta_explica_o_ciclo_do_cartao(client, auth, alice, make_card):
+def test_opcoes_explicam_o_ciclo_do_cartao(client, auth, alice, make_card):
     make_card(alice)
-    body = client.get(CONTEXT_URL, headers=auth).json()
+    cartao = get(client, OPTIONS_URL, auth)['options']['cards'][0]
 
-    cartao = body['options']['cards'][0]
     assert cartao['closing_day'] == 20
     assert cartao['due_day'] == 27
     # As datas já calculadas poupam o agente de refazer a aritmética do ciclo.
@@ -159,12 +196,36 @@ def test_consulta_explica_o_ciclo_do_cartao(client, auth, alice, make_card):
 
 
 @pytest.mark.django_db
-def test_consulta_soma_saldo_e_investimento(client, auth, alice, make_transaction, make_investment):
+def test_analise_nao_carrega_documentacao_nem_opcoes(client, auth, alice, make_transaction):
+    make_transaction(alice)
+    body = get(client, ANALYTICS_URL, auth)
+
+    assert set(body) >= {'summary', 'breakdowns', 'position', 'filters'}
+    assert 'documentation' not in body
+    assert 'options' not in body
+    # Transação é a seção mais cara e por isso não vem sem ser pedida.
+    assert 'transactions' not in body
+
+
+@pytest.mark.django_db
+def test_analise_so_enxerga_dados_do_dono(client, auth, alice, bob, make_transaction, make_card):
+    make_transaction(alice, description='Da Alice')
+    make_transaction(bob, description='Do Bob')
+    make_card(bob, last_digits='9999')
+
+    body = get(client, ANALYTICS_URL, auth, include='transactions')
+
+    assert {t['description'] for t in body['transactions']} == {'Da Alice'}
+    assert get(client, OPTIONS_URL, auth)['options']['cards'] == []
+
+
+@pytest.mark.django_db
+def test_analise_soma_saldo_e_investimento(client, auth, alice, make_transaction, make_investment):
     make_transaction(alice, type=Type.IN, method=Method.DEBIT, value=Decimal('500.00'))
     make_transaction(alice, type=Type.OUT, method=Method.DEBIT, value=Decimal('200.00'))
     make_investment(alice, value=Decimal('1000.00'))
 
-    body = client.get(CONTEXT_URL, headers=auth).json()
+    body = get(client, ANALYTICS_URL, auth)
 
     # A aplicação gera uma saída de 1000, então o saldo em conta é 500-200-1000.
     assert Decimal(body['position']['balance']) == Decimal('-700.00')
@@ -176,12 +237,277 @@ def test_analise_ignora_transferencia(client, auth, alice, make_transaction, mak
     make_transaction(alice, type=Type.OUT, method=Method.DEBIT, value=Decimal('100.00'))
     make_transfer(alice, value=Decimal('300.00'))
 
-    body = client.get(CONTEXT_URL, headers=auth).json()
+    body = get(client, ANALYTICS_URL, auth)
 
     # As duas pernas nascem INTERNAL: entram no saldo, mas não na análise, senão
     # o mesmo dinheiro apareceria como despesa e como receita.
-    assert Decimal(body['analysis']['outcome']) == Decimal('100.00')
-    assert Decimal(body['analysis']['income']) == Decimal('0.00')
+    assert Decimal(body['summary']['outcome']) == Decimal('100.00')
+    assert Decimal(body['summary']['income']) == Decimal('0.00')
+
+
+# --------------------------------------------------------------------------
+# Consulta — filtros da análise
+# --------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_filtros_padrao_sao_declarados_na_resposta(client, auth, alice, make_transaction):
+    """Os padrões desta API não são óbvios, e por isso viajam na resposta.
+
+    Sem esse eco o agente narra como "todos os gastos" um total que exclui o
+    cartão e as movimentações internas — e ninguém tem como perceber.
+    """
+    make_transaction(alice)
+    filtros = get(client, ANALYTICS_URL, auth)['filters']
+
+    assert filtros['method'] == ['DEBIT', 'NOT_APPLICABLE']
+    assert filtros['nature'] == ['REGULAR']
+    assert {'method', 'nature'} <= set(filtros['defaulted'])
+
+
+@pytest.mark.django_db
+def test_filtro_de_categoria(client, auth, alice, category, make_transaction):
+    from app.models import Category
+    outra = Category.objects.create(description='Transporte')
+
+    make_transaction(alice, category=category, value=Decimal('30.00'))
+    make_transaction(alice, category=outra, value=Decimal('70.00'))
+
+    body = get(client, ANALYTICS_URL, auth, category=str(outra.id))
+
+    assert Decimal(body['summary']['outcome']) == Decimal('70.00')
+    assert body['filters']['category'] == [outra.id]
+
+
+@pytest.mark.django_db
+def test_filtro_de_categoria_alcanca_o_sem_categoria(client, auth, alice, make_transaction):
+    make_transaction(alice, category=None, value=Decimal('40.00'))
+    make_transaction(alice, value=Decimal('60.00'))
+
+    body = get(client, ANALYTICS_URL, auth, category='null')
+
+    assert Decimal(body['summary']['outcome']) == Decimal('40.00')
+    linha = body['breakdowns']['category'][0]
+    assert linha['label'] == 'Categoria Não Identificada'
+
+
+@pytest.mark.django_db
+def test_filtro_de_conta(client, auth, alice, account, destination_account, make_transaction):
+    make_transaction(alice, account=account, value=Decimal('10.00'))
+    make_transaction(alice, account=destination_account, value=Decimal('90.00'))
+
+    body = get(client, ANALYTICS_URL, auth, account=str(destination_account.id))
+
+    assert Decimal(body['summary']['outcome']) == Decimal('90.00')
+
+
+@pytest.mark.django_db
+def test_filtro_de_metodo_alcanca_o_credito(client, auth, alice, make_transaction):
+    """O crédito fica fora do padrão, mas tem de estar ao alcance de um pedido.
+
+    Sem isto não haveria como analisar a fatura: a previsão só olha para a
+    frente, e o gasto de crédito já vencido ficaria invisível.
+    """
+    make_transaction(alice, method=Method.DEBIT, value=Decimal('20.00'))
+    make_transaction(alice, method=Method.CREDIT, value=Decimal('80.00'))
+
+    padrao = get(client, ANALYTICS_URL, auth)
+    credito = get(client, ANALYTICS_URL, auth, method='CREDIT')
+    tudo = get(client, ANALYTICS_URL, auth, method='all')
+
+    assert Decimal(padrao['summary']['outcome']) == Decimal('20.00')
+    assert Decimal(credito['summary']['outcome']) == Decimal('80.00')
+    assert Decimal(tudo['summary']['outcome']) == Decimal('100.00')
+    assert tudo['filters']['method'] == 'todos'
+
+
+@pytest.mark.django_db
+def test_filtro_de_natureza_alcanca_a_transferencia(client, auth, alice, make_transfer):
+    make_transfer(alice, value=Decimal('300.00'))
+
+    body = get(client, ANALYTICS_URL, auth, nature='INTERNAL')
+
+    # As duas pernas: a saída na origem e a entrada no destino.
+    assert Decimal(body['summary']['outcome']) == Decimal('300.00')
+    assert Decimal(body['summary']['income']) == Decimal('300.00')
+
+
+@pytest.mark.django_db
+def test_filtro_de_origem(client, auth, alice, make_transaction, make_transfer):
+    make_transaction(alice, value=Decimal('25.00'))
+    make_transfer(alice, value=Decimal('300.00'))
+
+    avulsas = get(client, ANALYTICS_URL, auth, nature='all', origin='standalone')
+    pernas = get(client, ANALYTICS_URL, auth, nature='all', origin='transfer')
+
+    assert Decimal(avulsas['summary']['outcome']) == Decimal('25.00')
+    assert Decimal(pernas['summary']['outcome']) == Decimal('300.00')
+
+
+@pytest.mark.django_db
+def test_filtro_de_faixa_de_valor(client, auth, alice, make_transaction):
+    make_transaction(alice, value=Decimal('10.00'))
+    make_transaction(alice, value=Decimal('100.00'))
+    make_transaction(alice, value=Decimal('1000.00'))
+
+    body = get(client, ANALYTICS_URL, auth, min_value='50', max_value='500')
+
+    assert Decimal(body['summary']['outcome']) == Decimal('100.00')
+    assert body['summary']['transactions'] == 1
+
+
+@pytest.mark.django_db
+def test_filtro_de_descricao(client, auth, alice, make_transaction):
+    make_transaction(alice, description='Padaria da esquina', value=Decimal('12.00'))
+    make_transaction(alice, description='Posto', value=Decimal('200.00'))
+
+    body = get(client, ANALYTICS_URL, auth, search='padaria')
+
+    assert Decimal(body['summary']['outcome']) == Decimal('12.00')
+
+
+@pytest.mark.django_db
+def test_periodo_explicito_alcanca_o_historico_antigo(client, auth, alice, make_transaction):
+    """Um recorte de data chega onde a janela de meses não chega."""
+    antiga = timezone.make_aware(datetime(2020, 5, 15, 10, 0))
+    make_transaction(alice, datetime=antiga, value=Decimal('55.00'))
+    make_transaction(alice, value=Decimal('7.00'))
+
+    body = get(client, ANALYTICS_URL, auth, start='2020-05', end='2020-05')
+
+    assert Decimal(body['summary']['outcome']) == Decimal('55.00')
+    # "2020-05" no fim do recorte estica para o último dia do mês; cortá-lo no
+    # dia 1 deixaria maio inteiro de fora da própria consulta de maio.
+    assert body['filters']['period'] == {'start': '2020-05-01', 'end': '2020-05-31'}
+
+
+@pytest.mark.django_db
+def test_janela_de_meses_abre_no_primeiro_dia_do_mes(client, auth, alice, make_transaction):
+    make_transaction(alice)
+    filtros = get(client, ANALYTICS_URL, auth, months='1')['filters']
+
+    hoje = timezone.localdate()
+    assert filtros['period']['start'] == hoje.replace(day=1).isoformat()
+    assert filtros['period']['months'] == 1
+
+
+@pytest.mark.django_db
+def test_meses_recortam_o_que_ficou_para_tras(client, auth, alice, make_transaction):
+    passado = timezone.now() - timedelta(days=120)
+    make_transaction(alice, datetime=passado, value=Decimal('500.00'))
+    make_transaction(alice, value=Decimal('25.00'))
+
+    assert Decimal(get(client, ANALYTICS_URL, auth, months='1')['summary']['outcome']) == Decimal('25.00')
+    assert Decimal(get(client, ANALYTICS_URL, auth, months='12')['summary']['outcome']) == Decimal('525.00')
+
+
+@pytest.mark.django_db
+def test_eixos_pedidos_quebram_o_mesmo_total(client, auth, alice, account, destination_account, make_transaction):
+    make_transaction(alice, account=account, value=Decimal('30.00'))
+    make_transaction(alice, account=destination_account, value=Decimal('70.00'))
+
+    body = get(client, ANALYTICS_URL, auth, group_by='account,method,month')
+    quebras = body['breakdowns']
+
+    assert list(quebras) == ['account', 'method', 'month']
+    # Eixos diferentes são recortes do mesmo conjunto: cada um soma o total.
+    for eixo in quebras.values():
+        assert sum(Decimal(linha['outcome']) for linha in eixo) == Decimal('100.00')
+
+
+@pytest.mark.django_db
+def test_top_recolhe_a_cauda_sem_perder_o_total(client, auth, alice, make_transaction):
+    from app.models import Category
+    for indice, valor in enumerate(['10.00', '20.00', '30.00'], start=1):
+        categoria = Category.objects.create(description=f'Categoria {indice}')
+        make_transaction(alice, category=categoria, value=Decimal(valor))
+
+    linhas = get(client, ANALYTICS_URL, auth, group_by='category', top='1')['breakdowns']['category']
+
+    assert [linha['key'] for linha in linhas][-1] == 'others'
+    assert linhas[0]['outcome'] == '30.00'
+    # A cauda vira uma linha, e não sai da resposta: um total que não fecha faz o
+    # agente inventar a diferença.
+    assert sum(Decimal(linha['outcome']) for linha in linhas) == Decimal('60.00')
+
+
+@pytest.mark.django_db
+def test_lista_ordenada_pelos_maiores(client, auth, alice, make_transaction):
+    make_transaction(alice, value=Decimal('10.00'))
+    make_transaction(alice, value=Decimal('900.00'))
+    make_transaction(alice, value=Decimal('50.00'))
+
+    body = get(client, ANALYTICS_URL, auth, include='summary,transactions', order='largest', limit='2')
+
+    assert [t['value'] for t in body['transactions']] == ['900.00', '50.00']
+    # O resumo continua contando o conjunto inteiro, não a página.
+    assert body['summary']['transactions'] == 3
+
+
+@pytest.mark.django_db
+def test_limite_zero_conta_sem_listar(client, auth, alice, make_transaction):
+    make_transaction(alice)
+    body = get(client, ANALYTICS_URL, auth, include='summary,transactions', limit='0')
+
+    assert body['transactions'] == []
+    assert body['summary']['transactions'] == 1
+
+
+@pytest.mark.django_db
+def test_previsao_obedece_ao_filtro_de_conta(client, auth, alice, account, destination_account, make_transaction):
+    futuro = timezone.now() + timedelta(days=30)
+    make_transaction(alice, account=account, method=Method.CREDIT, datetime=futuro, value=Decimal('200.00'))
+    make_transaction(alice, account=destination_account, method=Method.CREDIT, datetime=futuro, value=Decimal('800.00'))
+
+    body = get(client, ANALYTICS_URL, auth, include='forecast', account=str(account.id))
+
+    assert Decimal(body['forecast']['total']) == Decimal('200.00')
+    # A previsão diz o próprio recorte: ela não obedece ao período nem ao método.
+    assert 'crédito' in body['forecast']['scope']
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('params, trecho', [
+    ({'method': 'PIX'}, 'method'),
+    ({'nature': 'QUALQUER'}, 'nature'),
+    ({'group_by': 'trimestre'}, 'group_by'),
+    ({'include': 'tudo_junto'}, 'include'),
+    ({'origin': 'emprestimo'}, 'origin'),
+    ({'start': '31-02-2026'}, 'start'),
+    ({'account': 'conta'}, 'account'),
+    ({'months': 'doze'}, 'months'),
+    ({'min_value': 'muito'}, 'min_value'),
+    ({'order': 'aleatoria'}, 'order'),
+    ({'start': '2026-06', 'end': '2026-01'}, 'depois'),
+])
+def test_filtro_invalido_explica_o_que_aceita(client, auth, params, trecho):
+    """Filtro errado vira erro, não silêncio.
+
+    Ignorar o parâmetro devolveria 200 com o recorte errado, e o agente
+    apresentaria ao usuário o total de um conjunto que ninguém pediu. Com a
+    mensagem dizendo o que se aceita, ele refaz a chamada sozinho.
+    """
+    response = client.get(ANALYTICS_URL, params, headers=auth)
+
+    assert response.status_code == 400
+    assert response.json()['error'] == 'invalid_filter'
+    assert trecho in response.json()['message']
+
+
+# --------------------------------------------------------------------------
+# Consulta — a rota antiga
+# --------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_contexto_continua_entregando_tudo(client, auth, alice, account, category, business_rules, make_transaction):
+    """A composição das outras rotas, para o fluxo antigo não quebrar no deploy."""
+    make_transaction(alice, description='Da Alice')
+
+    body = get(client, CONTEXT_URL, auth)
+
+    assert 'ciclo_do_cartao' in body['documentation']
+    assert body['options']['accounts']
+    assert set(body) >= {'summary', 'breakdowns', 'position', 'forecast', 'transactions'}
+    assert [t['description'] for t in body['transactions']] == ['Da Alice']
 
 
 # --------------------------------------------------------------------------
