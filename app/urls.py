@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import api, views
 
 
 app_name = 'app'
@@ -19,4 +19,9 @@ urlpatterns = [
     path('card/add/', views.CardCreateView.as_view(), name='card_create'),
     path('card/<int:pk>/change/', views.CardUpdateView.as_view(), name='card_update'),
     path('card/<int:pk>/delete/', views.CardDeleteView.as_view(), name='card_delete'),
+
+    # API para agentes externos (n8n). Fica sob /api/ e autentica por token, sem
+    # sessão: as rotas acima continuam sendo as da interface, com login e CSRF.
+    path('api/context/', api.ContextView.as_view(), name='api_context'),
+    path('api/transactions/', api.TransactionCreateView.as_view(), name='api_transaction_create'),
 ]

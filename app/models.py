@@ -1,6 +1,8 @@
 from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_DOWN
+import hashlib
+import secrets
 from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
@@ -52,6 +54,78 @@ class Group(BaseGroup):
         verbose_name = BaseGroup._meta.verbose_name
         verbose_name_plural = BaseGroup._meta.verbose_name_plural
         app_label = 'app'
+
+
+class ApiToken(models.Model):
+    """Credencial de acesso à API, usada por agentes externos em nome de um usuário.
+
+    O token em claro existe uma única vez, no instante em que é gerado: o que fica
+    gravado é o SHA-256 dele. Não é Argon2, como a senha, porque aqui a busca é por
+    igualdade — a requisição chega com o token e precisa encontrar a linha dele numa
+    consulta só. Argon2 sorteia um sal por registro, e com isso não há o que procurar
+    no índice: seria preciso varrer a tabela inteira comparando um a um.
+
+    E o que o sal protege não existe neste caso. Ele encarece a força bruta sobre
+    senha curta, escolhida por gente e repetida entre sites; o token são 32 bytes
+    sorteados, fora do alcance de dicionário. Sem sal, o resumo é determinístico e
+    o índice único resolve a busca.
+    """
+
+    # Prefixo no token em claro para ele ser reconhecível quando aparecer num log,
+    # numa captura de tela ou num nó do n8n: quem encontra a chave sabe de onde ela é.
+    PREFIX = 'finflow_'
+
+    # 32 bytes sorteados: o suficiente para a adivinhação ser inviável, e o que
+    # secrets.token_urlsafe transforma em texto seguro para cabeçalho HTTP.
+    ENTROPY_BYTES = 32
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='api_tokens', verbose_name='Usuário')
+    description = models.CharField(max_length=100, verbose_name='Descrição', help_text='Onde esta credencial é usada. Ex.: Agente n8n.')
+    digest = models.CharField(max_length=64, unique=True, editable=False, verbose_name='Resumo do Token')
+    is_active = models.BooleanField(default=True, verbose_name='Ativa')
+    created = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
+    last_used = models.DateTimeField(blank=True, null=True, editable=False, verbose_name='Último Uso')
+
+    @staticmethod
+    def digest_for(raw):
+        """Resumo do token: o que se grava e o que se procura."""
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    @classmethod
+    def issue(cls, user, description):
+        """Cria a credencial e devolve o par (registro, token em claro).
+
+        O token em claro é devolvido, e não gravado: esta é a única vez em que ele
+        existe fora de quem o pediu. Perdido, não se recupera — emite-se outro.
+        """
+        raw = f'{cls.PREFIX}{secrets.token_urlsafe(cls.ENTROPY_BYTES)}'
+        return cls.objects.create(user=user, description=description, digest=cls.digest_for(raw)), raw
+
+    @classmethod
+    def resolve(cls, raw):
+        """Credencial ativa correspondente ao token, ou None.
+
+        A comparação é feita pelo índice único sobre o resumo, não campo a campo em
+        Python: não há laço cujo tempo varie com o quanto do token o atacante já
+        acertou, que é o que a comparação em tempo constante evitaria.
+        """
+        if not raw:
+            return None
+        return cls.objects.select_related('user').filter(digest=cls.digest_for(raw), is_active=True).first()
+
+    def touch(self):
+        """Marca o uso, sem mexer no resto do registro nem disparar validação."""
+        self.last_used = timezone.now()
+        ApiToken.objects.filter(pk=self.pk).update(last_used=self.last_used)
+
+    def __str__(self):
+        return f'{self.description} ({self.user})'
+
+    class Meta:
+        ordering = ['user__username', 'description']
+        unique_together = ('user', 'description')
+        verbose_name = 'Credencial de API'
+        verbose_name_plural = 'Credenciais de API'
 
 
 class Type(models.TextChoices):
