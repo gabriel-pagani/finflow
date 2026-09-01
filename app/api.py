@@ -1415,6 +1415,12 @@ class TransactionCreateView(ApiView):
                 reversion.set_comment(f'Criado pela API ({request.api_token.description}).')
                 instance = form.save()
 
+            # Carimba a credencial em tudo o que o lançamento gerou — a avulsa, as
+            # parcelas ou as duas pernas —, para o admin poder distinguir depois o
+            # que entrou pela API do que veio da tela. É update() de propósito:
+            # não passa por save() nem regera transação, só grava a coluna.
+            self.resulting_transactions(kind, instance).update(api_token=request.api_token)
+
         return json_response({
             'ok': True,
             'kind': kind,

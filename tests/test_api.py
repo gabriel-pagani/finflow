@@ -515,7 +515,7 @@ def test_contexto_continua_entregando_tudo(client, auth, alice, account, categor
 # --------------------------------------------------------------------------
 
 @pytest.mark.django_db
-def test_cria_transacao_avulsa(client, auth, alice, account, category, business_rules):
+def test_cria_transacao_avulsa(client, auth, alice, alice_token, account, category, business_rules):
     response = post(client, {
         'kind': 'transaction',
         'datetime': '2026-03-19T14:30',
@@ -536,6 +536,12 @@ def test_cria_transacao_avulsa(client, auth, alice, account, category, business_
     assert transaction.value == Decimal('25.50')
     assert transaction.nature == Nature.REGULAR
     assert body['transactions'][0]['value'] == '25.50'
+
+    # Todo lançamento pela API nasce carimbado com a credencial que o gravou,
+    # sem o agente precisar informar nada. É o que o admin usa para distinguir
+    # o que entrou por aqui do que veio da tela.
+    alice_token_obj, _ = alice_token
+    assert transaction.api_token_id == alice_token_obj.id
 
 
 @pytest.mark.django_db

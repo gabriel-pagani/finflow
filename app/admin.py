@@ -202,8 +202,8 @@ class InvestmentAdmin(VersionAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(VersionAdmin):
-    list_display = ('user', 'account', 'card', 'type', 'method', 'nature', 'category_display', 'description', 'value', 'datetime',)
-    list_filter = ('user', 'account', 'card', 'type', 'method', 'nature', 'category',)
+    list_display = ('user', 'account', 'card', 'type', 'method', 'nature', 'category_display', 'description', 'value', 'datetime', 'api_token',)
+    list_filter = ('user', 'account', 'card', 'type', 'method', 'nature', 'category', 'api_token',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
     actions = ('duplicate_transactions', 'delete_selected',)

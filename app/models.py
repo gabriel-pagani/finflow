@@ -588,6 +588,11 @@ class Transaction(models.Model):
 
     transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name='transactions', blank=True, null=True, verbose_name='Transferência')
 
+    # Preenchido quando o lançamento entrou pela API, com a credencial que o
+    # gravou. Fica nulo no que veio pela tela ou pelo admin. É SET_NULL, e não
+    # CASCADE: revogar o token não deve apagar as transações que ele registrou.
+    api_token = models.ForeignKey(ApiToken, on_delete=models.SET_NULL, related_name='transactions', blank=True, null=True, editable=False, verbose_name='Origem API')
+
     def clean(self):
         super().clean()
         if self.account_id and self.type and self.method:
