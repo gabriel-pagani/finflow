@@ -4,7 +4,7 @@ from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, ApiToken, Account, Category, BusinessRule, Card, Installment, Investment, Contribution, Redemption, Yield, Transfer, Transaction
+from .models import User, Group, Account, Category, BusinessRule, Card, Installment, Investment, Contribution, Redemption, Yield, Transfer, Transaction
 
 
 # User Admin
@@ -47,43 +47,6 @@ admin.site.unregister(BaseGroup)
 @admin.register(Group)
 class GroupAdmin(VersionAdmin, BaseGroupAdmin):
     ...
-
-
-@admin.register(ApiToken)
-class ApiTokenAdmin(VersionAdmin):
-    """Credenciais da API. O token em claro aparece uma única vez, ao ser criado.
-
-    O formulário não tem campo de token: quem o gera é o save_model, a partir do
-    ApiToken.issue(). Deixar o segredo ser digitado abriria espaço para alguém
-    cadastrar um token fraco, e guardá-lo para reexibição depois destruiria a
-    única garantia que o hash oferece.
-    """
-
-    list_display = ('description', 'user', 'is_active', 'created', 'last_used',)
-    list_filter = ('is_active', 'user',)
-    search_fields = ('description', 'user__username',)
-    readonly_fields = ('created', 'last_used',)
-
-    def get_fields(self, request, obj=None):
-        return ('user', 'description', 'is_active',) if obj is None else ('user', 'description', 'is_active', 'created', 'last_used',)
-
-    def save_model(self, request, obj, form, change):
-        if change:
-            return super().save_model(request, obj, form, change)
-
-        # Na criação o registro nasce pelo issue(), que sorteia o segredo e grava
-        # só o resumo. A mensagem é a única entrega do token em claro: não há
-        # tela que o mostre de novo, porque ele não fica guardado em lugar nenhum.
-        token, raw = ApiToken.issue(obj.user, obj.description)
-        token.is_active = obj.is_active
-        token.save(update_fields=['is_active'])
-        obj.pk = token.pk
-
-        self.message_user(
-            request,
-            f'Credencial criada. Copie o token agora, ele não será exibido novamente: {raw}',
-            messages.WARNING,
-        )
 
 
 @admin.register(Account)
@@ -203,7 +166,7 @@ class InvestmentAdmin(VersionAdmin):
 @admin.register(Transaction)
 class TransactionAdmin(VersionAdmin):
     list_display = ('user', 'account', 'type', 'method', 'nature', 'category_display', 'description', 'value', 'datetime',)
-    list_filter = ('user', 'account', 'card', 'type', 'method', 'nature', 'category', 'api_token',)
+    list_filter = ('user', 'account', 'card', 'type', 'method', 'nature', 'category',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
     actions = ('duplicate_transactions', 'delete_selected',)

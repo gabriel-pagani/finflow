@@ -1,8 +1,6 @@
 from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_DOWN
-import hashlib
-import secrets
 from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
@@ -54,78 +52,6 @@ class Group(BaseGroup):
         verbose_name = BaseGroup._meta.verbose_name
         verbose_name_plural = BaseGroup._meta.verbose_name_plural
         app_label = 'app'
-
-
-class ApiToken(models.Model):
-    """Credencial de acesso à API, usada por agentes externos em nome de um usuário.
-
-    O token em claro existe uma única vez, no instante em que é gerado: o que fica
-    gravado é o SHA-256 dele. Não é Argon2, como a senha, porque aqui a busca é por
-    igualdade — a requisição chega com o token e precisa encontrar a linha dele numa
-    consulta só. Argon2 sorteia um sal por registro, e com isso não há o que procurar
-    no índice: seria preciso varrer a tabela inteira comparando um a um.
-
-    E o que o sal protege não existe neste caso. Ele encarece a força bruta sobre
-    senha curta, escolhida por gente e repetida entre sites; o token são 32 bytes
-    sorteados, fora do alcance de dicionário. Sem sal, o resumo é determinístico e
-    o índice único resolve a busca.
-    """
-
-    # Prefixo no token em claro para ele ser reconhecível quando aparecer num log,
-    # numa captura de tela ou num nó do n8n: quem encontra a chave sabe de onde ela é.
-    PREFIX = 'finflow_'
-
-    # 32 bytes sorteados: o suficiente para a adivinhação ser inviável, e o que
-    # secrets.token_urlsafe transforma em texto seguro para cabeçalho HTTP.
-    ENTROPY_BYTES = 32
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='api_tokens', verbose_name='Usuário')
-    description = models.CharField(max_length=100, verbose_name='Descrição', help_text='Onde esta credencial é usada. Ex.: Agente n8n.')
-    digest = models.CharField(max_length=64, unique=True, editable=False, verbose_name='Resumo do Token')
-    is_active = models.BooleanField(default=True, verbose_name='Ativa')
-    created = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
-    last_used = models.DateTimeField(blank=True, null=True, editable=False, verbose_name='Último Uso')
-
-    @staticmethod
-    def digest_for(raw):
-        """Resumo do token: o que se grava e o que se procura."""
-        return hashlib.sha256(raw.encode()).hexdigest()
-
-    @classmethod
-    def issue(cls, user, description):
-        """Cria a credencial e devolve o par (registro, token em claro).
-
-        O token em claro é devolvido, e não gravado: esta é a única vez em que ele
-        existe fora de quem o pediu. Perdido, não se recupera — emite-se outro.
-        """
-        raw = f'{cls.PREFIX}{secrets.token_urlsafe(cls.ENTROPY_BYTES)}'
-        return cls.objects.create(user=user, description=description, digest=cls.digest_for(raw)), raw
-
-    @classmethod
-    def resolve(cls, raw):
-        """Credencial ativa correspondente ao token, ou None.
-
-        A comparação é feita pelo índice único sobre o resumo, não campo a campo em
-        Python: não há laço cujo tempo varie com o quanto do token o atacante já
-        acertou, que é o que a comparação em tempo constante evitaria.
-        """
-        if not raw:
-            return None
-        return cls.objects.select_related('user').filter(digest=cls.digest_for(raw), is_active=True).first()
-
-    def touch(self):
-        """Marca o uso, sem mexer no resto do registro nem disparar validação."""
-        self.last_used = timezone.now()
-        ApiToken.objects.filter(pk=self.pk).update(last_used=self.last_used)
-
-    def __str__(self):
-        return f'{self.description} ({self.user})'
-
-    class Meta:
-        ordering = ['user__username', 'description']
-        unique_together = ('user', 'description')
-        verbose_name = 'Credencial de API'
-        verbose_name_plural = 'Credenciais de API'
 
 
 class Type(models.TextChoices):
@@ -588,11 +514,6 @@ class Transaction(models.Model):
 
     transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name='transactions', blank=True, null=True, verbose_name='Transferência')
 
-    # Preenchido quando o lançamento entrou pela API, com a credencial que o
-    # gravou. Fica nulo no que veio pela tela ou pelo admin. É SET_NULL, e não
-    # CASCADE: revogar o token não deve apagar as transações que ele registrou.
-    api_token = models.ForeignKey(ApiToken, on_delete=models.SET_NULL, related_name='transactions', blank=True, null=True, editable=False, verbose_name='Origem API')
-
     def clean(self):
         super().clean()
         if self.account_id and self.type and self.method:
@@ -709,3 +630,150 @@ class Transaction(models.Model):
         ordering = ['-datetime']
         verbose_name = 'Transação'
         verbose_name_plural = 'Transações'
+
+
+class Conversation(models.Model):
+    """Uma conversa do usuário com o assistente.
+
+    O histórico fica no banco, e não na sessão, por duas razões. A conversa
+    sobrevive a restart e a deploy, que num sistema que roda em container
+    acontecem no meio de qualquer tarde; e o que o assistente respondeu antes de
+    um lançamento ser confirmado continua legível depois — se um valor saiu
+    errado, dá para ler onde ele veio.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='conversations', verbose_name='Usuário')
+    title = models.CharField(max_length=120, blank=True, verbose_name='Título')
+    created = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
+    updated = models.DateTimeField(auto_now=True, verbose_name='Atualizada em')
+
+    def __str__(self):
+        return self.title or f'Conversa de {self.created:%d/%m/%Y %H:%M}'
+
+    class Meta:
+        ordering = ['-updated']
+        verbose_name = 'Conversa'
+        verbose_name_plural = 'Conversas'
+
+        # A permissão mora aqui porque o Django precisa pendurá-la em algum
+        # modelo, e este é o que só existe por causa do assistente. Ela guarda o
+        # botão flutuante e as rotas do chat: sem ela, o botão não é renderizado
+        # e as views respondem 403.
+        permissions = [
+            ('use_assistant', 'Pode usar o assistente'),
+        ]
+
+
+class Role(models.TextChoices):
+    USER = 'user', 'Usuário'
+    ASSISTANT = 'assistant', 'Assistente'
+    TOOL = 'tool', 'Ferramenta'
+
+
+class Message(models.Model):
+    """Um trecho da conversa: o que a tela mostra e o que o modelo relê.
+
+    Os dois não são a mesma coisa, e por isso são campos diferentes. `content` é
+    texto para o usuário. `items` é a lista de itens exatamente como a API os
+    devolveu e os espera de volta — texto, chamada de ferramenta e, num modelo de
+    raciocínio, os itens de raciocínio que sustentam a chamada.
+
+    Guardar os itens crus, e não uma tradução deles, é o que mantém o raciocínio
+    inteiro entre uma rodada de ferramenta e a seguinte: reescrevê-los num formato
+    próprio significaria descartar o que não coubesse no formato, e o que não
+    couber é justamente o que o modelo usaria para não repetir a consulta.
+
+    Uma linha guarda um turno inteiro, e não um item por linha, porque os itens de
+    um turno precisam voltar juntos e na ordem: um raciocínio separado da chamada
+    que ele justifica faz a API recusar a conversa toda.
+
+    O que NÃO é guardado é o system prompt: ele é remontado a cada requisição,
+    porque carrega a data de hoje. Um prompt gravado envelheceria junto com a
+    conversa, e "este mês" passaria a significar o mês em que ela começou.
+    """
+
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages', verbose_name='Conversa')
+    role = models.CharField(max_length=20, choices=Role.choices, verbose_name='Papel')
+    content = models.TextField(blank=True, verbose_name='Conteúdo')
+
+    items = models.JSONField(default=list, blank=True, verbose_name='Itens da Conversa')
+
+    # Nem tudo que o modelo precisa ler é coisa que o usuário precisa ver. O
+    # resultado de uma confirmação é o exemplo: o modelo tem de saber que o
+    # lançamento foi gravado, senão oferece registrar de novo o que acabou de
+    # ser registrado — mas quem clicou no botão não precisa que a própria ação
+    # dele seja narrada de volta, em terceira pessoa, como se ele a tivesse
+    # digitado.
+    visible = models.BooleanField(default=True, verbose_name='Aparece no Chat')
+
+    created = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
+
+    def __str__(self):
+        return f'{self.get_role_display()}: {self.content[:60]}'
+
+    class Meta:
+        ordering = ['created', 'id']
+        verbose_name = 'Mensagem'
+        verbose_name_plural = 'Mensagens'
+
+
+class PendingWrite(models.Model):
+    """Um lançamento montado pelo assistente, à espera do usuário confirmar.
+
+    É o que separa "o modelo propôs" de "o dinheiro foi gravado". A ferramenta de
+    registro valida o lançamento no mesmo formulário da tela e para aqui; quem
+    grava é o clique, num POST próprio, com CSRF e com o usuário da sessão.
+
+    O registro também é o que impede o replay: ele é consumido na primeira
+    confirmação e carrega o dono, então confirmar o pendente de outra pessoa não
+    é uma checagem que alguém possa esquecer de escrever — é um filtro que não
+    encontra linha nenhuma.
+    """
+
+    # Uma proposta velha não deve poder ser confirmada: entre montá-la e clicar,
+    # o saldo mudou, a fatura virou, e o usuário já não lembra do que se tratava.
+    EXPIRY = timedelta(hours=1)
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Aguardando confirmação'
+        CONFIRMED = 'confirmed', 'Confirmado'
+        CANCELLED = 'cancelled', 'Cancelado'
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='pending_writes', verbose_name='Usuário')
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='pending_writes', verbose_name='Conversa')
+
+    kind = models.CharField(max_length=20, verbose_name='Tipo de Lançamento')
+
+    # O que vai para o formulário na confirmação, exatamente como ele validou na
+    # proposta. Regravar a partir do texto do chat abriria espaço para o valor
+    # confirmado ser diferente do valor mostrado.
+    payload = models.JSONField(verbose_name='Dados do Lançamento')
+
+    # O que a tela mostra no cartão: rótulos já resolvidos, para o front não
+    # precisar consultar conta, categoria e cartão de novo só para escrever.
+    summary = models.JSONField(verbose_name='Resumo Exibido')
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name='Situação')
+    created = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
+    resolved = models.DateTimeField(blank=True, null=True, verbose_name='Resolvido em')
+
+    # O que a confirmação gerou. Não é ForeignKey porque o alvo é um de três
+    # modelos, e uma chave genérica custaria uma tabela de contenttypes para
+    # guardar o que só se usa como rótulo na tela.
+    created_label = models.CharField(max_length=200, blank=True, verbose_name='Resultado')
+
+    @property
+    def is_expired(self):
+        return timezone.now() - self.created > self.EXPIRY
+
+    @property
+    def is_open(self):
+        return self.status == self.Status.PENDING and not self.is_expired
+
+    def __str__(self):
+        return f'{self.get_status_display()}: {self.kind} ({self.user})'
+
+    class Meta:
+        ordering = ['-created']
+        verbose_name = 'Lançamento Pendente'
+        verbose_name_plural = 'Lançamentos Pendentes'

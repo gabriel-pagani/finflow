@@ -1,0 +1,291 @@
+/* Chat do assistente: botão flutuante e painel.
+
+   Carregado apenas para quem tem a permissão — o global.html decide. Reaproveita
+   as variáveis de cor do global.css para o painel não parecer colado de outro
+   sistema. */
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.assistant-toggle {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    box-shadow: 0 6px 20px rgb(31 36 48 / 25%);
+    z-index: 40;
+}
+
+/* O ícone é o mesmo do favicon, na variante branca. Ele ocupa metade do botão:
+   o símbolo já tem bastante ar interno, e esticá-lo mais encostaria as setas na
+   borda do círculo. */
+.assistant-toggle img {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.assistant-panel {
+    position: fixed;
+    right: 24px;
+    bottom: 92px;
+    z-index: 40;
+
+    width: min(420px, calc(100vw - 32px));
+    /* Teto em vh para o painel nunca passar da janela num notebook, e piso para
+       ele não virar uma fresta enquanto a conversa ainda tem duas mensagens. */
+    height: min(620px, calc(100vh - 140px));
+
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgb(31 36 48 / 18%);
+    overflow: hidden;
+}
+
+.assistant-panel header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.assistant-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.assistant-actions button {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.assistant-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Item de flex encolhe abaixo do próprio conteúdo quando a coluna enche, e o
+   que sobra cortado é o fim do elemento. No cartão de confirmação isso caía
+   justamente sobre os botões — o único lugar do chat onde alguém precisa
+   clicar. A conversa rola, ela não se espreme. */
+.assistant-messages > * {
+    flex-shrink: 0;
+}
+
+.assistant-message {
+    max-width: 85%;
+    padding: 8px 11px;
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+}
+
+/* A bolha do usuário é texto cru, sem marcação: as quebras que ele digitou
+   precisam do pre-wrap, que a do assistente não usa porque lá elas já viraram
+   parágrafo e lista. */
+.assistant-message.user,
+.assistant-message.error,
+.assistant-message.empty {
+    white-space: pre-wrap;
+}
+
+.assistant-message p + p,
+.assistant-message p + ul,
+.assistant-message p + ol {
+    margin-top: 8px;
+}
+
+.assistant-message ul,
+.assistant-message ol {
+    margin: 4px 0 0;
+    padding-left: 20px;
+    list-style: revert;
+}
+
+.assistant-message li {
+    margin-bottom: 2px;
+}
+
+.assistant-message strong {
+    font-weight: 600;
+}
+
+.assistant-message em {
+    font-style: italic;
+}
+
+.assistant-message code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.92em;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--muted) 15%, transparent);
+}
+
+.assistant-message.user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: #fff;
+}
+
+.assistant-message.assistant {
+    align-self: flex-start;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.assistant-message.error {
+    align-self: stretch;
+    background: color-mix(in srgb, var(--outcome) 10%, var(--surface));
+    border: 1px solid var(--outcome);
+    color: var(--outcome);
+}
+
+.assistant-message.empty {
+    align-self: center;
+    color: var(--muted);
+    text-align: center;
+    max-width: 100%;
+}
+
+/* Aviso de "estou consultando". Existe porque a resposta de uma pergunta com
+   duas consultas leva dezenas de segundos até a primeira palavra, e sem isso o
+   painel parece travado. Some assim que o texto começa a sair. */
+.assistant-status {
+    align-self: flex-start;
+    color: var(--muted);
+    font-size: 12px;
+    font-style: italic;
+    padding: 0 4px;
+}
+
+/* Cartão de confirmação: o lançamento que o assistente montou e ninguém gravou
+   ainda. É a única coisa do painel que escreve no banco, então destoa de
+   propósito do resto da conversa. */
+.assistant-pending {
+    align-self: stretch;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.assistant-pending h4 {
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    border-bottom: 1px solid var(--border);
+    padding: 8px 11px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.assistant-pending dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    padding: 10px 11px;
+}
+
+.assistant-pending dt {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.assistant-pending dd {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.assistant-pending .note {
+    padding: 0 11px 10px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.assistant-pending footer {
+    display: flex;
+    gap: 8px;
+    padding: 0 11px 11px;
+}
+
+.assistant-pending footer button {
+    flex: 1;
+    height: 32px;
+}
+
+.assistant-pending .resolved {
+    padding: 10px 11px;
+    font-size: 13px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+}
+
+.assistant-composer {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.assistant-composer textarea {
+    flex: 1;
+    font: inherit;
+    line-height: 20px;
+    /* Cresce com o texto até um teto, para uma pergunta longa não ser digitada
+       numa fresta de uma linha nem comer o painel inteiro. */
+    min-height: 36px;
+    max-height: 120px;
+    padding: 8px 10px;
+    resize: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    box-sizing: border-box;
+}
+
+.assistant-composer button {
+    align-self: flex-end;
+}
+
+.assistant-panel[data-busy="true"] .assistant-composer button,
+.assistant-panel[data-busy="true"] .assistant-composer textarea {
+    opacity: .6;
+    pointer-events: none;
+}
+
+@media (max-width: 560px) {
+    .assistant-panel {
+        right: 8px;
+        left: 8px;
+        bottom: 84px;
+        width: auto;
+        height: min(620px, calc(100vh - 120px));
+    }
+
+    .assistant-toggle {
+        right: 16px;
+        bottom: 16px;
+    }
+}

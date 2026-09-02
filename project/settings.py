@@ -172,6 +172,12 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
+# O assistente. A chave nunca aparece no cliente: quem fala com o modelo é o
+# servidor, e o navegador só recebe o texto que já saiu de lá.
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+OPENAI_MODEL = os.getenv('OPENAI_MODEL')
+
 SECURE_CSP = {
     'default-src': [CSP.SELF],
     'script-src': [CSP.SELF],

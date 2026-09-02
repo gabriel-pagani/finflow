@@ -53,7 +53,7 @@ services:
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
-             gunicorn project.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2 --timeout 60 --access-logfile - --error-logfile -"
+             gunicorn project.wsgi:application --bind 0.0.0.0:8000 --worker-class gthread --workers 4 --threads 8 --timeout 300 --graceful-timeout 30 --access-logfile - --error-logfile -"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import socket; s=socket.socket(); s.settimeout(2); s.connect((\"127.0.0.1\",8000)); s.close()'"]
       interval: 5s

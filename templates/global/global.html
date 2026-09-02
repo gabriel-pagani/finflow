@@ -7,6 +7,7 @@
     <link rel="icon" href="{% static 'global/images/black-favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'global/css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'global/css/global.css' %}">
+    {% if perms.app.use_assistant %}<link rel="stylesheet" href="{% static 'global/css/assistant.css' %}">{% endif %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
     {% if user.is_authenticated %}
@@ -41,8 +42,13 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if perms.app.use_assistant %}
+        {% include 'global/assistant.html' %}
+    {% endif %}
+
     <script src="{% static 'global/js/echarts.js' %}"></script>
     <script src="{% static 'global/js/global.js' %}"></script>
+    {% if perms.app.use_assistant %}<script src="{% static 'global/js/assistant.js' %}"></script>{% endif %}
     {% block scripts %}{% endblock %}
 </body>
 </html>

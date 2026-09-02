@@ -1,5 +1,6 @@
 from django.urls import path
-from . import api, views
+from . import views
+from .assistant import views as assistant_views
 
 
 app_name = 'app'
@@ -20,19 +21,12 @@ urlpatterns = [
     path('card/<int:pk>/change/', views.CardUpdateView.as_view(), name='card_update'),
     path('card/<int:pk>/delete/', views.CardDeleteView.as_view(), name='card_delete'),
 
-    # API para agentes externos (n8n). Fica sob /api/ e autentica por token, sem
-    # sessão: as rotas acima continuam sendo as da interface, com login e CSRF.
-    #
-    # A consulta é repartida por assunto porque o custo do agente se mede em
-    # tokens por mensagem: as regras não mudam entre uma pergunta e outra, e ele
-    # não precisa recebê-las de novo a cada saldo consultado.
-    path('api/', api.IndexView.as_view(), name='api_index'),
-    path('api/documentation/', api.DocumentationView.as_view(), name='api_documentation'),
-    path('api/options/', api.OptionsView.as_view(), name='api_options'),
-    path('api/analytics/', api.AnalyticsView.as_view(), name='api_analytics'),
-    path('api/transactions/', api.TransactionCreateView.as_view(), name='api_transaction_create'),
-
-    # Composição das rotas acima, mantida para o fluxo que já apontava para cá
-    # não quebrar no deploy.
-    path('api/context/', api.ContextView.as_view(), name='api_context'),
+    # Chat do assistente. O stream é POST lido por fetch, e não EventSource,
+    # porque a pergunta precisa ir no corpo e o CSRF num cabeçalho. Todas as
+    # rotas exigem a permissão app.use_assistant.
+    path('assistant/stream/', assistant_views.StreamView.as_view(), name='assistant_stream'),
+    path('assistant/history/', assistant_views.HistoryView.as_view(), name='assistant_history'),
+    path('assistant/reset/', assistant_views.ResetView.as_view(), name='assistant_reset'),
+    path('assistant/pending/<int:pk>/confirm/', assistant_views.ConfirmView.as_view(), name='assistant_confirm'),
+    path('assistant/pending/<int:pk>/cancel/', assistant_views.CancelView.as_view(), name='assistant_cancel'),
 ]
