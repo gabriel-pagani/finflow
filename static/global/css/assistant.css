@@ -79,6 +79,10 @@
 .assistant-messages {
     flex: 1;
     overflow-y: auto;
+    /* Chegando ao fim da conversa, a rolagem para aqui em vez de continuar na
+       página atrás — que em tela cheia seria a página inteira se mexendo sob um
+       painel que a cobre. */
+    overscroll-behavior: contain;
     padding: 12px;
     display: flex;
     flex-direction: column;
@@ -276,12 +280,45 @@
 }
 
 @media (max-width: 560px) {
+    /* No celular o painel toma a tela inteira. Encaixado num canto, como no
+       desktop, sobrava pouco mais de meia tela para a conversa: as margens, o
+       espaço do botão flutuante e a altura máxima somavam contra justamente a
+       parte que precisa de espaço. Numa tela pequena não há segundo conteúdo
+       para deixar visível atrás — então não há o que preservar. */
     .assistant-panel {
-        right: 8px;
-        left: 8px;
-        bottom: 84px;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: auto;
         width: auto;
-        height: min(620px, calc(100vh - 120px));
+
+        /* Três alturas, da mais tosca para a mais exata, cada uma cobrindo o
+           que a anterior erra:
+             vh  — navegador antigo; ignora a barra de endereço.
+             dvh — acompanha a barra de endereço que some ao rolar.
+             var — o JS a preenche com o viewport visível, que é o único que
+                   encolhe quando o teclado abre. Sem ela o campo de digitar
+                   fica atrás do teclado, no exato momento em que é usado. */
+        height: 100vh;
+        height: 100dvh;
+        height: var(--assistant-viewport, 100dvh);
+
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    /* Com a tela inteira ocupada, o botão flutuante ficaria por cima da
+       conversa sem servir para nada: quem fecha é o ✕ do cabeçalho. */
+    #assistant.is-open .assistant-toggle {
+        display: none;
+    }
+
+    /* Alvo de toque: 28px é confortável para o ponteiro do mouse e apertado
+       para o dedo. */
+    .assistant-actions button {
+        height: 36px;
+        padding: 0 12px;
     }
 
     .assistant-toggle {

@@ -15,6 +15,11 @@ function setupAssistant(root) {
     const urls = root.dataset;
     let loaded = false;
 
+    /* Largura em que o painel passa a ocupar a tela inteira. Casa com o
+       @media do CSS: os dois precisam concordar sobre o que é "celular", senão
+       o JS toma decisão de tela cheia num painel que ainda está num canto. */
+    const FULLSCREEN = window.matchMedia('(max-width: 560px)');
+
     /* Rotas com id: o template gera a URL com 0 no lugar e a gente troca. Assim
        o caminho continua saindo do urls.py, e não montado à mão no JS. */
     function pendingUrl(template, id) {
@@ -299,7 +304,11 @@ function setupAssistant(root) {
         } finally {
             clearStatus();
             panel.dataset.busy = 'false';
-            input.focus();
+            /* No desktop o foco volta para o campo e a conversa continua sem
+               tirar a mão do teclado. Em tela cheia, não: se a pessoa dispensou
+               o teclado para ler a resposta, devolver o foco o traz de volta
+               justamente por cima do que ela foi ler. */
+            if (!FULLSCREEN.matches) input.focus();
         }
     }
 
@@ -332,15 +341,38 @@ function setupAssistant(root) {
 
     function open() {
         panel.hidden = false;
+        root.classList.add('is-open');
         toggle.setAttribute('aria-expanded', 'true');
         load();
-        input.focus();
+
+        /* Em tela cheia o foco automático sobe o teclado na hora, que come
+           metade do que acabou de ser aberto. Quem quer digitar toca no campo;
+           quem abriu para ler a conversa não pediu o teclado. */
+        if (!FULLSCREEN.matches) input.focus();
     }
 
     function close() {
         panel.hidden = true;
+        root.classList.remove('is-open');
         toggle.setAttribute('aria-expanded', 'false');
     }
+
+    /* O teclado virtual não encolhe a janela — ele cobre parte dela, e nem o vh
+       nem o dvh percebem. Só o visualViewport enxerga a área que sobrou. Sem
+       isto o campo de digitar fica atrás do teclado exatamente quando alguém
+       vai digitar. O valor vira variável CSS, consumida só pela regra de tela
+       cheia; no desktop ela fica lá sem efeito. */
+    function trackViewport() {
+        const viewport = window.visualViewport;
+        if (!viewport) return;
+
+        const fit = () => root.style.setProperty('--assistant-viewport', `${viewport.height}px`);
+
+        viewport.addEventListener('resize', fit);
+        fit();
+    }
+
+    trackViewport();
 
     toggle.addEventListener('click', () => (panel.hidden ? open() : close()));
     root.querySelector('.assistant-close').addEventListener('click', close);
