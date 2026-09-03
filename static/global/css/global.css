@@ -344,6 +344,13 @@ input[type="date"] {
     /* mantém o ícone de calendário que appearance:none removeria */
     appearance: auto;
     -webkit-appearance: auto;
+    /* Junto com a aparência nativa vem uma largura própria, do tamanho do texto
+       da data, que ignora a célula onde o campo está. Ao lado de um seletor que
+       ocupa a célula inteira, a data ficava visivelmente mais curta — some no
+       desktop, onde as colunas são estreitas, e salta no celular, onde cada uma
+       tem meia tela. Só o input de data precisa disto: os demais campos do
+       sistema têm appearance:none e já esticam sozinhos. */
+    width: 100%;
 }
 
 select {
