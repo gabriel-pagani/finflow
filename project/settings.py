@@ -178,12 +178,25 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 OPENAI_MODEL = os.getenv('OPENAI_MODEL')
 
+# O áudio não vai para o modelo do chat: ele não escuta. É transcrito na entrada,
+# por um modelo próprio, e o que entra na conversa é o texto — que fica legível
+# no histórico e custa uma fração do que custaria mandar o áudio a cada rodada.
+OPENAI_TRANSCRIBE_MODEL = os.getenv('OPENAI_TRANSCRIBE_MODEL', 'gpt-4o-transcribe')
+
 SECURE_CSP = {
     'default-src': [CSP.SELF],
     'script-src': [CSP.SELF],
     'style-src': [CSP.SELF, CSP.UNSAFE_INLINE],
-    'img-src': [CSP.SELF, 'data:'],
+    # O blob: é a foto recém-escolhida, antes de existir no servidor: a prévia no
+    # compositor e a miniatura da mensagem que acabou de subir saem da memória do
+    # navegador. Sem ele a imagem só aparecia depois de um F5, quando passava a
+    # vir da rota de anexo — que é o 'self' aqui.
+    'img-src': [CSP.SELF, 'data:', 'blob:'],
     'font-src': [CSP.SELF],
+    # O áudio gravado no chat é ouvido antes de ser enviado, e nesse momento ele
+    # só existe como blob na memória do navegador — não há URL de onde baixá-lo.
+    # Depois de enviado, vem da própria aplicação, pela rota que confere o dono.
+    'media-src': [CSP.SELF, 'blob:'],
     'connect-src': [CSP.SELF],
     'form-action': [CSP.SELF],
     'frame-ancestors': [CSP.NONE],

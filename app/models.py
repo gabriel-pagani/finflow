@@ -1,8 +1,13 @@
 from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_DOWN
+from pathlib import Path
+from uuid import uuid4
+
 from django.conf import settings
 from django.db import models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
@@ -777,3 +782,73 @@ class PendingWrite(models.Model):
         ordering = ['-created']
         verbose_name = 'Lançamento Pendente'
         verbose_name_plural = 'Lançamentos Pendentes'
+
+
+def attachment_path(instance, filename):
+    """O caminho do arquivo no disco: pasta do dono, nome sorteado.
+
+    O nome que veio do navegador não entra nisto. Ele é escolhido por quem
+    envia, e nome de quem envia virando caminho no servidor é como uma foto de
+    nota fiscal acaba gravada por cima de outra coisa. O que fica é um sorteio
+    com a extensão que a inspeção do conteúdo confirmou.
+
+    A pasta é a do usuário porque o arquivo é dele: separado assim, uma listagem
+    de diretório já responde de quem é cada comprovante, e uma remoção de conta
+    tem uma pasta para apagar em vez de uma busca para fazer.
+    """
+    return f'assistant/{instance.message.conversation.user_id}/{uuid4().hex}{Path(filename).suffix}'
+
+
+class Attachment(models.Model):
+    """A foto ou o áudio que o usuário mandou junto de uma mensagem.
+
+    O arquivo fica em disco, e não no banco, e o que a mensagem guarda é uma
+    referência a esta linha. São dois motivos. Uma foto de nota fiscal em base64
+    dentro do JSON do turno voltaria para a API a cada mensagem seguinte da
+    conversa, e engordaria o backup do Postgres com bytes que não são dado
+    financeiro; e a miniatura que reaparece no chat depois de um F5 precisa de
+    uma URL, que uma coluna JSON não tem como servir.
+
+    Um anexo por mensagem: o compositor manda um arquivo de cada vez, e uma
+    relação de um para um deixa isso explícito no schema em vez de deixá-lo como
+    combinado entre o front e a view.
+
+    O áudio não é lido pelo modelo. Ele é transcrito na chegada, e o que vai para
+    a conversa é a transcrição — que fica em `content`, na mensagem. O arquivo
+    permanece para o usuário poder ouvir de novo o que ele mesmo ditou, e para
+    conferir a transcrição quando um número parecer errado.
+    """
+
+    class Kind(models.TextChoices):
+        IMAGE = 'image', 'Imagem'
+        AUDIO = 'audio', 'Áudio'
+
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='attachment', verbose_name='Mensagem')
+    kind = models.CharField(max_length=10, choices=Kind.choices, verbose_name='Tipo')
+    file = models.FileField(upload_to=attachment_path, max_length=200, verbose_name='Arquivo')
+
+    # O tipo confirmado pela inspeção do conteúdo, e não o rótulo que o
+    # navegador mandou. É ele que sai no Content-Type de quem for baixar.
+    mime = models.CharField(max_length=60, verbose_name='Tipo de Conteúdo')
+
+    created = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
+
+    def __str__(self):
+        return f'{self.get_kind_display()} de {self.message.conversation.user}'
+
+    class Meta:
+        verbose_name = 'Anexo'
+        verbose_name_plural = 'Anexos'
+
+
+@receiver(post_delete, sender=Attachment)
+def remove_attachment_file(sender, instance, **kwargs):
+    """Apaga o arquivo quando a linha sai.
+
+    O Django não faz isso sozinho, e aqui a diferença importa: "Limpar a
+    conversa" apaga a conversa em cascata, e sem isto os comprovantes ficariam
+    no volume para sempre — o usuário teria mandado apagar e o disco continuaria
+    guardando a foto dos gastos dele.
+    """
+    if instance.file:
+        instance.file.delete(save=False)

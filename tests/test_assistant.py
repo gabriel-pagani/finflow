@@ -6,15 +6,19 @@ decidem permissão e escrita. O laço de conversa é o pedaço que depende de re
 não é ele que pode gravar dinheiro errado.
 """
 
+import json
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from django.contrib.auth.models import Permission
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
 import pytest
 
-from app.assistant import tools
+from app.assistant import attachments, tools
+from app.assistant.client import IMAGE_MEMORY, history
 from app.assistant.data import FilterError, options
 from app.models import Conversation, Installment, Message, Method, PendingWrite, Role, Transaction, Transfer, Type
 
@@ -406,3 +410,159 @@ def test_limpar_apaga_so_a_propria_conversa(alice_allowed, bob, conversation):
 
     assert not Conversation.objects.filter(user=conversation.user).exists()
     assert Conversation.objects.filter(user=bob).exists()
+
+
+# --------------------------------------------------------------------------
+# Anexos
+#
+# Foto e áudio chegam pela mesma rota da conversa, mas o que se verifica aqui é
+# só o lado de cá: o que é aceito, onde o arquivo para, quem alcança e o que
+# volta para o modelo. A transcrição e a leitura da imagem são a parte que
+# depende de rede, e seguem fora da suíte.
+# --------------------------------------------------------------------------
+
+JPEG = b'\xff\xd8\xff' + b'\x00' * 64
+
+
+@pytest.fixture
+def media_root(settings, tmp_path):
+    """Cada teste grava na própria pasta, e não no volume da aplicação."""
+    settings.MEDIA_ROOT = tmp_path
+    return tmp_path
+
+
+@pytest.fixture
+def bob_allowed(bob, use_assistant, client):
+    bob.user_permissions.add(use_assistant)
+    assert client.login(username='bob', password='senha-de-teste-bob')
+    return client
+
+
+def photo(conversation, text='', data=JPEG):
+    """Uma mensagem do usuário com foto, montada como o `converse` a monta."""
+    message = Message.objects.create(conversation=conversation, role=Role.USER, content=text, items=[])
+    upload = attachments.Upload(kind='image', mime='image/jpeg', extension='.jpg', data=data)
+    attachment = attachments.attach(message, upload)
+    message.items = [attachments.user_item(text, attachment)]
+    message.save(update_fields=['items'])
+    return attachment
+
+
+def test_aceita_foto_pelo_conteudo(media_root):
+    upload = attachments.inspect(SimpleUploadedFile('seja-o-que-for.txt', JPEG, content_type='text/plain'))
+
+    assert (upload.kind, upload.mime, upload.extension) == ('image', 'image/jpeg', '.jpg')
+
+
+def test_recusa_o_que_nao_e_foto_nem_audio():
+    """O `content_type` do formulário é palavra de quem envia, e não vale prova."""
+    junk = SimpleUploadedFile('foto.jpg', b'nao sou uma imagem', content_type='image/jpeg')
+
+    with pytest.raises(attachments.UploadError):
+        attachments.inspect(junk)
+
+
+def test_recusa_foto_acima_do_teto():
+    grande = SimpleUploadedFile('foto.jpg', JPEG + b'\x00' * (8 * 1024 * 1024), content_type='image/jpeg')
+
+    with pytest.raises(attachments.UploadError):
+        attachments.inspect(grande)
+
+
+def test_turno_guarda_referencia_e_nao_a_imagem(media_root, conversation):
+    """A foto vai para o disco; o que fica no banco é o número da linha dela."""
+    attachment = photo(conversation, 'segue o cupom')
+
+    items = Message.objects.get(pk=attachment.message_id).items
+    parts = items[0]['content']
+
+    assert parts[1]['image_url'] == f'attachment:{attachment.pk}'
+    assert 'base64' not in json.dumps(items)
+
+
+def test_so_as_fotos_recentes_voltam_para_o_modelo(media_root, conversation):
+    """A antiga vira marcador: o arquivo continua, a imagem sai do contexto."""
+    fotos = [photo(conversation, f'foto {index}') for index in range(IMAGE_MEMORY + 2)]
+
+    imagens = [
+        part
+        for item in history(conversation)
+        if isinstance(item.get('content'), list)
+        for part in item['content']
+        if part.get('type') == 'input_image'
+    ]
+
+    assert len(imagens) == IMAGE_MEMORY
+    assert all(part['image_url'].startswith('data:image/jpeg;base64,') for part in imagens)
+    assert len(fotos) > IMAGE_MEMORY
+
+
+def test_foto_sem_legenda_continua_no_historico(media_root, alice_allowed, conversation):
+    """Mensagem vazia é descartada do chat; vazia com anexo, não — ela É a mensagem."""
+    photo(conversation)
+
+    blocos = alice_allowed.get(reverse('app:assistant_history')).json()['blocks']
+
+    assert [bloco['attachment']['kind'] for bloco in blocos] == ['image']
+
+
+def test_anexo_alcanca_o_dono(media_root, alice_allowed, conversation):
+    attachment = photo(conversation)
+
+    response = alice_allowed.get(reverse('app:assistant_attachment', args=[attachment.pk]))
+
+    assert response.status_code == 200
+    # Quem entrega o arquivo é o nginx; o Django só diz que pode e onde está.
+    assert response['X-Accel-Redirect'].startswith('/protected-media/')
+    assert response['Content-Type'] == 'image/jpeg'
+
+
+def test_anexo_nao_alcanca_quem_nao_e_dono(media_root, alice, bob_allowed):
+    """Comprovante é documento financeiro: a URL não pode ser a chave."""
+    attachment = photo(Conversation.objects.create(user=alice))
+
+    response = bob_allowed.get(reverse('app:assistant_attachment', args=[attachment.pk]))
+
+    assert response.status_code == 404
+
+
+def test_limpar_conversa_apaga_o_arquivo(media_root, alice_allowed, conversation):
+    """Sem isto o usuário manda apagar e o disco segue guardando a foto dos gastos dele."""
+    caminho = Path(photo(conversation).file.path)
+    assert caminho.exists()
+
+    alice_allowed.post(reverse('app:assistant_reset'))
+
+    assert not caminho.exists()
+
+
+def test_microfone_liberado_para_a_propria_origem(alice_allowed):
+    """A gravação do chat depende disto.
+
+    Negado no cabeçalho, o navegador recusa `getUserMedia` antes mesmo de
+    perguntar ao usuário — e a permissão concedida nas configurações do site não
+    muda nada, porque a política do documento vem antes dela.
+    """
+    policy = alice_allowed.get(reverse('app:overview'))['Permissions-Policy']
+
+    assert 'microphone=(self)' in policy
+    # A câmera continua negada: a foto entra por seletor de arquivo, e quem a
+    # abre no celular é o sistema operacional, fora do alcance desta política.
+    assert 'camera=()' in policy
+
+
+def test_stream_recusa_arquivo_invalido(alice_allowed):
+    """A recusa vem antes do primeiro byte da resposta, com frase para a tela."""
+    response = alice_allowed.post(reverse('app:assistant_stream'), {
+        'message': 'olha isso',
+        'file': SimpleUploadedFile('planilha.csv', b'a,b,c\n1,2,3', content_type='text/csv'),
+    })
+
+    assert response.status_code == 400
+    assert response.json()['error']
+
+
+def test_stream_recusa_mensagem_sem_texto_e_sem_anexo(alice_allowed):
+    response = alice_allowed.post(reverse('app:assistant_stream'), {'message': '   '})
+
+    assert response.status_code == 400

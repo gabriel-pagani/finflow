@@ -24,7 +24,8 @@ from django.conf import settings
 from django.utils import timezone
 from openai import OpenAI, OpenAIError
 
-from ..models import Message, Role
+from ..models import Attachment, Message, Role
+from . import attachments
 from .prompt import system_prompt
 from .tools import TOOLS, run
 
@@ -43,6 +44,22 @@ MAX_ROUNDS = 6
 # tokens de quem usa o chat o dia inteiro cresceria pelo quadrado do uso — até a
 # conversa simplesmente não caber no contexto e parar de responder.
 HISTORY_LIMIT = 40
+
+# Quantos turnos com foto continuam com a foto anexada. O arquivo fica guardado
+# para sempre, e a miniatura continua no chat; o que expira é a presença da
+# imagem no contexto. Reenviar toda nota fiscal já fotografada a cada mensagem
+# faria um "quanto sobrou este mês?" custar as fotos da conversa inteira — e o
+# que se pergunta logo depois de uma foto é sobre o lançamento, não sobre ela.
+# Dois turnos cobrem o "olha de novo, o total está errado".
+IMAGE_MEMORY = 2
+
+# Vocabulário para a transcrição não escorregar no que este sistema mais ouve.
+# Sem isto, "Pix" vira "pics" e "fatura" vira "fartura" — e o número é o que
+# menos pode sair errado numa fala que vai virar lançamento.
+TRANSCRIPTION_HINT = (
+    'Fala em português do Brasil sobre finanças pessoais: reais, Pix, boleto, débito, '
+    'crédito, fatura, parcelas, cartão, transferência, salário, mercado, farmácia.'
+)
 
 # Frase para o usuário quando a falha não é dele e não há o que ele resolva. O
 # detalhe técnico vai para o log, não para a tela: é a mesma regra que o prompt
@@ -76,11 +93,45 @@ def recent(conversation):
 
 
 def history(conversation):
-    """A conversa como o modelo a relê: os itens de cada turno, em ordem."""
+    """A conversa como o modelo a relê: os itens de cada turno, em ordem.
+
+    A foto é a exceção. No turno guardado fica só a referência ao arquivo, e é
+    aqui que ela vira imagem de novo — nas mais recentes. As antigas viram uma
+    linha de texto dizendo que houve uma foto ali, o que basta para a resposta
+    que o modelo deu sobre ela continuar tendo antecedente.
+    """
+    messages = recent(conversation)
+
+    with_image = [message.pk for message in messages if attachments.has_image(message.items)]
+    live = set(with_image[-IMAGE_MEMORY:])
+
     items = []
-    for message in recent(conversation):
-        items.extend(message.items)
+    for message in messages:
+        items.extend(attachments.resolve(message.items, inline=message.pk in live))
     return items
+
+
+def transcribe(upload):
+    """O áudio virado texto, para entrar na conversa como qualquer mensagem.
+
+    O modelo do chat não escuta, lê. Transcrever na porta de entrada mantém o
+    laço inteiro em texto: o histórico continua legível, o reenvio a cada rodada
+    continua barato, e o que foi ditado pode ser reconferido depois contra o
+    áudio, que fica guardado.
+    """
+    result = client().audio.transcriptions.create(
+        model=settings.OPENAI_TRANSCRIBE_MODEL,
+        file=(upload.name, upload.data, upload.mime),
+        language='pt',
+        prompt=TRANSCRIPTION_HINT,
+    )
+
+    text = (result.text or '').strip()
+
+    if not text:
+        raise ModelError('A transcrição voltou vazia.')
+
+    return text
 
 
 def detail(event):
@@ -145,25 +196,47 @@ def arguments_of(call):
     return parsed, None
 
 
-def converse(conversation, user, text):
+def converse(conversation, user, text, upload=None):
     """Uma mensagem do usuário, do envio até a resposta final.
 
-    Devolve eventos: 'delta' com o texto saindo, 'tool' quando uma consulta
-    começa, 'pending' quando um lançamento ficou à espera de confirmação,
-    'error' e 'done'.
+    Devolve eventos: 'transcript' com o que o áudio dizia, 'delta' com o texto
+    saindo, 'tool' quando uma consulta começa, 'pending' quando um lançamento
+    ficou à espera de confirmação, 'error' e 'done'.
     """
     today = timezone.localdate()
 
-    Message.objects.create(
+    if upload is not None and upload.kind == Attachment.Kind.AUDIO:
+        try:
+            spoken = transcribe(upload)
+        except (OpenAIError, ModelError):
+            logger.exception('Áudio da conversa %s não pôde ser transcrito.', conversation.pk)
+            yield {'type': 'error', 'message': 'Não consegui entender o áudio. Tente gravar de novo.'}
+            return
+
+        # O que foi ditado é a mensagem. Se a pessoa também digitou, as duas
+        # coisas são a mesma fala e vão juntas: separá-las em dois turnos faria o
+        # modelo responder à metade que chegasse primeiro.
+        text = '\n'.join(part for part in (text, spoken) if part)
+        yield {'type': 'transcript', 'text': text}
+
+    message = Message.objects.create(
         conversation=conversation,
         role=Role.USER,
         content=text,
-        items=[{'role': 'user', 'content': text}],
+        items=[],
     )
+
+    # Nesta ordem porque cada um depende do anterior: o caminho do arquivo sai do
+    # dono, que se descobre pela mensagem, e o item guardado carrega o número da
+    # linha do anexo, que só existe depois de gravado.
+    attachment = attachments.attach(message, upload) if upload is not None else None
+    message.items = [attachments.user_item(text, attachment)]
+    message.save(update_fields=['items'])
 
     # O título é a primeira coisa que o usuário disse. Pedir um ao modelo custaria
     # uma chamada inteira para nomear algo que ele reconhece pelo próprio texto.
-    if not conversation.title:
+    # Uma foto sem legenda não nomeia nada: o título espera o primeiro texto.
+    if not conversation.title and text:
         conversation.title = text[:120]
         conversation.save(update_fields=['title', 'updated'])
 

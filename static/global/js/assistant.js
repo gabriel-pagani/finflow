@@ -11,9 +11,29 @@ function setupAssistant(root) {
     const list = root.querySelector('.assistant-messages');
     const form = root.querySelector('.assistant-composer');
     const input = form.querySelector('textarea');
+    const tray = form.querySelector('.assistant-attachment');
+    const fileInput = form.querySelector('.assistant-file');
+    const attachButton = form.querySelector('.assistant-attach');
+    const recordButton = form.querySelector('.assistant-record');
 
     const urls = root.dataset;
-    let loaded = false;
+
+    /* O anexo em espera: já escolhido ou já gravado, ainda não enviado. É um de
+       cada vez — o compositor manda uma mensagem com um anexo, não um álbum. */
+    let attachment = null;
+
+    /* O gravador em curso, quando há um. Serve de estado também: nulo é parado. */
+    let recorder = null;
+
+    /* Lado maior da foto depois da redução. Um cupom fotografado de perto é
+       legível bem antes disso; o que 12 megapixels acrescentam é tempo de
+       upload no 4G e token de leitura, não nitidez de valor impresso. */
+    const MAX_SIDE = 1600;
+
+    /* Em ordem de preferência. O Chrome grava webm/opus, o Safari só mp4 — e um
+       navegador que não suporte nenhum dos dois grava no padrão dele, que o
+       servidor confere pelos primeiros bytes de qualquer jeito. */
+    const AUDIO_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
 
     /* Largura em que o painel passa a ocupar a tela inteira. Casa com o
        @media do CSS: os dois precisam concordar sobre o que é "celular", senão
@@ -98,7 +118,7 @@ function setupAssistant(root) {
             .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
     }
 
-    function bubble(role, text) {
+    function bubble(role, text, media) {
         const node = document.createElement('div');
         node.className = `assistant-message ${role}`;
 
@@ -106,12 +126,59 @@ function setupAssistant(root) {
             node.dataset.raw = text;
             node.innerHTML = renderMarkdown(text);
         } else {
-            node.textContent = text;
+            /* O texto do usuário vai num parágrafo próprio, e não solto na
+               bolha, porque agora pode haver uma foto embaixo dele — e porque
+               um áudio chega sem texto nenhum, que só aparece quando a
+               transcrição volta do servidor. */
+            const paragraph = document.createElement('p');
+            paragraph.className = 'text';
+            paragraph.textContent = text || '';
+            paragraph.hidden = !text;
+            node.appendChild(paragraph);
         }
+
+        if (media) node.appendChild(mediaNode(media));
 
         list.appendChild(node);
         scroll();
         return node;
+    }
+
+    /* A miniatura da foto ou o player do áudio, dentro da bolha de quem mandou.
+       A URL vem de um blob local logo depois do envio e da rota do servidor
+       quando a conversa é recarregada — o elemento é o mesmo nos dois casos. */
+    function mediaNode(media) {
+        if (media.kind === 'image') {
+            const image = document.createElement('img');
+            image.className = 'assistant-photo';
+            image.src = media.url;
+            image.alt = 'Foto enviada';
+            image.loading = 'lazy';
+            image.title = 'Abrir em tamanho real';
+            /* A foto entra na conversa depois de carregar, e o que estava no fim
+               da rolagem sai de vista quando ela empurra o resto para baixo. */
+            image.addEventListener('load', scroll);
+            /* Miniatura de comprovante não se lê. Quem precisa conferir o valor
+               impresso abre o arquivo, que é do tamanho que a câmera tirou. */
+            image.addEventListener('click', () => window.open(media.url, '_blank', 'noopener'));
+            return image;
+        }
+
+        const audio = document.createElement('audio');
+        audio.className = 'assistant-audio';
+        audio.controls = true;
+        audio.preload = 'metadata';
+        audio.src = media.url;
+        return audio;
+    }
+
+    /* O texto que faltava na bolha do áudio, quando a transcrição chega. */
+    function fillBubble(node, text) {
+        const paragraph = node.querySelector('.text');
+        if (!paragraph) return;
+        paragraph.textContent = text;
+        paragraph.hidden = !text;
+        scroll();
     }
 
     /* Durante o stream o texto chega pela metade, e uma marcação pode estar
@@ -250,23 +317,154 @@ function setupAssistant(root) {
         }
     }
 
-    async function send(text) {
+    /* Guarda o anexo escolhido e o mostra acima do campo. Trocar de anexo
+       descarta o anterior: é um por mensagem. */
+    function holdAttachment(kind, blob, name) {
+        dropAttachment();
+        attachment = {kind: kind, blob: blob, name: name, url: URL.createObjectURL(blob)};
+
+        tray.replaceChildren(mediaNode(attachment));
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'assistant-remove secondary';
+        remove.title = 'Remover o anexo';
+        remove.setAttribute('aria-label', 'Remover o anexo');
+        remove.textContent = '\u2715';
+        /* Sem a seta, o handler receberia o evento no lugar de `keep`. */
+        remove.addEventListener('click', () => dropAttachment());
+        tray.appendChild(remove);
+
+        tray.hidden = false;
+    }
+
+    /* `keep` é para depois do envio: a bolha da conversa passou a usar a mesma
+       URL, e revogá-la ali apagaria a foto que acabou de ser mandada. */
+    function dropAttachment(keep) {
+        if (attachment && keep !== true) URL.revokeObjectURL(attachment.url);
+        attachment = null;
+        tray.replaceChildren();
+        tray.hidden = true;
+        /* Sem isto, escolher o mesmo arquivo de novo não dispara `change`. */
+        fileInput.value = '';
+    }
+
+    /* A foto reduzida antes de subir. Além do tamanho, isto normaliza o
+       formato: o que o navegador consegue desenhar sai daqui como JPEG,
+       inclusive o HEIC que o iPhone entrega. O que ele não desenhar volta como
+       veio, e quem recusa com uma frase legível é o servidor. */
+    function shrink(file) {
+        return new Promise((resolve) => {
+            const url = URL.createObjectURL(file);
+            const image = new Image();
+
+            image.addEventListener('load', () => {
+                const scale = Math.min(1, MAX_SIDE / Math.max(image.width, image.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(image.width * scale);
+                canvas.height = Math.round(image.height * scale);
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+                canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.82);
+            });
+
+            image.addEventListener('error', () => {
+                URL.revokeObjectURL(url);
+                resolve(file);
+            });
+
+            image.src = url;
+        });
+    }
+
+    function recordingType() {
+        if (!window.MediaRecorder) return null;
+        return AUDIO_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+    }
+
+    async function startRecording() {
+        const type = recordingType();
+
+        if (type === null) {
+            bubble('error', 'Este navegador não grava áudio. Digite a mensagem ou mande uma foto.');
+            return;
+        }
+
+        let stream;
+
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({audio: true});
+        } catch (error) {
+            bubble('error', 'Não consegui usar o microfone. Autorize o acesso e tente de novo.');
+            return;
+        }
+
+        const chunks = [];
+        recorder = new MediaRecorder(stream, type ? {mimeType: type} : undefined);
+
+        recorder.addEventListener('dataavailable', (event) => {
+            if (event.data && event.data.size) chunks.push(event.data);
+        });
+
+        recorder.addEventListener('stop', () => {
+            /* Sem parar as trilhas, o indicador de microfone ligado fica aceso
+               na aba depois que a gravação acabou. */
+            stream.getTracks().forEach((track) => track.stop());
+            recorder = null;
+            showRecording(false);
+
+            const blob = new Blob(chunks, {type: chunks.length ? chunks[0].type : 'audio/webm'});
+            if (blob.size) holdAttachment('audio', blob, 'audio');
+        });
+
+        recorder.start();
+        showRecording(true);
+    }
+
+    function showRecording(active) {
+        form.dataset.recording = active ? 'true' : 'false';
+        recordButton.querySelector('.icon').textContent = active ? '\u23F9' : '\uD83C\uDFA4';
+        recordButton.title = active ? 'Parar a gravação' : 'Gravar um áudio';
+        recordButton.setAttribute('aria-label', recordButton.title);
+    }
+
+    /* A recusa do servidor tem frase própria — formato não aceito, arquivo
+       grande demais — e é ela que o usuário precisa ler, não uma genérica. */
+    async function failure(response) {
+        try {
+            const data = await response.json();
+            if (data && data.error) return data.error;
+        } catch (error) {
+            /* Corpo que não é JSON não tem nada a dizer. */
+        }
+        return 'Não consegui responder agora. Tente de novo em instantes.';
+    }
+
+    async function send(text, media) {
         panel.dataset.busy = 'true';
-        bubble('user', text);
-        status('Pensando...');
+        const sent = bubble('user', text, media);
+        status(media && media.kind === 'audio' ? 'Transcrevendo o áudio...' : 'Pensando...');
+
+        /* Multipart mesmo sem anexo: um caminho só de envio é um caminho só
+           para conferir, dos dois lados. */
+        const body = new FormData();
+        body.append('message', text);
+        if (media) body.append('file', media.blob, media.name);
 
         let reply = null;
 
         try {
             const response = await fetch(urls.stream, {
+                /* Sem Content-Type à mão: quem o escreve é o navegador, que
+                   precisa anexar a fronteira do multipart junto. */
                 method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': urls.csrf},
-                body: JSON.stringify({message: text}),
+                headers: {'X-CSRFToken': urls.csrf},
+                body: body,
             });
 
             if (!response.ok || !response.body) {
                 clearStatus();
-                bubble('error', 'Não consegui responder agora. Tente de novo em instantes.');
+                bubble('error', await failure(response));
                 return;
             }
 
@@ -292,6 +490,11 @@ function setupAssistant(root) {
                         clearStatus();
                         pendingCard(event.id, event.summary, 'open');
                         reply = null;
+                    } else if (event.type === 'transcript') {
+                        /* A bolha do áudio subiu sem texto: o que foi dito só se
+                           sabe depois da transcrição. */
+                        fillBubble(sent, event.text);
+                        status('Pensando...');
                     } else if (event.type === 'error') {
                         clearStatus();
                         bubble('error', event.message);
@@ -312,30 +515,47 @@ function setupAssistant(root) {
         }
     }
 
+    /* A conversa é rebuscada a cada abertura do painel, e não uma vez por
+       carregamento de página. Ela mora no banco e é achada pelo usuário, então é
+       a mesma no note e no celular — e o painel deixado aberto num deles fica
+       para trás assim que algo é dito no outro. Reabrir é o gesto mais próximo
+       de "me mostra como está agora", e é barato: uma requisição por abertura.
+
+       A lista só é trocada depois que a resposta chega. Limpar antes deixaria o
+       painel vazio durante a requisição, piscando a conversa a cada abertura. */
     async function load() {
-        if (loaded) return;
-        loaded = true;
+        /* No meio de uma resposta, não. As bolhas do stream são nós que o `send`
+           ainda está preenchendo, e trocá-las por baixo dele faria o texto que
+           ainda está chegando cair fora da tela. */
+        if (panel.dataset.busy === 'true') return;
+
+        let data;
 
         try {
             const response = await fetch(urls.history, {headers: {'X-Requested-With': 'fetch'}});
             if (!response.ok) return;
-            const data = await response.json();
-
-            const blocks = data.blocks || [];
-
-            blocks.forEach((block) => {
-                if (block.kind === 'pending') {
-                    pendingCard(block.id, block.summary, block.state, block.label);
-                } else {
-                    bubble(block.role, block.content);
-                }
-            });
-
-            if (!blocks.length) {
-                bubble('empty', 'Pergunte sobre suas finanças ou peça para registrar um novo lançamento.');
-            }
+            data = await response.json();
         } catch (error) {
-            /* Sem histórico o chat ainda funciona: a conversa começa vazia. */
+            /* Falhou a busca: fica o que já estava na tela, que é melhor do que
+               uma conversa que some porque a rede oscilou. Na primeira abertura
+               não havia nada mesmo, e o chat continua utilizável. */
+            return;
+        }
+
+        const blocks = data.blocks || [];
+
+        list.replaceChildren();
+
+        blocks.forEach((block) => {
+            if (block.kind === 'pending') {
+                pendingCard(block.id, block.summary, block.state, block.label);
+            } else {
+                bubble(block.role, block.content, block.attachment);
+            }
+        });
+
+        if (!blocks.length) {
+            bubble('empty', 'Pergunte sobre suas finanças ou peça para registrar um novo lançamento.');
         }
     }
 
@@ -378,19 +598,42 @@ function setupAssistant(root) {
     root.querySelector('.assistant-close').addEventListener('click', close);
 
     root.querySelector('.assistant-reset').addEventListener('click', async () => {
+        if (recorder) recorder.stop();
+        dropAttachment();
         await post(urls.reset);
+        /* Limpa na hora, sem esperar a busca: se ela não vier — ou não rodar,
+           por haver uma resposta em curso —, a conversa apagada não pode
+           continuar na tela como se existisse. */
         list.replaceChildren();
-        loaded = false;
         load();
     });
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         const text = input.value.trim();
-        if (!text || panel.dataset.busy === 'true') return;
+
+        /* Uma foto sem legenda é mensagem: quem fotografa o cupom já disse o
+           que queria. Vazio de verdade é não ter nem texto nem anexo. */
+        if ((!text && !attachment) || panel.dataset.busy === 'true') return;
+
+        const media = attachment;
         input.value = '';
         input.style.height = 'auto';
-        send(text);
+        dropAttachment(true);
+        send(text, media);
+    });
+
+    attachButton.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        holdAttachment('image', await shrink(file), 'foto.jpg');
+    });
+
+    recordButton.addEventListener('click', () => {
+        if (recorder) recorder.stop();
+        else startRecording();
     });
 
     /* Enter envia, Shift+Enter quebra linha: é o que se espera de um chat, e

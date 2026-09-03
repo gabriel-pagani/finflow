@@ -27,6 +27,7 @@ urlpatterns = [
     path('assistant/stream/', assistant_views.StreamView.as_view(), name='assistant_stream'),
     path('assistant/history/', assistant_views.HistoryView.as_view(), name='assistant_history'),
     path('assistant/reset/', assistant_views.ResetView.as_view(), name='assistant_reset'),
+    path('assistant/attachment/<int:pk>/', assistant_views.AttachmentView.as_view(), name='assistant_attachment'),
     path('assistant/pending/<int:pk>/confirm/', assistant_views.ConfirmView.as_view(), name='assistant_confirm'),
     path('assistant/pending/<int:pk>/cancel/', assistant_views.CancelView.as_view(), name='assistant_cancel'),
 ]

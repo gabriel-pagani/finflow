@@ -13,19 +13,28 @@ banco sem alguém ter clicado.
 import json
 import logging
 
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.db import transaction as db_transaction
-from django.http import JsonResponse, StreamingHttpResponse
+from django.db.models import Q
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 import reversion
 
-from ..models import Conversation, Message, PendingWrite, Role
+from ..models import Attachment, Conversation, Message, PendingWrite, Role
+from . import attachments
 from .client import GENERIC_ERROR, converse
 from .tools import KINDS
 
 
 logger = logging.getLogger(__name__)
+
+
+# O prefixo que o nginx conhece como área interna. Não é rota do Django: ele
+# aparece só num cabeçalho de resposta, e o nginx o troca pelo arquivo em disco.
+ACCEL_PREFIX = '/protected-media/'
 
 
 class AssistantView(LoginRequiredMixin, PermissionRequiredMixin, View):
@@ -76,24 +85,35 @@ class StreamView(AssistantView):
     a pergunta iria na URL, e não haveria como mandar o CSRF num cabeçalho. O
     corpo do evento segue o formato do SSE mesmo assim — é o que o nginx e o
     túnel já sabem não bufferizar.
+
+    O corpo é multipart, e não JSON, desde que a mensagem passou a poder vir com
+    uma foto ou um áudio junto. Um arquivo em JSON teria de ir em base64, o que
+    o inflaria em um terço para ser desfeito do lado de cá.
+
+    O arquivo é conferido antes de a resposta começar. Depois do primeiro byte
+    não há mais status para devolver, e "esse formato não serve" é justamente o
+    tipo de recado que precisa chegar como recusa, não como bolha de erro no
+    meio de uma conversa que já começou.
     """
 
     http_method_names = ['post']
 
     def post(self, request, *args, **kwargs):
-        try:
-            payload = json.loads(request.body or b'{}')
-            text = (payload.get('message') or '').strip()
-        except json.JSONDecodeError:
-            text = ''
+        text = (request.POST.get('message') or '').strip()
+        upload = request.FILES.get('file')
 
-        if not text:
+        try:
+            media = attachments.inspect(upload) if upload else None
+        except attachments.UploadError as error:
+            return JsonResponse({'error': str(error)}, status=400)
+
+        if not text and media is None:
             return JsonResponse({'error': 'Escreva uma mensagem.'}, status=400)
 
         conversation = self.conversation()
 
         response = StreamingHttpResponse(
-            self.events(conversation, request.user, text),
+            self.events(conversation, request.user, text, media),
             content_type='text/event-stream; charset=utf-8',
         )
         # O nginx desta aplicação já está configurado para não bufferizar esta
@@ -103,9 +123,9 @@ class StreamView(AssistantView):
         response['Cache-Control'] = 'no-cache'
         return response
 
-    def events(self, conversation, user, text):
+    def events(self, conversation, user, text, media=None):
         try:
-            for event in converse(conversation, user, text):
+            for event in converse(conversation, user, text, media):
                 yield f'data: {json.dumps(event, ensure_ascii=False)}\n\n'
         except Exception:
             # A resposta já começou: não há status de erro para mandar, então o
@@ -113,6 +133,40 @@ class StreamView(AssistantView):
             # ficaria com a bolinha girando para sempre.
             logger.exception('Stream da conversa %s morreu.', conversation.pk)
             yield f'data: {json.dumps({"type": "error", "message": GENERIC_ERROR})}\n\n'
+
+
+class AttachmentView(AssistantView):
+    """O arquivo que o usuário mandou, servido só para ele.
+
+    Não é rota de mídia pública, e o endereço não é a chave: um comprovante é
+    documento financeiro, então quem pede precisa ser o dono da conversa em que
+    o anexo entrou. Isso é uma consulta, não um caminho que se adivinha.
+
+    Quem entrega os bytes é o nginx, pelo X-Accel-Redirect. O Django decide se
+    pode e devolve o endereço interno; o worker sai da frente em vez de segurar
+    a conexão empurrando uma foto. No runserver não há nginx para obedecer ao
+    cabeçalho, e lá o arquivo sai daqui mesmo.
+    """
+
+    http_method_names = ['get']
+
+    def get(self, request, pk, *args, **kwargs):
+        attachment = Attachment.objects.filter(pk=pk, message__conversation__user=request.user).first()
+
+        if attachment is None:
+            raise Http404
+
+        if settings.DEBUG:
+            return FileResponse(attachment.file.open('rb'), content_type=attachment.mime)
+
+        response = HttpResponse(content_type=attachment.mime)
+        response['X-Accel-Redirect'] = f'{ACCEL_PREFIX}{attachment.file.name}'
+
+        # Cache no navegador, nunca num proxy compartilhado: o arquivo é de uma
+        # pessoa só, e o endereço não muda enquanto o anexo existir.
+        response['Cache-Control'] = 'private, max-age=604800'
+
+        return response
 
 
 class ConfirmView(AssistantView):
@@ -222,17 +276,28 @@ class HistoryView(AssistantView):
         if conversation is None:
             return JsonResponse({'blocks': []})
 
+        # Fora as de ferramenta, que são conversa entre o modelo e o sistema —
+        # JSON de consulta na tela é o vazamento técnico que o prompt proíbe —, e
+        # as invisíveis, que existem só para o modelo. Mensagem vazia só é
+        # descartada se também não tiver anexo: uma foto mandada sem legenda é
+        # uma mensagem sem texto, e sumiria daqui.
+        messages = (
+            conversation.messages
+            .filter(visible=True)
+            .exclude(role=Role.TOOL)
+            .exclude(Q(content='') & Q(attachment__isnull=True))
+            .select_related('attachment')
+        )
+
         blocks = [
             {
                 'kind': 'message',
                 'role': message.role,
                 'content': message.content,
+                'attachment': self.attachment(message),
                 'at': message.created.isoformat(),
             }
-            # Fora as de ferramenta, que são conversa entre o modelo e o sistema
-            # — JSON de consulta na tela é o vazamento técnico que o prompt
-            # proíbe —, e as invisíveis, que existem só para o modelo.
-            for message in conversation.messages.filter(visible=True).exclude(role=Role.TOOL).exclude(content='')
+            for message in messages
         ] + [
             {
                 'kind': 'pending',
@@ -249,6 +314,18 @@ class HistoryView(AssistantView):
         ]
 
         return JsonResponse({'blocks': sorted(blocks, key=lambda block: block['at'])})
+
+    def attachment(self, message):
+        """O anexo da mensagem como o chat precisa dele: o que é, e onde está."""
+        attachment = getattr(message, 'attachment', None)
+
+        if attachment is None:
+            return None
+
+        return {
+            'kind': attachment.kind,
+            'url': reverse('app:assistant_attachment', args=[attachment.pk]),
+        }
 
     def state(self, pending):
         if pending.is_open:

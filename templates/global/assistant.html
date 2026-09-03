@@ -34,6 +34,27 @@ script-src 'self', então JS embutido na página não executaria.
         <div class="assistant-messages" aria-live="polite"></div>
 
         <form class="assistant-composer">
+            {% comment %}
+            O anexo em espera aparece acima da linha de digitar, e não dentro
+            dela: numa tela de celular a miniatura ao lado do campo deixaria o
+            campo com a largura de uma palavra.
+
+            O seletor de arquivo aceita image/* e não a lista exata de formatos.
+            No celular é isso que faz o sistema oferecer a câmera junto da
+            galeria — e a foto é reduzida no navegador antes de subir, o que de
+            quebra normaliza para JPEG o que a câmera tiver entregado.
+            {% endcomment %}
+            <div class="assistant-attachment" hidden></div>
+
+            <input type="file" class="assistant-file" accept="image/*" hidden>
+
+            <button type="button" class="assistant-attach secondary" aria-label="Anexar uma foto" title="Anexar uma foto">
+                <span class="icon" aria-hidden="true">&#128206;</span>
+            </button>
+            <button type="button" class="assistant-record secondary" aria-label="Gravar um áudio" title="Gravar um áudio">
+                <span class="icon" aria-hidden="true">&#127908;</span>
+            </button>
+
             <textarea rows="1" placeholder="Digite aqui..." aria-label="Mensagem"></textarea>
             <button type="submit" title="Enviar">Enviar</button>
         </form>

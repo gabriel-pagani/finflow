@@ -147,6 +147,31 @@
     background: color-mix(in srgb, var(--muted) 15%, transparent);
 }
 
+/* A foto ocupa a bolha inteira, com teto de altura para uma nota fiscal em
+   pé não virar uma tira de dois palmos dentro da conversa. Tocar nela abre o
+   arquivo em tamanho real, que é o que se faz quando o valor não deu para ler. */
+.assistant-message .assistant-photo {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    border-radius: 6px;
+    margin-top: 6px;
+    cursor: zoom-in;
+}
+
+.assistant-message .assistant-audio {
+    display: block;
+    width: 240px;
+    max-width: 100%;
+    margin-top: 6px;
+}
+
+/* Sem legenda não há de que se afastar. */
+.assistant-message .text[hidden] + .assistant-photo,
+.assistant-message .text[hidden] + .assistant-audio {
+    margin-top: 0;
+}
+
 .assistant-message.user {
     align-self: flex-end;
     background: var(--accent);
@@ -247,13 +272,87 @@
 
 .assistant-composer {
     display: flex;
+    /* Quebra de linha para a bandeja do anexo ocupar uma faixa inteira acima
+       dos controles. Ao lado do campo, numa tela de celular, a miniatura
+       deixaria para digitar a largura de uma palavra. */
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px 12px;
     border-top: 1px solid var(--border);
 }
 
+.assistant-attachment {
+    flex: 1 0 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+}
+
+.assistant-attachment .assistant-photo {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.assistant-attachment .assistant-audio {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+}
+
+/* O ✕ da bandeja não segue os outros botões do compositor: ele fica no canto
+   do que vai ser removido, e não alinhado ao rodapé da linha de digitar. */
+.assistant-composer .assistant-remove {
+    align-self: center;
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    flex: none;
+}
+
+.assistant-composer .assistant-attach,
+.assistant-composer .assistant-record {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    flex: none;
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* Gravando: o botão vira o vermelho de saída do sistema e pisca. Sem um sinal
+   assim, um toque acidental no microfone grava a sala inteira até alguém
+   reparar. */
+.assistant-composer[data-recording="true"] .assistant-record {
+    background: var(--outcome);
+    border-color: var(--outcome);
+    color: #fff;
+    animation: assistant-recording 1.2s ease-in-out infinite;
+}
+
+@keyframes assistant-recording {
+    50% { opacity: .55; }
+}
+
+/* Enquanto grava, enviar não faz sentido: o áudio ainda não existe. */
+.assistant-composer[data-recording="true"] textarea,
+.assistant-composer[data-recording="true"] .assistant-attach,
+.assistant-composer[data-recording="true"] button[type="submit"] {
+    opacity: .6;
+    pointer-events: none;
+}
+
 .assistant-composer textarea {
     flex: 1;
+    /* Item de flex não encolhe abaixo do conteúdo por padrão, e com dois botões
+       a mais na linha o campo empurraria o "Enviar" para fora numa tela estreita. */
+    min-width: 0;
     font: inherit;
     line-height: 20px;
     /* Cresce com o texto até um teto, para uma pergunta longa não ser digitada
