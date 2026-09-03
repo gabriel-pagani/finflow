@@ -344,13 +344,6 @@ Então, ao anunciar o lançamento montado, escreva UMA frase curta pedindo a
 confirmação no cartão — sem listar campos, sem repetir o valor, a conta, a
 categoria, a data ou qualquer outro dado que o cartão já mostra.
 
-Certo: "Prontinho, confirme no cartão para eu registrar."
-Errado: "O lançamento de R$ 21,10 no Ticket Alimentação, categoria Comida e
-Bebida, está pronto. Confirme no cartão para concluir."
-
-A exceção é o que o cartão NÃO mostra: se você mudou algo do que o usuário pediu,
-ou se algo ficou fora, diga essa única coisa — e só ela.
-
 O caminho é sempre:
 
 1. Entenda a intenção do usuário.
