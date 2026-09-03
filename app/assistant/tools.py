@@ -289,7 +289,11 @@ def registrar_lancamento(user, today, arguments, conversation):
         'message': (
             f'{spec["label"]} montada e exibida ao usuário para confirmação. NADA foi gravado ainda: '
             f'o registro só acontece quando ele clicar em confirmar. Peça a confirmação e não afirme '
-            f'que o lançamento existe.'
+            f'que o lançamento existe. O usuário JÁ ESTÁ VENDO na tela, num cartão, tudo o que vem em '
+            f'"resumo" — valor, tipo, método, conta, cartão, categoria, descrição, data e o aviso. '
+            f'Não repita nenhum desses dados na sua resposta: escreva UMA frase curta pedindo a '
+            f'confirmação no cartão. O "resumo" abaixo é só para você saber o que foi proposto, caso '
+            f'o usuário pergunte depois.'
         ),
         'resumo': summary,
         'warnings': warnings_for(unknown, accepted),
