@@ -15,13 +15,17 @@ class PermissionsPolicyMiddleware:
     de arquivo, e quem abre a câmera do celular ali é o sistema operacional,
     fora do alcance desta política — o site nunca chama getUserMedia com vídeo.
 
+    A lista traz só o que os navegadores de hoje reconhecem. Negar um nome que
+    eles não conhecem não protege de nada — a API não existe para ser usada — e
+    rende um erro no console a cada carregamento de página, que atrapalha quem
+    for depurar qualquer outra coisa ali.
+
     Não há setting nativo no Django para este cabeçalho, diferente do que
     acontece com HSTS e nosniff, daí o middleware próprio.
     """
 
     FEATURES = {
         'accelerometer': '()',
-        'ambient-light-sensor': '()',
         'autoplay': '()',
         'camera': '()',
         'display-capture': '()',

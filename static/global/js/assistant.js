@@ -382,6 +382,65 @@ function setupAssistant(root) {
         return AUDIO_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) || '';
     }
 
+    /* O que o navegador guardou sobre o microfone: 'granted', 'denied',
+       'prompt' — ou nulo, onde a consulta não existe. Serve para separar quem
+       bloqueou de vez de quem só fechou a caixinha sem responder. */
+    async function microphoneState() {
+        try {
+            return (await navigator.permissions.query({name: 'microphone'})).state;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /* Onde fica o botão que destrava a permissão. Muda de lugar conforme o
+       lugar de onde o site foi aberto, e mandar procurar "o cadeado" em quem
+       não tem barra de endereço é mandar procurar o que não está lá.
+
+       O caso instalado é o mais traiçoeiro: pelo ícone da tela inicial não há
+       barra de endereço nenhuma, e a tela de permissões que o Android mostra
+       para o atalho lista só notificações — o microfone não é dele, é do
+       navegador, e continua sendo pedido pelo site nas configurações do
+       navegador. Quem liberar por lá libera para o ícone também: é a mesma
+       origem, no mesmo navegador. */
+    function unblockHint() {
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+            return 'Você abriu o FinFlow pelo ícone instalado, que não tem barra de endereço — e a tela de permissões do Android, para ele, só mostra notificações. Abra o site numa aba normal do navegador, libere o Microfone ali pelo ícone à esquerda do endereço, e o ícone instalado passa a valer também.';
+        }
+
+        return FULLSCREEN.matches
+            ? 'Toque no ícone à esquerda do endereço do site, abra as permissões e libere o Microfone. Depois recarregue a página.'
+            : 'Clique no cadeado à esquerda do endereço do site, libere o Microfone e recarregue a página.';
+    }
+
+    /* Por que o microfone não veio. O navegador diz isso no `name` do erro, e a
+       diferença importa para quem está lendo: "autorize o acesso" é um conselho
+       inútil para quem não tem microfone nenhum ligado, e mandaria a pessoa
+       procurar uma permissão que já está concedida. */
+    async function microphoneProblem(error) {
+        const name = error && error.name;
+
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+            /* Bloqueado de vez, o navegador não pergunta mais: nem na próxima
+               vez, nem se o botão for tocado de novo. Só destravando nas
+               configurações do site. Quem apenas fechou o pedido continua
+               podendo ser perguntado, e para esse a instrução é outra. */
+            return (await microphoneState()) === 'denied'
+                ? `O microfone está bloqueado para este site. ${unblockHint()}`
+                : 'O pedido de permissão foi recusado ou fechado. Toque no microfone de novo e escolha Permitir.';
+        }
+
+        if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+            return 'Nenhum microfone encontrado neste aparelho.';
+        }
+
+        if (name === 'NotReadableError' || name === 'AbortError') {
+            return 'O microfone está ocupado por outro programa. Feche quem está usando e tente de novo.';
+        }
+
+        return 'Não consegui usar o microfone.';
+    }
+
     async function startRecording() {
         const type = recordingType();
 
@@ -390,12 +449,22 @@ function setupAssistant(root) {
             return;
         }
 
+        /* Fora de contexto seguro o navegador nem expõe o objeto, e a chamada
+           estouraria como erro de programação em vez de erro de microfone. */
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            bubble('error', 'Este navegador não dá acesso ao microfone nesta página.');
+            return;
+        }
+
         let stream;
 
         try {
             stream = await navigator.mediaDevices.getUserMedia({audio: true});
         } catch (error) {
-            bubble('error', 'Não consegui usar o microfone. Autorize o acesso e tente de novo.');
+            /* A frase da tela é curta por regra; o motivo exato fica no console,
+               que é onde se olha quando ela não basta. */
+            console.error('Microfone recusado:', error);
+            bubble('error', await microphoneProblem(error));
             return;
         }
 
@@ -421,9 +490,10 @@ function setupAssistant(root) {
         showRecording(true);
     }
 
+    /* Qual ícone aparece é decisão do CSS, pelo mesmo atributo. Aqui ficam só o
+       estado e o rótulo — que o leitor de tela lê, e o desenho não diz. */
     function showRecording(active) {
         form.dataset.recording = active ? 'true' : 'false';
-        recordButton.querySelector('.icon').textContent = active ? '\u23F9' : '\uD83C\uDFA4';
         recordButton.title = active ? 'Parar a gravação' : 'Gravar um áudio';
         recordButton.setAttribute('aria-label', recordButton.title);
     }

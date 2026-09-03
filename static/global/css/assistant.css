@@ -318,12 +318,26 @@
 
 .assistant-composer .assistant-attach,
 .assistant-composer .assistant-record {
-    width: 36px;
-    height: 36px;
+    width: 38px;
     padding: 0;
     flex: none;
-    font-size: 16px;
-    line-height: 1;
+}
+
+.assistant-composer .icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+/* Gravando, o microfone vira o quadrado de parar. Os dois moram no botão; o que
+   muda aqui é qual deles é desenhado. */
+.assistant-record .icon-stop,
+.assistant-composer[data-recording="true"] .assistant-record .icon-mic {
+    display: none;
+}
+
+.assistant-composer[data-recording="true"] .assistant-record .icon-stop {
+    display: block;
 }
 
 /* Gravando: o botão vira o vermelho de saída do sistema e pisca. Sem um sinal
@@ -350,6 +364,9 @@
 
 .assistant-composer textarea {
     flex: 1;
+    /* Casa com a altura dos botões da barra: o cálculo natural do campo de uma
+       linha já dá isto, e declarar deixa os dois presos ao mesmo número. */
+    min-height: 38px;
     /* Item de flex não encolhe abaixo do conteúdo por padrão, e com dois botões
        a mais na linha o campo empurraria o "Enviar" para fora numa tela estreita. */
     min-width: 0;
@@ -357,7 +374,6 @@
     line-height: 20px;
     /* Cresce com o texto até um teto, para uma pergunta longa não ser digitada
        numa fresta de uma linha nem comer o painel inteiro. */
-    min-height: 36px;
     max-height: 120px;
     padding: 8px 10px;
     resize: none;
@@ -368,7 +384,12 @@
     box-sizing: border-box;
 }
 
+/* Um textarea de uma linha tem 38px (20 de linha, 16 de recheio, 2 de borda),
+   e o botão do sistema tem 36. Dois a menos passam despercebidos numa tela e
+   saltam na outra, então a barra inteira é nivelada aqui — inclusive o Enviar.
+   Alinhados pelo rodapé, para o campo poder crescer sem levar os botões junto. */
 .assistant-composer button {
+    height: 38px;
     align-self: flex-end;
 }
 
