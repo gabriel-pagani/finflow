@@ -882,10 +882,18 @@ button.secondary {
         height: 300px;
     }
 
-    /* Filtros: um campo por linha, botão de largura total */
+    /* Filtros: um campo por linha, botão de largura total — menos as duas
+       datas, que dividem a linha entre si. Uma data ocupa dez caracteres e
+       sobrava meia tela de espaço vazio ao lado, enquanto empurrava o resto do
+       formulário para baixo; já um nome de conta ou de categoria em meia tela
+       seria cortado no meio, e por isso só as datas ganham a exceção. */
     .filters-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
         gap: 10px;
+    }
+
+    .filters-grid > *:not(.filter-date) {
+        grid-column: 1 / -1;
     }
 
     /* 16px evita o zoom automático do iOS ao focar um campo */
@@ -1010,6 +1018,12 @@ button.secondary {
 /* Telas bem estreitas: um card por linha e ações mais compactas. */
 @media (max-width: 380px) {
     .cards {
+        grid-template-columns: 1fr;
+    }
+
+    /* Abaixo disto meia tela não comporta mais uma data inteira com o botão do
+       calendário, e as duas voltam a ocupar uma linha cada. */
+    .filters-grid {
         grid-template-columns: 1fr;
     }
 

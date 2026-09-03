@@ -1,11 +1,16 @@
 <form class="card filters" method="get">
     <h2>Filtros</h2>
     <div class="filters-grid">
-        <label>
+{% comment %}
+        A classe das datas existe para o celular: lá o grid vira duas colunas e
+        só estas duas caixas dividem a linha. No desktop ela não faz nada — os
+        campos já fluem sozinhos pelo auto-fit.
+        {% endcomment %}
+        <label class="filter-date">
             Início
             <input type="date" name="start" value="{{ filters.start }}">
         </label>
-        <label>
+        <label class="filter-date">
             Fim
             <input type="date" name="end" value="{{ filters.end }}">
         </label>
