@@ -83,6 +83,26 @@ def history(conversation):
     return items
 
 
+def detail(event):
+    """O que a API disse sobre o fim ruim, em uma linha, para o log.
+
+    Sem isto o log guarda só o tipo do evento, e "terminou em
+    response.incomplete" não separa um teto de saída estourado de um filtro de
+    conteúdo — duas causas que pedem correções diferentes. O detalhe continua
+    sem chegar ao usuário: quem o lê é quem abre o log.
+    """
+    response = getattr(event, 'response', None)
+    error = getattr(response, 'error', None) or getattr(event, 'error', None)
+    incomplete = getattr(response, 'incomplete_details', None)
+
+    for part in (error, incomplete):
+        if part is not None:
+            reason = getattr(part, 'reason', None) or getattr(part, 'message', None)
+            return str(reason or part)
+
+    return str(getattr(event, 'message', None) or 'sem detalhe')
+
+
 def collect(stream):
     """Consome o stream, emite os deltas e devolve (texto, itens de saída).
 
@@ -100,7 +120,7 @@ def collect(stream):
         elif event.type == 'response.completed':
             final = event.response
         elif event.type in ('response.failed', 'response.incomplete', 'error'):
-            raise ModelError(f'Resposta terminou em {event.type}.')
+            raise ModelError(f'Resposta terminou em {event.type}: {detail(event)}.')
 
     if final is None:
         raise ModelError('O stream acabou sem resposta concluída.')
