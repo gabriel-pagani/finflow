@@ -21,6 +21,7 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse, Strea
 from django.urls import reverse
 from django.utils import timezone
 from django.views import View
+from django.views.generic import TemplateView
 import reversion
 
 from ..models import Attachment, Conversation, Message, PendingWrite, Role
@@ -258,6 +259,24 @@ class CancelView(AssistantView):
         self.note(pending, 'O usuário descartou o lançamento proposto. Ele NÃO foi registrado.')
 
         return JsonResponse({'status': 'cancelled'})
+
+
+class ChatView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
+    """A página do assistente: o mesmo chat do atalho, ocupando o conteúdo.
+
+    Não herda de AssistantView porque aquela base responde em JSON e devolve 403
+    a quem não tem a permissão — o certo para um fetch, e não para alguém que
+    digitou o endereço. Aqui quem não fez login vai para a tela de login, como
+    em qualquer outra página, e só quem entrou sem a permissão leva o 403.
+
+    O `assistant_page` diz ao global.html para não incluir o atalho flutuante:
+    nesta página ele abriria por cima de um chat que já está aberto.
+    """
+
+    template_name = 'app/assistant.html'
+    permission_required = 'app.use_assistant'
+    raise_exception = True
+    extra_context = {'assistant_page': True}
 
 
 class HistoryView(AssistantView):

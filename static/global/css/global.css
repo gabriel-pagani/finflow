@@ -822,16 +822,23 @@ button.secondary {
         margin-right: auto;
     }
 
+    /* Itens dividem a largura e quebram para a linha de baixo quando não cabem.
+
+       Flex, e não grid: o grid tem colunas de largura igual para todas as
+       linhas, então a página que sobrar para a segunda linha fica do tamanho de
+       uma coluna, sozinha, com o resto da faixa vazio ao lado. No flex cada
+       linha reparte o que tem: quatro botões dividem a primeira, e o que sobrou
+       ocupa a segunda inteira. */
     .topbar nav {
         order: 3;
         width: 100%;
         gap: 6px;
-        /* itens dividem a largura; acomoda uma página a mais sem quebrar */
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
     }
 
     .topbar nav a {
+        /* 90px é a largura de partida; o flex-grow estica a partir dela até
+           fechar a linha. */
+        flex: 1 1 90px;
         padding: 8px 4px;
         border: 1px solid var(--border);
         border-radius: 8px;

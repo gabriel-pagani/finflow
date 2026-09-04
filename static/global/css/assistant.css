@@ -1,4 +1,8 @@
-/* Chat do assistente: botão flutuante e painel.
+/* Chat do assistente: o painel, no atalho flutuante e na página.
+
+   A marcação é a mesma nos dois; o que muda é a classe no #assistant.
+   .assistant-floating é o atalho do computador, preso ao canto da janela;
+   .assistant-embedded é a página, onde o painel é o conteúdo.
 
    Carregado apenas para quem tem a permissão — o global.html decide. Reaproveita
    as variáveis de cor do global.css para o painel não parecer colado de outro
@@ -399,39 +403,63 @@
     pointer-events: none;
 }
 
-@media (max-width: 560px) {
-    /* No celular o painel toma a tela inteira. Encaixado num canto, como no
-       desktop, sobrava pouco mais de meia tela para a conversa: as margens, o
-       espaço do botão flutuante e a altura máxima somavam contra justamente a
-       parte que precisa de espaço. Numa tela pequena não há segundo conteúdo
-       para deixar visível atrás — então não há o que preservar. */
-    .assistant-panel {
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: auto;
-        width: auto;
+/* Página do assistente ---------------------------------------------------- */
 
-        /* Três alturas, da mais tosca para a mais exata, cada uma cobrindo o
-           que a anterior erra:
-             vh  — navegador antigo; ignora a barra de endereço.
-             dvh — acompanha a barra de endereço que some ao rolar.
-             var — o JS a preenche com o viewport visível, que é o único que
-                   encolhe quando o teclado abre. Sem ela o campo de digitar
-                   fica atrás do teclado, no exato momento em que é usado. */
-        height: 100vh;
-        height: 100dvh;
-        height: var(--assistant-viewport, 100dvh);
+/* Aqui o painel não flutua sobre nada: ele é o conteúdo da página, e cresce
+   até o rodapé da janela como a tabela das outras telas. O que vinha das
+   regras do atalho — canto fixo, largura de 420, sombra de coisa suspensa —
+   é desfeito, e o resto (cabeçalho, conversa, compositor) segue igual. */
+.assistant-embedded {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
 
-        border: 0;
-        border-radius: 0;
-        box-shadow: none;
+.assistant-embedded .assistant-panel {
+    position: static;
+    height: auto;
+    flex: 1;
+    min-height: 0;
+    box-shadow: none;
+
+    /* O card não vai de ponta a ponta como as tabelas das outras telas: numa
+       tela larga a bolha do usuário encostaria na direita e a do assistente na
+       esquerda, com meio palmo de vazio entre uma fala e a resposta dela.
+       Conversa se lê numa coluna, como texto — e a coluna fica centrada, com a
+       página respirando dos dois lados. Abaixo disso o teto não vale nada e o
+       painel toma a largura que tiver. */
+    width: auto;
+    max-width: 860px;
+    margin-inline: auto;
+}
+
+@media (max-width: 768px) {
+    /* No celular o atalho sai de cena. Ele ficava preso sobre o conteúdo o
+       tempo todo, tapando um canto de toda tela do sistema, e abria um painel
+       de tela cheia — que é exatamente o que a página do assistente já é, só
+       que com o menu por cima e um endereço próprio. Some o botão, fica a aba.
+
+       Sai pelo CSS, e não pelo template, porque o servidor não sabe em que
+       tela a página vai abrir: a mesma resposta serve o note e o celular. */
+    .assistant-floating {
+        display: none;
     }
 
-    /* Com a tela inteira ocupada, o botão flutuante ficaria por cima da
-       conversa sem servir para nada: quem fecha é o ✕ do cabeçalho. */
-    #assistant.is-open .assistant-toggle {
-        display: none;
+    /* A página do assistente é presa à área visível, e não à altura do
+       conteúdo: assim o campo de digitar fica no rodapé da tela, e não no fim
+       de uma página que precisa ser rolada até embaixo para ele aparecer.
+
+       As três alturas vão da mais tosca para a mais exata, cada uma cobrindo o
+       que a anterior erra:
+         dvh — acompanha a barra de endereço que some ao rolar.
+         var — o JS a preenche com o viewport visível, que é o único que encolhe
+               quando o teclado abre. Sem ela o compositor fica atrás do
+               teclado, no exato momento em que é usado. */
+    body.page-assistant {
+        height: 100dvh;
+        height: var(--assistant-viewport, 100dvh);
+        min-height: 0;
+        overflow: hidden;
     }
 
     /* Alvo de toque: 28px é confortável para o ponteiro do mouse e apertado
@@ -439,10 +467,5 @@
     .assistant-actions button {
         height: 36px;
         padding: 0 12px;
-    }
-
-    .assistant-toggle {
-        right: 16px;
-        bottom: 16px;
     }
 }

@@ -21,6 +21,7 @@
                 <a href="{% url 'app:forecast' %}">Previsão</a>
                 <a href="{% url 'app:transactions_list' %}">Transações</a>
                 <a href="{% url 'app:cards_list' %}">Cartões</a>
+                {% if perms.app.use_assistant %}<a href="{% url 'app:assistant' %}">Assistente</a>{% endif %}
             </nav>
             <form class="logout" method="post" action="{% url 'app:logout' %}">
                 {% csrf_token %}
@@ -42,7 +43,13 @@
         {% block content %}{% endblock %}
     </main>
 
-    {% if perms.app.use_assistant %}
+    {% comment %}
+    O atalho flutuante. Na página do assistente ele não entra: abriria um
+    segundo painel por cima do que já está aberto ali. No celular ele existe na
+    marcação mas o CSS o esconde — a tela é pequena demais para um botão preso
+    sobre o conteúdo quando o mesmo chat tem uma aba no menu.
+    {% endcomment %}
+    {% if perms.app.use_assistant and not assistant_page %}
         {% include 'global/assistant.html' %}
     {% endif %}
 

@@ -24,6 +24,7 @@ urlpatterns = [
     # Chat do assistente. O stream é POST lido por fetch, e não EventSource,
     # porque a pergunta precisa ir no corpo e o CSRF num cabeçalho. Todas as
     # rotas exigem a permissão app.use_assistant.
+    path('assistant/', assistant_views.ChatView.as_view(), name='assistant'),
     path('assistant/stream/', assistant_views.StreamView.as_view(), name='assistant_stream'),
     path('assistant/history/', assistant_views.HistoryView.as_view(), name='assistant_history'),
     path('assistant/reset/', assistant_views.ResetView.as_view(), name='assistant_reset'),

@@ -89,6 +89,47 @@ def test_botao_so_aparece_com_permissao(alice_logged, alice, use_assistant):
     assert 'id="assistant"' in alice_logged.get(reverse('app:overview')).content.decode()
 
 
+def test_pagina_sem_permissao_recusa(alice_logged):
+    """A aba do assistente segue a mesma permissão do resto do chat.
+
+    403, e não redirect: quem já entrou no sistema e não pode usar o assistente
+    não tem o que fazer na tela de login.
+    """
+    assert alice_logged.get(reverse('app:assistant')).status_code == 403
+
+
+def test_pagina_sem_sessao_manda_para_o_login(client):
+    """Aqui o redirect é o certo: é uma página, e quem a abriu não fez login."""
+    response = client.get(reverse('app:assistant'))
+    assert response.status_code == 302
+    assert reverse('app:login') in response['Location']
+
+
+def test_link_do_menu_so_aparece_com_permissao(alice_logged, alice, use_assistant):
+    assert reverse('app:assistant') not in alice_logged.get(reverse('app:overview')).content.decode()
+
+    alice.user_permissions.add(use_assistant)
+    assert reverse('app:assistant') in alice_logged.get(reverse('app:overview')).content.decode()
+
+
+def test_pagina_traz_o_chat_sem_o_atalho(alice_allowed):
+    """Na página o painel vem embutido, e o botão flutuante não vem junto.
+
+    Os dois na mesma tela seriam dois chats sobrepostos: o atalho abriria um
+    segundo painel por cima do que já está aberto ali.
+    """
+    page = alice_allowed.get(reverse('app:assistant'))
+
+    assert page.status_code == 200
+    assert 'assistant-embedded' in page.content.decode()
+    assert 'assistant-toggle' not in page.content.decode()
+
+    outra = alice_allowed.get(reverse('app:overview')).content.decode()
+    assert 'assistant-floating' in outra
+    assert 'assistant-toggle' in outra
+
+
+
 # --------------------------------------------------------------------------
 # Isolamento
 # --------------------------------------------------------------------------

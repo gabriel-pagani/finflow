@@ -1,5 +1,10 @@
 {% load static %}{% comment %}
-Botão flutuante e painel do chat.
+Painel do chat, nas duas formas em que ele aparece.
+
+Com `embedded`, é a página do assistente: o painel ocupa o conteúdo e não tem
+botão de abrir nem de fechar, porque não há o que abrir — ele já está na tela e
+sair dali é trocar de página pelo menu. Sem `embedded`, é o atalho flutuante do
+computador, que abre o mesmo painel por cima da página em que a pessoa está.
 
 Só é incluído para quem tem a permissão app.use_assistant — o teste está no
 global.html, e não aqui, para o template nem chegar a ser renderizado a quem não
@@ -10,6 +15,7 @@ script-src 'self', então JS embutido na página não executaria.
 {% endcomment %}
 
 <div id="assistant"
+     class="{% if embedded %}assistant-embedded{% else %}assistant-floating{% endif %}"
      data-stream="{% url 'app:assistant_stream' %}"
      data-history="{% url 'app:assistant_history' %}"
      data-reset="{% url 'app:assistant_reset' %}"
@@ -17,17 +23,19 @@ script-src 'self', então JS embutido na página não executaria.
      data-cancel="{% url 'app:assistant_cancel' 0 %}"
      data-csrf="{{ csrf_token }}">
 
-    <button type="button" class="assistant-toggle" aria-expanded="false" aria-controls="assistant-panel" title="Assistente">
-        <img src="{% static 'global/images/favicon.ico' %}" alt="" aria-hidden="true">
-        <span class="sr-only">Abrir o assistente</span>
-    </button>
+    {% if not embedded %}
+        <button type="button" class="assistant-toggle" aria-expanded="false" aria-controls="assistant-panel" title="Assistente">
+            <img src="{% static 'global/images/favicon.ico' %}" alt="" aria-hidden="true">
+            <span class="sr-only">Abrir o assistente</span>
+        </button>
+    {% endif %}
 
-    <section id="assistant-panel" class="assistant-panel" hidden aria-label="Assistente FinFlow">
+    <section id="assistant-panel" class="assistant-panel" {% if not embedded %}hidden{% endif %} aria-label="Assistente FinFlow">
         <header>
             <strong>Assistente</strong>
             <div class="assistant-actions">
                 <button type="button" class="assistant-reset secondary" title="Limpar a conversa">Limpar</button>
-                <button type="button" class="assistant-close secondary" title="Fechar">✕</button>
+                {% if not embedded %}<button type="button" class="assistant-close secondary" title="Fechar">✕</button>{% endif %}
             </div>
         </header>
 

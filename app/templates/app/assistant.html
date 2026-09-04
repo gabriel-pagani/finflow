@@ -1,0 +1,14 @@
+{% extends 'global/global.html' %}
+
+{% block title %}Assistente - FinFlow{% endblock %}
+
+{% comment %}
+page-fill para o chat ir até o rodapé da janela em vez de parar na altura das
+mensagens: uma conversa de duas linhas num painel de duas linhas de altura, com
+a página inteira vazia embaixo, não é o que se espera de uma aba de chat.
+{% endcomment %}
+{% block body_class %}page-fill page-assistant{% endblock %}
+
+{% block content %}
+    {% include 'global/assistant.html' with embedded=True %}
+{% endblock %}

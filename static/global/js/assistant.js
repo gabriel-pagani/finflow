@@ -7,7 +7,14 @@
 
 function setupAssistant(root) {
     const panel = root.querySelector('.assistant-panel');
+
+    /* Embutido é a página do assistente: o painel já está na tela e não tem
+       botão de abrir nem de fechar. Flutuante é o atalho do computador, onde
+       eles existem. Daí os dois botões serem procurados e testados, e não
+       assumidos. */
+    const embedded = root.classList.contains('assistant-embedded');
     const toggle = root.querySelector('.assistant-toggle');
+    const closeButton = root.querySelector('.assistant-close');
     const list = root.querySelector('.assistant-messages');
     const form = root.querySelector('.assistant-composer');
     const input = form.querySelector('textarea');
@@ -35,10 +42,11 @@ function setupAssistant(root) {
        servidor confere pelos primeiros bytes de qualquer jeito. */
     const AUDIO_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
 
-    /* Largura em que o painel passa a ocupar a tela inteira. Casa com o
-       @media do CSS: os dois precisam concordar sobre o que é "celular", senão
-       o JS toma decisão de tela cheia num painel que ainda está num canto. */
-    const FULLSCREEN = window.matchMedia('(max-width: 560px)');
+    /* Largura a partir da qual a tela é de celular. Casa com o @media do CSS —
+       os dois precisam concordar sobre o que é "celular", senão o JS decide
+       poupar um teclado virtual que não existe, ou sobe um numa tela onde o
+       painel é um canto da janela. */
+    const MOBILE = window.matchMedia('(max-width: 768px)');
 
     /* Rotas com id: o template gera a URL com 0 no lugar e a gente troca. Assim
        o caminho continua saindo do urls.py, e não montado à mão no JS. */
@@ -408,7 +416,7 @@ function setupAssistant(root) {
             return 'Você abriu o FinFlow pelo ícone instalado, que não tem barra de endereço — e a tela de permissões do Android, para ele, só mostra notificações. Abra o site numa aba normal do navegador, libere o Microfone ali pelo ícone à esquerda do endereço, e o ícone instalado passa a valer também.';
         }
 
-        return FULLSCREEN.matches
+        return MOBILE.matches
             ? 'Toque no ícone à esquerda do endereço do site, abra as permissões e libere o Microfone. Depois recarregue a página.'
             : 'Clique no cadeado à esquerda do endereço do site, libere o Microfone e recarregue a página.';
     }
@@ -578,10 +586,10 @@ function setupAssistant(root) {
             clearStatus();
             panel.dataset.busy = 'false';
             /* No desktop o foco volta para o campo e a conversa continua sem
-               tirar a mão do teclado. Em tela cheia, não: se a pessoa dispensou
+               tirar a mão do teclado. No celular, não: se a pessoa dispensou
                o teclado para ler a resposta, devolver o foco o traz de volta
                justamente por cima do que ela foi ler. */
-            if (!FULLSCREEN.matches) input.focus();
+            if (!MOBILE.matches) input.focus();
         }
     }
 
@@ -635,10 +643,10 @@ function setupAssistant(root) {
         toggle.setAttribute('aria-expanded', 'true');
         load();
 
-        /* Em tela cheia o foco automático sobe o teclado na hora, que come
-           metade do que acabou de ser aberto. Quem quer digitar toca no campo;
-           quem abriu para ler a conversa não pediu o teclado. */
-        if (!FULLSCREEN.matches) input.focus();
+        /* No celular o foco automático sobe o teclado na hora, que come metade
+           do que acabou de ser aberto. Quem quer digitar toca no campo; quem
+           abriu para ler a conversa não pediu o teclado. */
+        if (!MOBILE.matches) input.focus();
     }
 
     function close() {
@@ -651,12 +659,16 @@ function setupAssistant(root) {
        nem o dvh percebem. Só o visualViewport enxerga a área que sobrou. Sem
        isto o campo de digitar fica atrás do teclado exatamente quando alguém
        vai digitar. O valor vira variável CSS, consumida só pela regra de tela
-       cheia; no desktop ela fica lá sem efeito. */
+       de celular; no desktop ela fica lá sem efeito.
+
+       Vai no <html>, e não no #assistant: na página do assistente quem precisa
+       da medida é o <body>, que está acima do painel na árvore e não enxergaria
+       uma variável declarada dentro dele. */
     function trackViewport() {
         const viewport = window.visualViewport;
         if (!viewport) return;
 
-        const fit = () => root.style.setProperty('--assistant-viewport', `${viewport.height}px`);
+        const fit = () => document.documentElement.style.setProperty('--assistant-viewport', `${viewport.height}px`);
 
         viewport.addEventListener('resize', fit);
         fit();
@@ -664,8 +676,13 @@ function setupAssistant(root) {
 
     trackViewport();
 
-    toggle.addEventListener('click', () => (panel.hidden ? open() : close()));
-    root.querySelector('.assistant-close').addEventListener('click', close);
+    if (toggle) toggle.addEventListener('click', () => (panel.hidden ? open() : close()));
+    if (closeButton) closeButton.addEventListener('click', close);
+
+    /* Na página, a conversa é buscada na carga: não há abertura de painel para
+       disparar a busca, e chegar numa tela vazia até alguém digitar algo daria
+       a impressão de que o histórico se perdeu. */
+    if (embedded) load();
 
     root.querySelector('.assistant-reset').addEventListener('click', async () => {
         if (recorder) recorder.stop();
@@ -720,8 +737,11 @@ function setupAssistant(root) {
         input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
     });
 
+    /* Esc fecha o atalho, que é uma coisa aberta por cima da página. Na página
+       do assistente não há o que fechar — Esc ali não faria nada além de tirar
+       o chat da tela sem ter para onde ir. */
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !panel.hidden) close();
+        if (event.key === 'Escape' && !embedded && !panel.hidden) close();
     });
 }
 
