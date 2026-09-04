@@ -536,19 +536,21 @@ def test_limpar_conversa_apaga_o_arquivo(media_root, alice_allowed, conversation
     assert not caminho.exists()
 
 
-def test_microfone_liberado_para_a_propria_origem(alice_allowed):
-    """A gravação do chat depende disto.
+def test_microfone_e_camera_liberados_para_a_propria_origem(alice_allowed):
+    """A gravação e a foto do chat dependem disto.
 
     Negado no cabeçalho, o navegador recusa `getUserMedia` antes mesmo de
     perguntar ao usuário — e a permissão concedida nas configurações do site não
     muda nada, porque a política do documento vem antes dela.
+
+    A câmera entra pelo mesmo motivo, ainda que o site não chame `getUserMedia`
+    com vídeo: o Chrome do Android também prende a esta política a opção de
+    câmera do seletor de arquivo, e negada ela some — sobra a galeria.
     """
     policy = alice_allowed.get(reverse('app:overview'))['Permissions-Policy']
 
     assert 'microphone=(self)' in policy
-    # A câmera continua negada: a foto entra por seletor de arquivo, e quem a
-    # abre no celular é o sistema operacional, fora do alcance desta política.
-    assert 'camera=()' in policy
+    assert 'camera=(self)' in policy
 
 
 def test_stream_recusa_arquivo_invalido(alice_allowed):

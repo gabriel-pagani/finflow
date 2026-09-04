@@ -7,13 +7,15 @@ class PermissionsPolicyMiddleware:
     —, e um script injetado alcançaria essas APIs. É a camada que a CSP não
     cobre.
 
-    A exceção é o microfone, e a exceção é o assistente: o chat grava o áudio
-    que vira lançamento. `(self)` libera a própria origem e só ela, então um
-    iframe de terceiro continua sem alcance.
+    As exceções são o microfone e a câmera, e a exceção é o assistente: o chat
+    grava o áudio que vira lançamento e aceita a foto do comprovante. `(self)`
+    libera a própria origem e só ela, então um iframe de terceiro continua sem
+    alcance.
 
-    A câmera segue negada, mesmo o chat aceitando foto. A foto entra por seletor
-    de arquivo, e quem abre a câmera do celular ali é o sistema operacional,
-    fora do alcance desta política — o site nunca chama getUserMedia com vídeo.
+    A câmera está aqui mesmo o site nunca chamando getUserMedia com vídeo. A
+    foto entra por seletor de arquivo, mas o Chrome do Android também prende a
+    esta política a opção de câmera que oferece no seletor: com `camera=()` o
+    celular só mostra a galeria, e não há como tirar a foto na hora.
 
     A lista traz só o que os navegadores de hoje reconhecem. Negar um nome que
     eles não conhecem não protege de nada — a API não existe para ser usada — e
@@ -27,7 +29,7 @@ class PermissionsPolicyMiddleware:
     FEATURES = {
         'accelerometer': '()',
         'autoplay': '()',
-        'camera': '()',
+        'camera': '(self)',
         'display-capture': '()',
         'encrypted-media': '()',
         'fullscreen': '()',
