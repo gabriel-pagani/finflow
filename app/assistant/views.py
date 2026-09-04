@@ -275,8 +275,14 @@ class ChatView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
 
     template_name = 'app/assistant.html'
     permission_required = 'app.use_assistant'
-    raise_exception = True
     extra_context = {'assistant_page': True}
+
+    def handle_no_permission(self):
+        # Os dois mixins caem aqui, e `raise_exception` fixo daria 403 também a
+        # quem não fez login. Só quem já entrou leva o 403; o anônimo segue para
+        # o login, como em qualquer outra página.
+        self.raise_exception = self.request.user.is_authenticated
+        return super().handle_no_permission()
 
 
 class HistoryView(AssistantView):
