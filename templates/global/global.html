@@ -16,13 +16,15 @@
                 <img src="{% static 'global/images/dark-blue-logo.png' %}">
                 FinFlow
             </a>
+            {% with route=request.resolver_match.url_name|default:'' %}
             <nav>
-                <a href="{% url 'app:overview' %}">Visão Geral</a>
-                <a href="{% url 'app:forecast' %}">Previsão</a>
-                <a href="{% url 'app:transactions_list' %}">Transações</a>
-                <a href="{% url 'app:cards_list' %}">Cartões</a>
-                {% if perms.app.use_assistant %}<a href="{% url 'app:assistant' %}">Assistente</a>{% endif %}
+                <a href="{% url 'app:overview' %}"{% if route == 'overview' %} class="active"{% endif %}>Visão Geral</a>
+                <a href="{% url 'app:forecast' %}"{% if route == 'forecast' %} class="active"{% endif %}>Previsão</a>
+                <a href="{% url 'app:transactions_list' %}"{% if 'transaction' in route or 'installment' in route or 'transfer' in route %} class="active"{% endif %}>Transações</a>
+                <a href="{% url 'app:cards_list' %}"{% if 'card' in route %} class="active"{% endif %}>Cartões</a>
+                {% if perms.app.use_assistant %}<a href="{% url 'app:assistant' %}"{% if route == 'assistant' %} class="active"{% endif %}>Assistente</a>{% endif %}
             </nav>
+            {% endwith %}
             <form class="logout" method="post" action="{% url 'app:logout' %}">
                 {% csrf_token %}
                 <span>Bem-vindo(a), {{ user.get_short_name|default:user.username }}</span>

@@ -110,6 +110,13 @@ body.page-fill main {
     color: var(--accent);
 }
 
+/* A aba da página aberta. A cor sozinha já destacaria, mas o negrito é o que
+   se enxerga de relance sem depender de contraste. */
+.topbar nav a.active {
+    color: var(--accent);
+    font-weight: 700;
+}
+
 .logout {
     margin-left: auto;
     display: flex;
