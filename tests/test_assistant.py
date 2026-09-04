@@ -7,12 +7,14 @@ não é ele que pode gravar dinheiro errado.
 """
 
 import json
+import os
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
 from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
 import pytest
@@ -20,7 +22,8 @@ import pytest
 from app.assistant import attachments, tools
 from app.assistant.client import IMAGE_MEMORY, history
 from app.assistant.data import FilterError, options
-from app.models import Conversation, Installment, Message, Method, PendingWrite, Role, Transaction, Transfer, Type
+from app.management.commands.prune_attachments import ORPHAN_GRACE
+from app.models import Attachment, Conversation, Installment, Message, Method, PendingWrite, Role, Transaction, Transfer, Type
 
 
 @pytest.fixture
@@ -534,6 +537,91 @@ def test_limpar_conversa_apaga_o_arquivo(media_root, alice_allowed, conversation
     alice_allowed.post(reverse('app:assistant_reset'))
 
     assert not caminho.exists()
+
+
+# --------------------------------------------------------------------------
+# Expiração dos anexos
+#
+# O comando é o que impede o volume de guardar para sempre o comprovante de
+# alguém. O que se verifica aqui é o corte: o que vence sai, o que é recente
+# fica, e o histórico continua legível sem o arquivo.
+# --------------------------------------------------------------------------
+
+
+def envelhece(attachment, dias):
+    """`created` é auto_now_add: não há como nascer velho, só como ser envelhecido."""
+    quando = timezone.now() - timedelta(days=dias)
+    Attachment.objects.filter(pk=attachment.pk).update(created=quando)
+
+
+def test_anexo_vencido_sai_e_o_recente_fica(media_root, conversation):
+    velho = photo(conversation)
+    novo = photo(conversation)
+    envelhece(velho, 120)
+
+    call_command('prune_attachments', days=90)
+
+    assert not Path(velho.file.path).exists()
+    assert Path(novo.file.path).exists()
+    assert Attachment.objects.count() == 1
+
+
+def test_retencao_zero_guarda_para_sempre(media_root, conversation):
+    """O escape de quem não quer expiração nenhuma: o comportamento de antes."""
+    attachment = photo(conversation)
+    envelhece(attachment, 3650)
+
+    call_command('prune_attachments', days=0)
+
+    assert Path(attachment.file.path).exists()
+
+
+def test_a_mensagem_sobrevive_ao_anexo_vencido(media_root, conversation):
+    """O arquivo é que é pesado. A conversa que ele gerou não se apaga junto."""
+    attachment = photo(conversation, 'mercado, 82 reais')
+    envelhece(attachment, 120)
+
+    call_command('prune_attachments', days=90)
+
+    message = Message.objects.get(pk=attachment.message_id)
+    assert message.content == 'mercado, 82 reais'
+    # No contexto do modelo a foto vira o marcador, e não uma exceção subindo.
+    assert attachments.FORGOTTEN in history(conversation)[0]['content']
+
+
+def test_arquivo_sem_dono_e_recolhido(media_root, conversation):
+    """Gravação que passou pelo disco e não chegou ao banco não fica lá para sempre."""
+    orfao = media_root / 'assistant' / '99' / 'perdido.jpg'
+    orfao.parent.mkdir(parents=True)
+    orfao.write_bytes(JPEG)
+    antigo = (timezone.now() - ORPHAN_GRACE - timedelta(hours=1)).timestamp()
+    os.utime(orfao, (antigo, antigo))
+
+    call_command('prune_attachments')
+
+    assert not orfao.exists()
+
+
+def test_arquivo_sem_dono_recente_sobrevive(media_root, conversation):
+    """Entre o arquivo e a linha há um instante sem dono: é o envio, não um órfão."""
+    attachment = photo(conversation)
+    orfao = media_root / 'assistant' / '99' / 'agora.jpg'
+    orfao.parent.mkdir(parents=True)
+    orfao.write_bytes(JPEG)
+
+    call_command('prune_attachments')
+
+    assert orfao.exists()
+    assert Path(attachment.file.path).exists()
+
+
+def test_dry_run_nao_apaga(media_root, conversation):
+    attachment = photo(conversation)
+    envelhece(attachment, 120)
+
+    call_command('prune_attachments', days=90, dry_run=True)
+
+    assert Path(attachment.file.path).exists()
 
 
 def test_microfone_e_camera_liberados_para_a_propria_origem(alice_allowed):

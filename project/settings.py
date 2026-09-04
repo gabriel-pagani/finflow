@@ -183,6 +183,13 @@ OPENAI_MODEL = os.getenv('OPENAI_MODEL')
 # no histórico e custa uma fração do que custaria mandar o áudio a cada rodada.
 OPENAI_TRANSCRIBE_MODEL = os.getenv('OPENAI_TRANSCRIBE_MODEL', 'gpt-4o-transcribe')
 
+# Dias que a foto e o áudio do chat ficam no disco. O que vence é o arquivo: a
+# transcrição, a mensagem e o lançamento que a foto gerou são permanentes, e o
+# arquivo é o único pedaço pesado que ninguém relê depois de conferido. Zero
+# desliga a expiração, e é o que mantém o comportamento de guardar para sempre.
+# Quem aplica isto é o comando `prune_attachments`, não a aplicação servindo.
+ASSISTANT_ATTACHMENT_RETENTION_DAYS = int(os.getenv('ASSISTANT_ATTACHMENT_RETENTION_DAYS', '30'))
+
 SECURE_CSP = {
     'default-src': [CSP.SELF],
     'script-src': [CSP.SELF],

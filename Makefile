@@ -1,5 +1,5 @@
 build-system:
-	@make backup-database && docker compose -f deploy/docker-compose.yml up -d --build
+	@make backup-system && docker compose -f deploy/docker-compose.yml up -d --build
 
 start-system:
 	@docker compose -f deploy/docker-compose.yml up -d
@@ -11,7 +11,10 @@ restart-system:
 	@docker compose -f deploy/docker-compose.yml down && docker compose -f deploy/docker-compose.yml up -d
 
 reset-system:
-	@make backup-database && docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
+	@make backup-system && docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
+
+backup-system:
+	@make backup-database && make backup-media
 
 backup-database:
 	@mkdir -p backups
@@ -19,11 +22,20 @@ backup-database:
 	docker compose -f deploy/docker-compose.yml exec -T postgres sh -c 'pg_dump -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" --no-owner --no-privileges' > "$$FILE.tmp" \
 		&& mv "$$FILE.tmp" "$$FILE" || { rm -f "$$FILE.tmp"; exit 1; }
 
+backup-media:
+	@mkdir -p backups
+	@FILE="backups/finflow-media-$$(date +%Y%m%d-%H%M%S).tar.gz"; \
+	docker compose -f deploy/docker-compose.yml exec -T django tar czf - -C /app/media_root . > "$$FILE.tmp" \
+		&& mv "$$FILE.tmp" "$$FILE" || { rm -f "$$FILE.tmp"; exit 1; }
+
+prune-attachments:
+	@docker compose -f deploy/docker-compose.yml exec -T django python manage.py prune_attachments $(args)
+
 reset-system-cache:
 	@docker compose -f deploy/docker-compose.yml exec redis redis-cli FLUSHDB
 
 clean-system:
-	@make backup-database && docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
+	@make backup-system && docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
 
 make-migrations:
 	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
