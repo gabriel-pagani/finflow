@@ -433,6 +433,21 @@
     margin-inline: auto;
 }
 
+/* Esta página é a exceção ao page-fill: em vez de crescer com o conteúdo, ela
+   se prende à janela. Sem isto a conversa longa empurra o body para baixo e
+   quem ganha barra de rolagem é a página inteira — o compositor desce junto e
+   sai da tela, justamente o que deveria ficar parado. Rolar é papel da
+   conversa, que já tem o próprio overflow. */
+body.page-assistant {
+    /* vh primeiro, para quem não conhece dvh ficar com a medida antiga em vez
+       de nenhuma. */
+    height: 100vh;
+    height: 100dvh;
+    /* Anula o min-height:100vh do page-fill, que impediria o encolhimento. */
+    min-height: 0;
+    overflow: hidden;
+}
+
 @media (max-width: 768px) {
     /* No celular o atalho sai de cena. Ele ficava preso sobre o conteúdo o
        tempo todo, tapando um canto de toda tela do sistema, e abria um painel
@@ -445,21 +460,12 @@
         display: none;
     }
 
-    /* A página do assistente é presa à área visível, e não à altura do
-       conteúdo: assim o campo de digitar fica no rodapé da tela, e não no fim
-       de uma página que precisa ser rolada até embaixo para ele aparecer.
-
-       As três alturas vão da mais tosca para a mais exata, cada uma cobrindo o
-       que a anterior erra:
-         dvh — acompanha a barra de endereço que some ao rolar.
-         var — o JS a preenche com o viewport visível, que é o único que encolhe
-               quando o teclado abre. Sem ela o compositor fica atrás do
-               teclado, no exato momento em que é usado. */
+    /* No celular a altura da regra de cima ainda erra: quem encolhe a área
+       visível é o teclado, e nem o vh nem o dvh o percebem. O JS preenche a
+       var com o viewport visível; sem ela o compositor fica atrás do teclado,
+       no exato momento em que é usado. */
     body.page-assistant {
-        height: 100dvh;
         height: var(--assistant-viewport, 100dvh);
-        min-height: 0;
-        overflow: hidden;
     }
 
     /* Alvo de toque: 28px é confortável para o ponteiro do mouse e apertado
