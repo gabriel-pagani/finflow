@@ -1,5 +1,14 @@
+backup ?= yes
+
+maybe-backup-system:
+	@case "$(backup)" in \
+		yes|true|on|1) make backup-system ;; \
+		no|false|off|0) echo "backup=$(backup): pulando o backup" ;; \
+		*) echo "backup=$(backup): use yes ou no" >&2; exit 1 ;; \
+	esac
+
 build-system:
-	@make backup-system && docker compose -f deploy/docker-compose.yml up -d --build
+	@make maybe-backup-system && docker compose -f deploy/docker-compose.yml up -d --build
 
 start-system:
 	@docker compose -f deploy/docker-compose.yml up -d
@@ -11,7 +20,7 @@ restart-system:
 	@docker compose -f deploy/docker-compose.yml down && docker compose -f deploy/docker-compose.yml up -d
 
 reset-system:
-	@make backup-system && docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
+	@make maybe-backup-system && docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
 
 backup-system:
 	@make backup-database && make backup-media
@@ -35,7 +44,7 @@ reset-system-cache:
 	@docker compose -f deploy/docker-compose.yml exec redis redis-cli FLUSHDB
 
 clean-system:
-	@make backup-system && docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
+	@make maybe-backup-system && docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
 
 make-migrations:
 	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
