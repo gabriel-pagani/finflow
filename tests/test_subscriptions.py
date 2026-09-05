@@ -19,7 +19,7 @@ from django.utils import timezone
 import pytest
 
 from app.forms import SubscriptionForm
-from app.models import Card, Method, Subscription, Transaction, Type
+from app.models import Card, Method, Recurrence, Subscription, Transaction, Type
 
 
 pytestmark = pytest.mark.django_db
@@ -40,6 +40,7 @@ def subscription_payload(account, card, category, **overrides):
         'description': 'Netflix',
         'value': '55.90',
         'charge_day': '1',
+        'recurrence': 'MONTHLY',
         'account': account.pk,
         'card': card.pk,
         'category': category.pk,
@@ -133,6 +134,76 @@ class TestGeracao:
 
         assert Subscription.generate_due(user=alice, today=date(2026, 1, 10)) == 1
         assert Transaction.objects.filter(user=bob).count() == 0
+
+
+# --------------------------------------------------------------------------
+# Recorrência
+# --------------------------------------------------------------------------
+
+class TestRecorrencia:
+    """Nem toda assinatura é mensal, e o que muda entre elas é só o passo.
+
+    A competência continua sendo o mês: a anual salta doze de uma vez, a
+    trimestral três. O ponto de partida é sempre a primeira competência, e não o
+    calendário — assinatura anual cadastrada em março cobra em março.
+    """
+
+    @pytest.mark.parametrize(('recurrence', 'expected'), [
+        (Recurrence.MONTHLY, 12),
+        (Recurrence.BIMONTHLY, 6),
+        (Recurrence.QUARTERLY, 4),
+        (Recurrence.SEMIANNUAL, 2),
+        (Recurrence.ANNUAL, 1),
+    ])
+    def test_quantas_cobrancas_saem_num_ano(self, recurrence, expected, alice, make_subscription):
+        subscription = make_subscription(alice, start=date(2026, 1, 1), charge_day=10, recurrence=recurrence)
+
+        assert len(subscription.generate_charges(today=date(2026, 12, 31))) == expected
+
+    def test_trimestral_salta_de_tres_em_tres(self, alice, make_subscription):
+        subscription = make_subscription(alice, start=date(2026, 1, 1), charge_day=10, recurrence=Recurrence.QUARTERLY)
+
+        created = subscription.generate_charges(today=date(2026, 8, 1))
+
+        assert [transaction.reference for transaction in created] == [
+            date(2026, 1, 1), date(2026, 4, 1), date(2026, 7, 1),
+        ]
+
+    def test_anual_espera_o_ano_virar(self, alice, make_subscription):
+        subscription = make_subscription(alice, start=date(2026, 3, 1), charge_day=10, recurrence=Recurrence.ANNUAL)
+        subscription.generate_charges(today=date(2026, 3, 10))
+
+        # O ano inteiro passa sem nada a lançar, mesmo com a tela sendo aberta
+        # todo dia: a próxima competência é março do ano seguinte.
+        assert subscription.generate_charges(today=date(2027, 2, 28)) == []
+
+        seguinte = subscription.generate_charges(today=date(2027, 3, 10))
+        assert [transaction.reference for transaction in seguinte] == [date(2027, 3, 1)]
+
+    def test_a_recorrencia_padrao_e_mensal(self, alice, make_subscription):
+        assert make_subscription(alice).recurrence == Recurrence.MONTHLY
+
+    def test_cadastro_pela_tela_aceita_a_recorrencia_escolhida(self, alice_logged, alice, account, category, make_card):
+        card = make_card(alice)
+
+        alice_logged.post(
+            reverse('app:subscription_create'),
+            subscription_payload(account, card, category, recurrence=Recurrence.ANNUAL),
+        )
+
+        assert Subscription.objects.get().recurrence == Recurrence.ANNUAL
+
+    def test_nada_a_gerar_nao_abre_transacao(self, alice, make_subscription, django_assert_num_queries):
+        """A saída barata: sem cobrança vencida, a geração não trava linha.
+
+        Este caminho roda a cada página aberta, e uma anual passa onze meses do
+        ano sem nada a fazer — o custo dela precisa ser a consulta que já
+        aconteceu, e mais nada.
+        """
+        subscription = make_subscription(alice, start=date(2026, 1, 1), charge_day=10)
+
+        with django_assert_num_queries(0):
+            assert subscription.generate_charges(today=date(2026, 1, 9)) == []
 
 
 # --------------------------------------------------------------------------

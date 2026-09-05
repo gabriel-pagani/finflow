@@ -20,6 +20,7 @@
                     <th>Conta</th>
                     <th>Cartão</th>
                     <th>Categoria</th>
+                    <th>Recorrência</th>
                     <th class="right">Cobrança</th>
                     <th class="right">Valor</th>
                     <th class="right">Ações</th>
@@ -39,6 +40,7 @@
                         data-description="{{ subscription.description }}"
                         data-value="{{ subscription.value|stringformat:'.2f' }}"
                         data-charge-day="{{ subscription.charge_day|unlocalize }}"
+                        data-recurrence="{{ subscription.recurrence }}"
                         data-account="{{ subscription.account_id|unlocalize }}"
                         data-card="{{ subscription.card_id|unlocalize }}"
                         data-category="{% if subscription.category_id %}{{ subscription.category_id|unlocalize }}{% endif %}"
@@ -47,8 +49,9 @@
                         title="Clique para editar">
                         <td>{{ subscription.description }}</td>
                         <td>{{ subscription.account }}</td>
-                        <td>•••• {{ subscription.card.last_digits }}</td>
+                        <td>•••• •••• •••• {{ subscription.card.last_digits }}</td>
                         <td>{{ subscription.category_display }}</td>
+                        <td>{{ subscription.get_recurrence_display }}</td>
                         <td class="right">Dia {{ subscription.charge_day|unlocalize }}</td>
                         <td class="right cell-outcome">R$ -{{ subscription.value|floatformat:2 }}</td>
                         <td class="right nowrap">
@@ -57,7 +60,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="7">Nenhuma assinatura cadastrada. Cadastre uma para que a cobrança de cada mês seja lançada sozinha.</td></tr>
+                    <tr><td colspan="8">Nenhuma assinatura cadastrada. Cadastre uma para que cada cobrança seja lançada sozinha.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

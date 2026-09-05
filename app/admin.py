@@ -173,8 +173,8 @@ class SubscriptionAdmin(VersionAdmin):
     categoria, descrição, valor e dia.
     """
 
-    list_display = ('user', 'description', 'account', 'card', 'category_display', 'value', 'charge_day', 'last_reference',)
-    list_filter = ('user', 'account', 'card', 'category',)
+    list_display = ('user', 'description', 'account', 'card', 'category_display', 'value', 'charge_day', 'recurrence', 'last_reference',)
+    list_filter = ('user', 'account', 'card', 'category', 'recurrence',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
     readonly_fields = ('start', 'last_reference',)

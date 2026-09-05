@@ -86,6 +86,32 @@ class Nature(models.TextChoices):
     ADJUSTMENT = 'ADJUSTMENT', 'Ajuste de Saldo'
 
 
+class Recurrence(models.TextChoices):
+    """De quanto em quanto tempo uma assinatura cobra.
+
+    Todas são múltiplos de mês, e é isso que deixa a competência continuar sendo
+    o mês: entre uma anual e uma mensal muda o tamanho do passo, não a unidade.
+    """
+
+    MONTHLY = 'MONTHLY', 'Mensal'
+    BIMONTHLY = 'BIMONTHLY', 'Bimestral'
+    QUARTERLY = 'QUARTERLY', 'Trimestral'
+    SEMIANNUAL = 'SEMIANNUAL', 'Semestral'
+    ANNUAL = 'ANNUAL', 'Anual'
+
+
+# O passo de cada recorrência, em meses. Fica fora do TextChoices porque o que
+# se escreve no corpo dele vira opção do select: um dicionário ali apareceria
+# para o usuário como uma recorrência chamada "Months".
+RECURRENCE_MONTHS = {
+    Recurrence.MONTHLY: 1,
+    Recurrence.BIMONTHLY: 2,
+    Recurrence.QUARTERLY: 3,
+    Recurrence.SEMIANNUAL: 6,
+    Recurrence.ANNUAL: 12,
+}
+
+
 class Account(models.Model):
     description = models.CharField(max_length=100, unique=True, verbose_name='Conta')
 
@@ -542,8 +568,9 @@ class Subscription(models.Model):
     card = models.ForeignKey(Card, on_delete=models.PROTECT, related_name='subscriptions', verbose_name='Cartão')
     category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, verbose_name='Categoria')
     description = models.CharField(max_length=200, verbose_name='Assinatura', help_text='O nome do serviço. Ex.: Spotify, Netflix, Claude.')
-    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Mensal')
+    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor da Cobrança')
     charge_day = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name='Dia da Cobrança')
+    recurrence = models.CharField(max_length=20, choices=Recurrence.choices, default=Recurrence.MONTHLY, verbose_name='Recorrência')
 
     # A competência é o mês, e por isso as duas datas ficam no dia 1º. `start` é
     # o primeiro mês que a assinatura cobra — o do cadastro, porque assinatura
@@ -569,6 +596,21 @@ class Subscription(models.Model):
 
         if self.value is not None and self.value <= 0:
             raise ValidationError({'value': 'O valor deve ser maior que zero.'})
+
+    @property
+    def interval(self):
+        """Quantos meses separam uma cobrança da seguinte."""
+        return RECURRENCE_MONTHS[self.recurrence]
+
+    @property
+    def next_reference(self):
+        """Competência da próxima cobrança: a que sai assim que o dia dela chegar.
+
+        Sai do que já foi gerado, e não do calendário: a anual cadastrada em
+        março cobra em março do ano seguinte, não em janeiro. Antes da primeira
+        cobrança, é o próprio `start`.
+        """
+        return add_months(self.last_reference, self.interval) if self.last_reference else self.start
 
     def charge_date(self, reference):
         """Dia em que a assinatura cobra, dentro do mês da competência.
@@ -618,13 +660,19 @@ class Subscription(models.Model):
         today = today or timezone.localdate()
         created = []
 
+        # A saída barata, antes de abrir transação e travar a linha: este
+        # caminho roda a cada página aberta, e uma assinatura anual passa onze
+        # meses do ano sem nada a fazer.
+        if self.charge_date(self.next_reference) > today:
+            return created
+
         with db_transaction.atomic():
             # O cron e a tela podem chegar ao mesmo tempo, e o que decide a
             # próxima competência é o que já foi gerado. Sem o lock, os dois
             # leriam a mesma linha e lançariam a mesma cobrança duas vezes.
             locked = Subscription.objects.select_for_update().get(pk=self.pk)
 
-            reference = add_months(locked.last_reference, 1) if locked.last_reference else locked.start
+            reference = locked.next_reference
             current = today.replace(day=1)
 
             while reference <= current:
@@ -632,7 +680,7 @@ class Subscription(models.Model):
                     break
                 created.append(self.create_transaction(reference))
                 locked.last_reference = reference
-                reference = add_months(reference, 1)
+                reference = add_months(reference, self.interval)
 
             if created:
                 locked.save(update_fields=['last_reference'])
@@ -675,7 +723,7 @@ class Subscription(models.Model):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'
 
     def __str__(self):
-        return f'{self.description} (R${self.value}/mês)'
+        return f'{self.description} (R${self.value} · {self.get_recurrence_display()})'
 
     class Meta:
         ordering = ['description']

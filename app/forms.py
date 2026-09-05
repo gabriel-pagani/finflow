@@ -246,14 +246,14 @@ class SubscriptionForm(CardChoiceMixin, OwnedForm):
     """Assinatura recorrente do próprio usuário.
 
     É cadastro, não lançamento: o que se preenche aqui é o molde da cobrança que
-    volta todo mês. O cartão é sempre exigido, como no parcelamento, porque
-    assinatura é gasto no crédito — e é o ciclo dele que decide em que fatura
-    cada cobrança cai.
+    volta de tempos em tempos. O cartão é sempre exigido, como no parcelamento,
+    porque assinatura é gasto no crédito — e é o ciclo dele que decide em que
+    fatura cada cobrança cai.
     """
 
     class Meta:
         model = Subscription
-        fields = ('description', 'value', 'charge_day', 'account', 'card', 'category',)
+        fields = ('description', 'value', 'charge_day', 'recurrence', 'account', 'card', 'category',)
         widgets = {
             'value': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
             'charge_day': forms.NumberInput(attrs={'min': '1', 'max': '31', 'step': '1'}),
