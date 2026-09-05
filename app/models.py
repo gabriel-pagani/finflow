@@ -1,11 +1,11 @@
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, ROUND_DOWN
 from pathlib import Path
 from uuid import uuid4
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction as db_transaction
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
@@ -25,6 +25,16 @@ def add_months(dt, months):
     day = min(dt.day, [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
 
     return dt.replace(year=year, month=month, day=day)
+
+
+def current_reference():
+    """A competência de hoje: o primeiro dia do mês corrente.
+
+    Default da primeira competência de uma assinatura. É função, e não o valor
+    calculado na importação, senão todo cadastro feito depois do deploy nasceria
+    com o mês em que o processo subiu.
+    """
+    return timezone.localdate().replace(day=1)
 
 
 def next_business_day(day):
@@ -207,8 +217,13 @@ class Card(models.Model):
 
     @property
     def in_use(self):
-        """O cartão já tem lançamento preso a ele, e por isso não se apaga."""
-        return self.transactions.exists() or self.installments.exists()
+        """O cartão já tem registro preso a ele, e por isso não se apaga.
+
+        Assinatura entra na conta como transação e parcelamento: ela aponta
+        para o cartão com PROTECT, e sem esta checagem a remoção morreria como
+        erro de banco em vez de virar recado na tela.
+        """
+        return self.transactions.exists() or self.installments.exists() or self.subscriptions.exists()
 
     def __str__(self):
         return f'{self.account} (final {self.last_digits})'
@@ -498,6 +513,176 @@ class Transfer(models.Model):
         verbose_name_plural = 'Transferências'
 
 
+class Subscription(models.Model):
+    """Assinatura recorrente: um valor que volta todo mês no mesmo cartão.
+
+    O cadastro é o molde da cobrança, não a cobrança. Ele guarda o que cada mês
+    vai lançar — conta, cartão, categoria, descrição e valor — e a cada
+    competência vencida sai uma transação nova montada a partir dele.
+
+    A transação, depois de criada, se solta do molde. Ela é comum: editável,
+    removível, e sobrevive à assinatura, porque o vínculo é SET_NULL. Cancelar
+    o Spotify não apaga o que já foi pago a ele — o que houve de dinheiro
+    continua no extrato, que é justamente o que um sistema de finanças precisa
+    lembrar depois que a assinatura acaba.
+
+    Também por isso a geração não mora no save(), como a do Parcelamento. Um
+    parcelamento tem fim e sai inteiro numa vez só; uma assinatura não tem fim, e
+    o que ela deve ter gerado depende de que dia é hoje. Quem gera é o
+    `generate_due`, chamado pelo comando do cron e pelas telas.
+
+    Alterar o cadastro vale para as próximas cobranças. As que já saíram
+    guardam o valor e a data que valiam quando saíram: recalculá-las mudaria
+    fatura que o usuário já conferiu, e apagaria o histórico de um preço que
+    subiu.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscriptions', verbose_name='Usuário')
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name='Conta')
+    card = models.ForeignKey(Card, on_delete=models.PROTECT, related_name='subscriptions', verbose_name='Cartão')
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, verbose_name='Categoria')
+    description = models.CharField(max_length=200, verbose_name='Assinatura', help_text='O nome do serviço. Ex.: Spotify, Netflix, Claude.')
+    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Mensal')
+    charge_day = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name='Dia da Cobrança')
+
+    # A competência é o mês, e por isso as duas datas ficam no dia 1º. `start` é
+    # o primeiro mês que a assinatura cobra — o do cadastro, porque assinatura
+    # nova não retroage — e `last_reference` é o último já lançado, que é o que
+    # impede a mesma cobrança de sair duas vezes.
+    start = models.DateField(default=current_reference, verbose_name='Primeira Competência')
+    last_reference = models.DateField(blank=True, null=True, verbose_name='Última Competência Gerada')
+
+    TYPE = Type.OUT
+    METHOD = Method.CREDIT
+
+    def clean(self):
+        super().clean()
+
+        if self.account_id and not BusinessRule.objects.filter(account=self.account, type=self.TYPE, method=self.METHOD).exists():
+            raise ValidationError({'account': f'A conta não permite {Type(self.TYPE).label.lower()} em {Method(self.METHOD).label}, necessário para registrar as cobranças da assinatura.'})
+
+        if self.card_id:
+            if self.account_id and self.card.account_id != self.account_id:
+                raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})
+            if self.user_id and self.card.user_id != self.user_id:
+                raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
+
+        if self.value is not None and self.value <= 0:
+            raise ValidationError({'value': 'O valor deve ser maior que zero.'})
+
+    def charge_date(self, reference):
+        """Dia em que a assinatura cobra, dentro do mês da competência.
+
+        Quem cobra dia 31 cobra dia 28 em fevereiro: o dia escolhido nunca sai
+        do mês a que pertence, pela mesma conta que o ciclo do cartão faz.
+        """
+        return self.card.cycle_day(reference.year, reference.month, self.charge_day)
+
+    def charge_datetime(self, reference):
+        """A cobrança como data e hora, que é o que o ciclo do cartão consome.
+
+        Meio-dia, e não meia-noite: a hora aqui é arbitrária — quem decide a
+        fatura é o dia —, e meia-noite é justamente o horário que deixa de
+        existir em algumas mudanças de fuso.
+        """
+        return timezone.make_aware(datetime.combine(self.charge_date(reference), time(12, 0)))
+
+    def create_transaction(self, reference):
+        """A cobrança de uma competência, na fatura em que ela cai.
+
+        A data gravada é a do vencimento da fatura, como em toda compra no
+        crédito: o dinheiro sai quando a fatura vence, não no dia em que o
+        serviço cobrou.
+        """
+        return Transaction.objects.create(
+            user=self.user,
+            account=self.account,
+            card=self.card,
+            type=self.TYPE,
+            method=self.METHOD,
+            category=self.category,
+            description=self.description,
+            value=self.value,
+            datetime=self.card.invoice_datetime(self.charge_datetime(reference)),
+            subscription=self,
+            reference=reference,
+        )
+
+    def generate_charges(self, today=None):
+        """Lança o que já venceu e ainda não saiu, uma transação por competência.
+
+        Vencido é o mês cujo dia de cobrança já chegou: quem cobra dia 10 só
+        lança no dia 10, e não no 1º. Meses anteriores a `start` nunca entram —
+        assinatura cadastrada hoje não inventa histórico.
+        """
+        today = today or timezone.localdate()
+        created = []
+
+        with db_transaction.atomic():
+            # O cron e a tela podem chegar ao mesmo tempo, e o que decide a
+            # próxima competência é o que já foi gerado. Sem o lock, os dois
+            # leriam a mesma linha e lançariam a mesma cobrança duas vezes.
+            locked = Subscription.objects.select_for_update().get(pk=self.pk)
+
+            reference = add_months(locked.last_reference, 1) if locked.last_reference else locked.start
+            current = today.replace(day=1)
+
+            while reference <= current:
+                if self.charge_date(reference) > today:
+                    break
+                created.append(self.create_transaction(reference))
+                locked.last_reference = reference
+                reference = add_months(reference, 1)
+
+            if created:
+                locked.save(update_fields=['last_reference'])
+                self.last_reference = locked.last_reference
+
+        return created
+
+    @classmethod
+    def generate_due(cls, user=None, today=None):
+        """Gera as cobranças vencidas e devolve quantas saíram.
+
+        É o único caminho de geração: o comando do cron chama sem usuário, para
+        todas; as telas chamam com o usuário logado, para que quem abre o
+        sistema não precise esperar o cron do dia seguinte para ver a cobrança
+        do mês.
+
+        O filtro é o que deixa a chamada barata na tela: quem já tem a
+        competência deste mês lançada nem chega a ser carregado.
+        """
+        today = today or timezone.localdate()
+
+        pending = cls.objects.filter(
+            models.Q(last_reference__isnull=True) | models.Q(last_reference__lt=today.replace(day=1))
+        ).select_related('card', 'account', 'category')
+
+        if user is not None:
+            pending = pending.filter(user=user)
+
+        return sum(len(subscription.generate_charges(today)) for subscription in pending)
+
+    def save(self, *args, **kwargs):
+        # Competência é mês: o dia informado não importa, e guardá-lo faria a
+        # comparação com `last_reference` depender de dois dias diferentes.
+        if self.start:
+            self.start = self.start.replace(day=1)
+        super().save(*args, **kwargs)
+
+    @property
+    def category_display(self):
+        return str(self.category) if self.category_id else 'Categoria Não Identificada'
+
+    def __str__(self):
+        return f'{self.description} (R${self.value}/mês)'
+
+    class Meta:
+        ordering = ['description']
+        verbose_name = 'Assinatura'
+        verbose_name_plural = 'Assinaturas'
+
+
 class Transaction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transactions_owned', verbose_name='Usuário')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name='Conta')
@@ -519,6 +704,13 @@ class Transaction(models.Model):
 
     transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name='transactions', blank=True, null=True, verbose_name='Transferência')
 
+    # SET_NULL, e não CASCADE como as demais origens: a cobrança de assinatura
+    # é dinheiro que saiu, e cancelar a assinatura não desfaz os meses pagos.
+    # O que some é o vínculo; a transação fica, e a competência continua nela
+    # dizendo de que mês ela era.
+    subscription = models.ForeignKey(Subscription, on_delete=models.SET_NULL, related_name='transactions', blank=True, null=True, verbose_name='Assinatura')
+    reference = models.DateField(blank=True, null=True, verbose_name='Competência')
+
     def clean(self):
         super().clean()
         if self.account_id and self.type and self.method:
@@ -536,6 +728,12 @@ class Transaction(models.Model):
 
     # Espelho do is_derived para uso em queryset, onde a property não alcança.
     # Ficam juntos de propósito: uma origem nova tem de entrar nos dois.
+    #
+    # Assinatura fica de fora, e não por esquecimento: as outras origens mandam
+    # nos valores do que geraram — mexer numa parcela sozinha desencontraria o
+    # parcelamento. A assinatura não manda: ela lança a cobrança do mês e a
+    # solta. O mês em que o preço veio diferente se corrige na própria linha, e
+    # o mês que não foi cobrado se apaga sem que a assinatura precise acabar.
     DERIVED_FIELDS = ('installment', 'investment', 'transfer')
 
     # Origens que o usuário pode apagar pela tela de transações, levando junto
@@ -635,6 +833,17 @@ class Transaction(models.Model):
         ordering = ['-datetime']
         verbose_name = 'Transação'
         verbose_name_plural = 'Transações'
+        constraints = [
+            # Uma competência, uma cobrança. O `last_reference` da assinatura já
+            # evita a repetição; isto é o que segura o caso em que duas
+            # gerações correm ao mesmo tempo e a trava de linha não alcança —
+            # numa réplica, num deploy com dois processos subindo juntos.
+            models.UniqueConstraint(
+                fields=['subscription', 'reference'],
+                condition=models.Q(subscription__isnull=False),
+                name='unique_subscription_reference',
+            ),
+        ]
 
 
 class Conversation(models.Model):

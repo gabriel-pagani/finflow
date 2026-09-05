@@ -22,6 +22,7 @@
                 <a href="{% url 'app:forecast' %}"{% if route == 'forecast' %} class="active"{% endif %}>Previsão</a>
                 <a href="{% url 'app:transactions_list' %}"{% if 'transaction' in route or 'installment' in route or 'transfer' in route %} class="active"{% endif %}>Transações</a>
                 <a href="{% url 'app:cards_list' %}"{% if 'card' in route %} class="active"{% endif %}>Cartões</a>
+                <a href="{% url 'app:subscriptions_list' %}"{% if 'subscription' in route %} class="active"{% endif %}>Assinaturas</a>
                 {% if perms.app.use_assistant %}<a href="{% url 'app:assistant' %}"{% if route == 'assistant' %} class="active"{% endif %}>Assistente</a>{% endif %}
             </nav>
             {% endwith %}

@@ -20,6 +20,10 @@ urlpatterns = [
     path('card/add/', views.CardCreateView.as_view(), name='card_create'),
     path('card/<int:pk>/change/', views.CardUpdateView.as_view(), name='card_update'),
     path('card/<int:pk>/delete/', views.CardDeleteView.as_view(), name='card_delete'),
+    path('subscriptions/', views.SubscriptionsListView.as_view(), name='subscriptions_list'),
+    path('subscription/add/', views.SubscriptionCreateView.as_view(), name='subscription_create'),
+    path('subscription/<int:pk>/change/', views.SubscriptionUpdateView.as_view(), name='subscription_update'),
+    path('subscription/<int:pk>/delete/', views.SubscriptionDeleteView.as_view(), name='subscription_delete'),
 
     # Chat do assistente. O stream é POST lido por fetch, e não EventSource,
     # porque a pergunta precisa ir no corpo e o CSRF num cabeçalho. Todas as

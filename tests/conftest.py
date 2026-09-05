@@ -14,6 +14,7 @@ from app.models import (
     Installment,
     Investment,
     Method,
+    Subscription,
     Transaction,
     Transfer,
     Type,
@@ -242,6 +243,29 @@ def make_investment(account, category, business_rules):
         )
 
         return investment
+    return _make
+
+
+@pytest.fixture
+def make_subscription(account, category, business_rules, make_card):
+    """Cria uma assinatura para o usuário informado, sem gerar cobrança nenhuma.
+
+    A geração fica de fora de propósito: ela depende de que dia é hoje, e cada
+    teste que a exercita informa o dia que quer verificar. O cartão é criado
+    junto quando não vier pronto — assinatura sem cartão não existe.
+    """
+    def _make(user, **kwargs):
+        fields = {
+            'user': user,
+            'account': account,
+            'category': category,
+            'description': 'Spotify',
+            'value': Decimal('21.90'),
+            'charge_day': 10,
+        }
+        fields.update(kwargs)
+        fields.setdefault('card', make_card(user))
+        return Subscription.objects.create(**fields)
     return _make
 
 

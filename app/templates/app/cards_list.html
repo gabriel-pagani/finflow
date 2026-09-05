@@ -80,7 +80,7 @@
             depende dele. O aviso aqui é só para a decisão não ser tomada às
             cegas.
             {% endcomment %}
-            <p class="modal-text modal-warning">Cartões com transações ou parcelamentos lançados não podem ser removidos.</p>
+            <p class="modal-text modal-warning">Cartões com transações, parcelamentos ou assinaturas lançados não podem ser removidos.</p>
 
             <div class="modal-actions">
                 <button type="button" class="secondary" data-modal-close>Cancelar</button>
@@ -91,7 +91,10 @@
 {% endblock %}
 
 {% block scripts %}
-    <div data-card-urls
+    <div data-record-urls
+         data-kind="card"
+         data-create-title="Novo Cartão"
+         data-update-title="Editar Cartão"
          data-create-url="{% url 'app:card_create' %}"
          data-update-url="{% url 'app:card_update' 0 %}"
          data-delete-url="{% url 'app:card_delete' 0 %}"></div>

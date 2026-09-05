@@ -4,7 +4,7 @@ from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, Account, Category, BusinessRule, Card, Installment, Investment, Contribution, Redemption, Yield, Transfer, Transaction
+from .models import User, Group, Account, Category, BusinessRule, Card, Installment, Investment, Contribution, Redemption, Yield, Subscription, Transfer, Transaction
 
 
 # User Admin
@@ -163,6 +163,27 @@ class InvestmentAdmin(VersionAdmin):
         return ()
 
 
+@admin.register(Subscription)
+class SubscriptionAdmin(VersionAdmin):
+    """Assinaturas, com as competências em somente leitura.
+
+    `start` e `last_reference` são controle da geração, não cadastro: mexer
+    neles à mão é o caminho para a mesma cobrança sair duas vezes, ou para um
+    mês inteiro nunca sair. O que se edita aqui é o molde — conta, cartão,
+    categoria, descrição, valor e dia.
+    """
+
+    list_display = ('user', 'description', 'account', 'card', 'category_display', 'value', 'charge_day', 'last_reference',)
+    list_filter = ('user', 'account', 'card', 'category',)
+    search_fields = ('description',)
+    autocomplete_fields = ('category',)
+    readonly_fields = ('start', 'last_reference',)
+
+    @admin.display(description='Categoria', ordering='category__description')
+    def category_display(self, obj):
+        return obj.category_display
+
+
 @admin.register(Transaction)
 class TransactionAdmin(VersionAdmin):
     list_display = ('user', 'account', 'type', 'method', 'nature', 'category_display', 'description', 'value', 'datetime',)
@@ -208,8 +229,11 @@ class TransactionAdmin(VersionAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.is_derived:
-            return ('user', 'account', 'card', 'type', 'method', 'nature', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer',)
-        return ('installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer',)
+            return ('user', 'account', 'card', 'type', 'method', 'nature', 'category', 'description', 'value', 'datetime', 'installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer', 'subscription', 'reference',)
+        # A cobrança de assinatura é editável como qualquer transação avulsa: o
+        # que não se edita é o vínculo com a assinatura e a competência dele,
+        # que são o que impede a mesma cobrança de ser gerada de novo.
+        return ('installment', 'parcel', 'investment', 'contribution', 'redemption', 'transfer', 'subscription', 'reference',)
 
     def has_delete_permission(self, request, obj=None):
         if obj and obj.is_derived and request.resolver_match and request.resolver_match.url_name in ('app_transaction_change', 'app_transaction_delete'):

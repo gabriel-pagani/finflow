@@ -15,8 +15,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 import reversion
-from .forms import CardForm, InstallmentForm, TransactionForm, TransferForm
-from .models import Account, Card, Category, Type, Method, Nature, Installment, Investment, Transaction, Transfer
+from .forms import CardForm, InstallmentForm, SubscriptionForm, TransactionForm, TransferForm
+from .models import Account, Card, Category, Type, Method, Nature, Installment, Investment, Subscription, Transaction, Transfer
 
 
 MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -41,6 +41,25 @@ class LogoutView(auth_views.LogoutView):
     """Encerra a sessão e devolve o usuário para a tela de login."""
 
     next_page = 'app:login'
+
+
+class SubscriptionSyncMixin:
+    """Lança as cobranças de assinatura vencidas antes de desenhar a tela.
+
+    O cron é quem tem a obrigação de rodar todo dia; isto aqui é a segunda
+    perna. Máquina desligada no horário, container recriado, cron que ninguém
+    instalou: em qualquer um desses casos quem abre o sistema veria o mês sem a
+    cobrança que já venceu, e é justamente essa tela que ele abriu para
+    conferir.
+
+    Sai barato porque a consulta é seletiva: assinatura com a competência do mês
+    já lançada nem é carregada, e no dia a dia isso é toda a lista.
+    """
+
+    def get(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            Subscription.generate_due(user=request.user)
+        return super().get(request, *args, **kwargs)
 
 
 class FilteredTransactionsMixin(LoginRequiredMixin):
@@ -100,7 +119,7 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
         return context
 
 
-class OverviewView(FilteredTransactionsMixin, TemplateView):
+class OverviewView(SubscriptionSyncMixin, FilteredTransactionsMixin, TemplateView):
     """Painel do realizado: débito e não se aplica, o dinheiro que já saiu da conta."""
 
     template_name = 'app/overview.html'
@@ -180,7 +199,7 @@ class OverviewView(FilteredTransactionsMixin, TemplateView):
         return context
 
 
-class ForecastView(FilteredTransactionsMixin, TemplateView):
+class ForecastView(SubscriptionSyncMixin, FilteredTransactionsMixin, TemplateView):
     """Painel de previsão: crédito, o gasto já assumido que ainda vai vencer."""
 
     template_name = 'app/forecast.html'
@@ -248,7 +267,7 @@ class OwnedListView(LoginRequiredMixin, ListView):
         return context
 
 
-class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
+class TransactionsListView(SubscriptionSyncMixin, FilteredTransactionsMixin, OwnedListView):
     """Listagem completa: todos os métodos, com os mesmos filtros dos painéis."""
 
     model = Transaction
@@ -464,8 +483,8 @@ class CardDeleteView(CardWriteMixin, DeleteView):
     """Apaga um cartão do usuário logado, se nada depender dele.
 
     O cartão em uso é protegido: apagá-lo levaria junto, por PROTECT, a decisão
-    de data de transações e parcelamentos já lançados. Quem quer parar de usar
-    um cartão pode simplesmente deixar de escolhê-lo.
+    de data de transações, parcelamentos e assinaturas já lançados. Quem quer
+    parar de usar um cartão pode simplesmente deixar de escolhê-lo.
     """
 
     # Como no DeleteView de transação: a confirmação só precisa do POST, e
@@ -480,7 +499,7 @@ class CardDeleteView(CardWriteMixin, DeleteView):
 
     def form_valid(self, form):
         if self.object.in_use:
-            messages.error(self.request, f'O cartão {self.object} não pode ser removido: há transações ou parcelamentos lançados nele.')
+            messages.error(self.request, f'O cartão {self.object} não pode ser removido: há transações, parcelamentos ou assinaturas lançados nele.')
             return redirect(self.get_success_url())
 
         with reversion.create_revision():
@@ -491,6 +510,110 @@ class CardDeleteView(CardWriteMixin, DeleteView):
         self.object.delete()
 
         messages.success(self.request, 'Cartão removido com sucesso.')
+        return redirect(self.get_success_url())
+
+
+class SubscriptionsListView(SubscriptionSyncMixin, OwnedListView):
+    """Assinaturas do usuário logado, com criação e edição pelos modais da página.
+
+    Mesmo lugar que o cartão ocupa: é cadastro, não lançamento. O que aparece
+    nas transações é a cobrança que o cadastro gerou, e ela vive por conta
+    própria a partir daí.
+    """
+
+    model = Subscription
+    template_name = 'app/subscriptions_list.html'
+    paginate_by = 25
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('account', 'card', 'card__account', 'category')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = SubscriptionForm(user=self.request.user)
+        return context
+
+
+class SubscriptionWriteMixin(ModalWriteMixin):
+    """Escrita das assinaturas do próprio usuário."""
+
+    model = Subscription
+    form_class = SubscriptionForm
+    list_route = 'app:subscriptions_list'
+
+    def get_queryset(self):
+        return Subscription.objects.filter(user=self.request.user)
+
+
+class SubscriptionCreateView(RevisionCreateMixin, SubscriptionWriteMixin, CreateView):
+    """Cadastra a assinatura e já lança a cobrança do mês, se o dia dela passou.
+
+    A geração é feita aqui, e não deixada para o cron ou para a próxima tela,
+    porque quem acabou de cadastrar espera ver a cobrança na lista. Se o dia
+    ainda não chegou, nada sai agora — a cobrança é do dia dela, não do
+    cadastro.
+    """
+
+    success_message = 'Assinatura cadastrada com sucesso.'
+    revision_comment = 'Criado pela tela de assinaturas.'
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+
+        if self.object.generate_charges():
+            messages.success(self.request, f'Cobrança deste mês lançada no vencimento da fatura do cartão {self.object.card}.')
+        else:
+            messages.info(self.request, f'A primeira cobrança será lançada no dia {self.object.charge_day}.')
+
+        return response
+
+
+class SubscriptionUpdateView(SubscriptionWriteMixin, UpdateView):
+    """Edita uma assinatura do usuário logado.
+
+    Valor e dia novos valem das próximas cobranças em diante. As que já saíram
+    ficam como estão: elas guardam o que foi cobrado de fato, e reescrevê-las
+    apagaria o registro de um preço que mudou.
+    """
+
+    def form_valid(self, form):
+        with reversion.create_revision():
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Editado pela tela de assinaturas.')
+            response = super().form_valid(form)
+
+        messages.success(self.request, 'Assinatura atualizada com sucesso. Os dados novos valem para as próximas cobranças; as já lançadas mantêm o valor e a data que tinham.')
+        return response
+
+
+class SubscriptionDeleteView(SubscriptionWriteMixin, DeleteView):
+    """Apaga uma assinatura do usuário logado, e só ela.
+
+    As cobranças já lançadas ficam: elas são dinheiro que saiu, e cancelar o
+    serviço não desfaz os meses pagos. O vínculo delas é SET_NULL, então o que
+    some é a ligação — as transações continuam na lista, editáveis como
+    qualquer outra.
+    """
+
+    # Como nos demais DeleteView: a confirmação só precisa do POST, e herdar o
+    # SubscriptionForm faria validar campos que ela nem envia.
+    form_class = forms.Form
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs.pop('user', None)
+        kwargs.pop('instance', None)
+        return kwargs
+
+    def form_valid(self, form):
+        with reversion.create_revision():
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Removido pela tela de assinaturas.')
+            reversion.add_to_revision(self.object)
+
+        self.object.delete()
+
+        messages.success(self.request, 'Assinatura removida com sucesso. As cobranças já lançadas continuam nas transações.')
         return redirect(self.get_success_url())
 
 

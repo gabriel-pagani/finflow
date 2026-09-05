@@ -1,0 +1,107 @@
+{% extends 'global/global.html' %}
+{% load l10n %}
+
+{% block title %}Assinaturas - FinFlow{% endblock %}
+
+{% block body_class %}page-fill{% endblock %}
+
+{% block content %}
+    <section class="card fill-height">
+        <div class="card-header">
+            <h1>Assinaturas</h1>
+            <button type="button" data-subscription-new>Nova Assinatura</button>
+        </div>
+
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assinatura</th>
+                    <th>Conta</th>
+                    <th>Cartão</th>
+                    <th>Categoria</th>
+                    <th class="right">Cobrança</th>
+                    <th class="right">Valor</th>
+                    <th class="right">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for subscription in object_list %}
+                    {% comment %}
+                    unlocalize nos números: com USE_THOUSAND_SEPARATOR o pk 1294
+                    sairia como "1.294" e a URL montada pelo JS não casaria com a
+                    rota <int:pk>. Vale também para o dia e o valor, que voltam
+                    para dentro do formulário na edição.
+                    {% endcomment %}
+                    <tr class="row-editable"
+                        data-subscription-row
+                        data-id="{{ subscription.pk|unlocalize }}"
+                        data-description="{{ subscription.description }}"
+                        data-value="{{ subscription.value|stringformat:'.2f' }}"
+                        data-charge-day="{{ subscription.charge_day|unlocalize }}"
+                        data-account="{{ subscription.account_id|unlocalize }}"
+                        data-card="{{ subscription.card_id|unlocalize }}"
+                        data-category="{% if subscription.category_id %}{{ subscription.category_id|unlocalize }}{% endif %}"
+                        data-label="{{ subscription }}"
+                        tabindex="0" role="button"
+                        title="Clique para editar">
+                        <td>{{ subscription.description }}</td>
+                        <td>{{ subscription.account }}</td>
+                        <td>•••• {{ subscription.card.last_digits }}</td>
+                        <td>{{ subscription.category_display }}</td>
+                        <td class="right">Dia {{ subscription.charge_day|unlocalize }}</td>
+                        <td class="right cell-outcome">R$ -{{ subscription.value|floatformat:2 }}</td>
+                        <td class="right nowrap">
+                            <button type="button" class="icon-button" data-subscription-edit title="Editar">Editar</button>
+                            <button type="button" class="icon-button danger" data-subscription-delete title="Remover">Remover</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7">Nenhuma assinatura cadastrada. Cadastre uma para que a cobrança de cada mês seja lançada sozinha.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
+        {% include 'app/pagination.html' %}
+    </section>
+
+    {% comment %}
+    Um só modal para criação e edição, como na tela de cartões: o JS troca a
+    action do formulário e preenche os campos a partir dos data-attributes da
+    linha, sem ida extra ao servidor.
+    {% endcomment %}
+    {% url 'app:subscription_create' as subscription_url %}
+    {% include 'app/form_modal.html' with kind='subscription' title='Nova Assinatura' action=subscription_url form=form deletable=True %}
+
+    <dialog class="modal" data-subscription-delete-modal>
+        <form method="post" data-subscription-delete-form>
+            {% csrf_token %}
+            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+
+            <h2>Remover Assinatura</h2>
+            <p class="modal-text">Tem certeza que deseja remover <strong data-subscription-delete-label></strong>? Esta ação não pode ser desfeita.</p>
+            {% comment %}
+            O aviso é o oposto do que costuma aparecer numa remoção: o que
+            preocupa aqui não é perder as cobranças, é achar que elas somem
+            junto. Elas ficam, e é isso que precisa estar dito antes do clique.
+            {% endcomment %}
+            <p class="modal-text modal-warning">As cobranças já lançadas continuam nas transações. O que deixa de acontecer é a cobrança dos próximos meses.</p>
+
+            <div class="modal-actions">
+                <button type="button" class="secondary" data-modal-close>Cancelar</button>
+                <button type="submit" class="danger">Remover</button>
+            </div>
+        </form>
+    </dialog>
+{% endblock %}
+
+{% block scripts %}
+    <div data-record-urls
+         data-kind="subscription"
+         data-create-title="Nova Assinatura"
+         data-update-title="Editar Assinatura"
+         data-create-url="{% url 'app:subscription_create' %}"
+         data-update-url="{% url 'app:subscription_update' 0 %}"
+         data-delete-url="{% url 'app:subscription_delete' 0 %}"></div>
+{% endblock %}

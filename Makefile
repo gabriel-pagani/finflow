@@ -40,6 +40,9 @@ backup-media:
 prune-attachments:
 	@docker compose -f deploy/docker-compose.yml exec -T django python manage.py prune_attachments $(args)
 
+generate-subscriptions:
+	@docker compose -f deploy/docker-compose.yml exec -T django python manage.py generate_subscriptions
+
 reset-system-cache:
 	@docker compose -f deploy/docker-compose.yml exec redis redis-cli FLUSHDB
 

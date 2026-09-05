@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-multiselect]').forEach(setupMultiselect);
     bootstrapCharts();
     bootstrapTransactionCrud();
-    bootstrapCardCrud();
+    bootstrapRecordCrud();
 });
 
 /* Bootstrap --------------------------------------------------------------- */
@@ -87,14 +87,20 @@ function bootstrapTransactionCrud() {
     });
 }
 
-function bootstrapCardCrud() {
-    const root = document.querySelector('[data-card-urls]');
-    if (!root) return;
-
-    setupCardCrud({
-        createUrl: root.dataset.createUrl,
-        updateUrl: root.dataset.updateUrl,
-        deleteUrl: root.dataset.deleteUrl,
+// Cartão e assinatura são a mesma tela com nomes diferentes: uma lista de
+// cadastros do usuário, um modal que cria e edita, outro que confirma a
+// remoção. O que muda entre elas — o prefixo dos data-attributes, os títulos e
+// as rotas — vem do próprio template, e não de um ramo aqui dentro.
+function bootstrapRecordCrud() {
+    document.querySelectorAll('[data-record-urls]').forEach((root) => {
+        setupRecordCrud({
+            kind: root.dataset.kind,
+            createTitle: root.dataset.createTitle,
+            updateTitle: root.dataset.updateTitle,
+            createUrl: root.dataset.createUrl,
+            updateUrl: root.dataset.updateUrl,
+            deleteUrl: root.dataset.deleteUrl,
+        });
     });
 }
 
@@ -299,21 +305,23 @@ const CHART_PALETTE = [
 
 const MOBILE_BREAKPOINT = 768;
 
-/* Card CRUD --------------------------------------------------------------- */
+/* Record CRUD ------------------------------------------------------------- */
 
 // Mesmo desenho do CRUD de transações — um modal para criar e editar, outro
 // para confirmar a remoção — sem o seletor de tipo e sem as linhas travadas,
-// que não existem aqui: cartão é cadastro, e todo cartão do usuário é dele.
-function setupCardCrud(urls) {
-    const modal = document.querySelector('[data-modal="card"]');
-    const deleteModal = document.querySelector('[data-card-delete-modal]');
+// que não existem nos cadastros: cartão e assinatura são do usuário, e todo
+// registro que ele enxerga é dele.
+function setupRecordCrud(config) {
+    const kind = config.kind;
+    const modal = document.querySelector(`[data-modal="${kind}"]`);
+    const deleteModal = document.querySelector(`[data-${kind}-delete-modal]`);
     if (!modal || !deleteModal) return;
 
     const form = modal.querySelector('[data-modal-form]');
     const title = modal.querySelector('[data-modal-title]');
     const modalDelete = modal.querySelector('[data-modal-delete]');
-    const deleteForm = deleteModal.querySelector('[data-card-delete-form]');
-    const deleteLabel = deleteModal.querySelector('[data-card-delete-label]');
+    const deleteForm = deleteModal.querySelector(`[data-${kind}-delete-form]`);
+    const deleteLabel = deleteModal.querySelector(`[data-${kind}-delete-label]`);
 
     let editingRow = null;
 
@@ -332,8 +340,8 @@ function setupCardCrud(urls) {
     }
 
     function openCreate() {
-        form.action = urls.createUrl;
-        title.textContent = 'Novo Cartão';
+        form.action = config.createUrl;
+        title.textContent = config.createTitle;
         form.reset();
         editingRow = null;
         if (modalDelete) modalDelete.hidden = true;
@@ -341,8 +349,8 @@ function setupCardCrud(urls) {
     }
 
     function openEdit(row) {
-        form.action = urlFor(urls.updateUrl, row.dataset.id);
-        title.textContent = 'Editar Cartão';
+        form.action = urlFor(config.updateUrl, row.dataset.id);
+        title.textContent = config.updateTitle;
         editingRow = row;
         if (modalDelete) modalDelete.hidden = false;
 
@@ -351,7 +359,7 @@ function setupCardCrud(urls) {
     }
 
     function openDelete(row) {
-        deleteForm.action = urlFor(urls.deleteUrl, row.dataset.id);
+        deleteForm.action = urlFor(config.deleteUrl, row.dataset.id);
         deleteLabel.textContent = row.dataset.label;
         deleteModal.showModal();
     }
@@ -360,7 +368,7 @@ function setupCardCrud(urls) {
         editingRow = null;
     });
 
-    const newButton = document.querySelector('[data-card-new]');
+    const newButton = document.querySelector(`[data-${kind}-new]`);
     if (newButton) newButton.addEventListener('click', openCreate);
 
     // Excluir de dentro da edição: fecha este modal antes de abrir a
@@ -388,16 +396,16 @@ function setupCardCrud(urls) {
         });
     });
 
-    document.querySelectorAll('[data-card-row] [data-card-delete]').forEach((button) => {
+    document.querySelectorAll(`[data-${kind}-row] [data-${kind}-delete]`).forEach((button) => {
         button.addEventListener('click', (event) => {
             // O clique também sobe para o handler da linha, que abriria a
             // edição por cima da confirmação.
             event.stopPropagation();
-            openDelete(button.closest('[data-card-row]'));
+            openDelete(button.closest(`[data-${kind}-row]`));
         });
     });
 
-    document.querySelectorAll('[data-card-row]').forEach((row) => {
+    document.querySelectorAll(`[data-${kind}-row]`).forEach((row) => {
         row.addEventListener('click', () => openEdit(row));
 
         row.addEventListener('keydown', (event) => {

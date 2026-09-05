@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import NON_FIELD_ERRORS
 from django.utils import timezone
-from .models import Account, Card, Category, Installment, Method, Nature, Transaction, Transfer
+from .models import Account, Card, Category, Installment, Method, Nature, Subscription, Transaction, Transfer
 
 
 # Mensagem exata levantada por Transaction.clean(); serve de gancho para
@@ -235,6 +235,35 @@ class InstallmentForm(CardChoiceMixin, OwnedForm):
         # campo nunca some da tela — ao contrário da transação avulsa, onde o
         # método é escolhido e o campo aparece só quando cabe.
         self.setup_card_field('Cada parcela cai no vencimento da sua fatura.')
+
+    def clean(self):
+        cleaned = super().clean()
+        cleaned['card'] = self.validate_card(cleaned, required=True)
+        return cleaned
+
+
+class SubscriptionForm(CardChoiceMixin, OwnedForm):
+    """Assinatura recorrente do próprio usuário.
+
+    É cadastro, não lançamento: o que se preenche aqui é o molde da cobrança que
+    volta todo mês. O cartão é sempre exigido, como no parcelamento, porque
+    assinatura é gasto no crédito — e é o ciclo dele que decide em que fatura
+    cada cobrança cai.
+    """
+
+    class Meta:
+        model = Subscription
+        fields = ('description', 'value', 'charge_day', 'account', 'card', 'category',)
+        widgets = {
+            'value': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
+            'charge_day': forms.NumberInput(attrs={'min': '1', 'max': '31', 'step': '1'}),
+            'description': forms.TextInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['account'].queryset = Account.objects.all()
+        self.setup_card_field('A cobrança do mês cai no vencimento da fatura correspondente.')
 
     def clean(self):
         cleaned = super().clean()
