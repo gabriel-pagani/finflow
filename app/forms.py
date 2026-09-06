@@ -1,7 +1,10 @@
+from datetime import date
+
 from django import forms
 from django.core.exceptions import NON_FIELD_ERRORS
 from django.utils import timezone
-from .models import Account, Card, Category, Installment, Method, Nature, Subscription, Transaction, Transfer
+from django.utils.formats import date_format
+from .models import Account, Card, Category, Installment, Method, Nature, Subscription, Transaction, Transfer, add_months, current_reference
 
 
 # Mensagem exata levantada por Transaction.clean(); serve de gancho para
@@ -242,6 +245,29 @@ class InstallmentForm(CardChoiceMixin, OwnedForm):
         return cleaned
 
 
+# Quantos meses para trás a escolha da primeira cobrança oferece. Doze cobre a
+# âncora de qualquer recorrência, inclusive a anual: mais do que isso não muda
+# em que mês a assinatura cobra, e só aumentaria o retroativo que um cadastro
+# distraído pode lançar de uma vez.
+START_MONTHS = 12
+
+
+def month_choices(current=None):
+    """Os últimos doze meses, do corrente para trás, como (ISO, rótulo).
+
+    `current` entra na lista quando a assinatura editada começou antes da
+    janela — cadastro antigo, ou primeira competência ajustada pelo shell. Sem
+    isso, abrir a edição de uma assinatura de dois anos atrás mostraria um mês
+    que não é o dela, e salvar mudaria o cadastro sem ninguém ter pedido.
+    """
+    months = [add_months(current_reference(), -offset) for offset in range(START_MONTHS)]
+
+    if current and current not in months:
+        months = sorted(months + [current], reverse=True)
+
+    return [(month.isoformat(), f'{date_format(month, "F")} de {month.year}') for month in months]
+
+
 class SubscriptionForm(CardChoiceMixin, OwnedForm):
     """Assinatura recorrente do próprio usuário.
 
@@ -251,9 +277,17 @@ class SubscriptionForm(CardChoiceMixin, OwnedForm):
     fatura cada cobrança cai.
     """
 
+    # Mês, e não data: a competência é o mês inteiro, e um campo de data pediria
+    # um dia que o cadastro já tem no dia da cobrança — dois dias diferentes
+    # para a mesma coisa, e o segundo deles ignorado.
+    start = forms.ChoiceField(
+        label='Primeira Cobrança',
+        help_text='Quando a assinatura começou a cobrar. Cobranças anteriores a este mês não são lançadas: elas só alinham a contagem da próxima.',
+    )
+
     class Meta:
         model = Subscription
-        fields = ('description', 'value', 'charge_day', 'recurrence', 'account', 'card', 'category',)
+        fields = ('description', 'value', 'charge_day', 'recurrence', 'start', 'account', 'card', 'category',)
         widgets = {
             'value': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
             'charge_day': forms.NumberInput(attrs={'min': '1', 'max': '31', 'step': '1'}),
@@ -264,6 +298,42 @@ class SubscriptionForm(CardChoiceMixin, OwnedForm):
         super().__init__(*args, **kwargs)
         self.fields['account'].queryset = Account.objects.all()
         self.setup_card_field('A cobrança do mês cai no vencimento da fatura correspondente.')
+
+        start = self.fields['start']
+        start.choices = month_choices(self.instance.start if self.instance.pk else None)
+        start.initial = current_reference().isoformat()
+
+    def save(self, commit=True):
+        """Traduz "quando começou" no que ainda cabe ao sistema lançar.
+
+        A tradução acontece no cadastro, e uma vez só: o que o usuário respondeu
+        é quando a assinatura passou a cobrar, e as cobranças anteriores ao mês
+        corrente já aconteceram fora daqui.
+        """
+        subscription = super().save(commit=False)
+
+        if subscription.pk is None:
+            subscription.anchor_past()
+
+        if commit:
+            subscription.save()
+
+        return subscription
+
+    def clean_start(self):
+        """O mês escolhido, já como data.
+
+        Depois da primeira cobrança ele deixa de ser editável: quem decide a
+        próxima competência passa a ser a última gerada, e trocar o começo ali
+        não mudaria cobrança nenhuma — só faria o cadastro mentir sobre quando a
+        assinatura começou.
+        """
+        start = date.fromisoformat(self.cleaned_data['start'])
+
+        if self.instance.pk and self.instance.last_reference and start != self.instance.start:
+            raise forms.ValidationError('A primeira cobrança não muda depois que a assinatura já cobrou pelo menos uma vez.')
+
+        return start
 
     def clean(self):
         cleaned = super().clean()

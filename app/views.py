@@ -551,7 +551,11 @@ class SubscriptionCreateView(RevisionCreateMixin, SubscriptionWriteMixin, Create
     A geração é feita aqui, e não deixada para o cron ou para a próxima tela,
     porque quem acabou de cadastrar espera ver a cobrança na lista. Se o dia
     ainda não chegou, nada sai agora — a cobrança é do dia dela, não do
-    cadastro.
+    cadastro. O que ficou para trás do mês corrente não sai nunca: quem cuida
+    disso é a âncora, no formulário.
+
+    Quando nada é lançado, a mensagem diz quando será: sem ela, cadastrar uma
+    anual de janeiro pareceria não ter feito nada.
     """
 
     success_message = 'Assinatura cadastrada com sucesso.'
@@ -561,9 +565,9 @@ class SubscriptionCreateView(RevisionCreateMixin, SubscriptionWriteMixin, Create
         response = super().form_valid(form)
 
         if self.object.generate_charges():
-            messages.success(self.request, f'Cobrança deste mês lançada no vencimento da fatura do cartão {self.object.card}.')
+            messages.success(self.request, f'Cobrança lançada no vencimento da fatura do cartão {self.object.card}.')
         else:
-            messages.info(self.request, f'A primeira cobrança será lançada no dia {self.object.charge_day}.')
+            messages.info(self.request, f'A próxima cobrança será lançada no dia {self.object.charge_day} de {self.object.next_reference:%m/%Y}.')
 
         return response
 

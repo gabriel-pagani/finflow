@@ -18,8 +18,8 @@ from django.urls import reverse
 from django.utils import timezone
 import pytest
 
-from app.forms import SubscriptionForm
-from app.models import Card, Method, Recurrence, Subscription, Transaction, Type
+from app.forms import SubscriptionForm, month_choices
+from app.models import Card, Method, Recurrence, Subscription, Transaction, Type, add_months
 
 
 pytestmark = pytest.mark.django_db
@@ -41,6 +41,7 @@ def subscription_payload(account, card, category, **overrides):
         'value': '55.90',
         'charge_day': '1',
         'recurrence': 'MONTHLY',
+        'start': timezone.localdate().replace(day=1).isoformat(),
         'account': account.pk,
         'card': card.pk,
         'category': category.pk,
@@ -324,6 +325,125 @@ class TestCadastro:
         assert response.status_code == 302
         assert not Subscription.objects.filter(pk=subscription.pk).exists()
         assert Transaction.objects.filter(user=alice).count() == 1
+
+
+# --------------------------------------------------------------------------
+# Primeira cobrança
+# --------------------------------------------------------------------------
+
+class TestPrimeiraCobranca:
+    """A âncora da assinatura, escolhida no cadastro.
+
+    Serve para o que já vinha sendo cobrado antes de existir cadastro: a anual
+    paga em janeiro cobra em janeiro, e não no mês em que alguém se lembrou de
+    registrá-la.
+    """
+
+    def test_opcoes_cobrem_os_doze_ultimos_meses(self):
+        choices = month_choices()
+        current = timezone.localdate().replace(day=1)
+
+        assert len(choices) == 12
+        assert choices[0][0] == current.isoformat()
+        # O último é onze meses atrás: um ano fechado, contando o corrente.
+        assert choices[-1][0] == add_months(current, -11).isoformat()
+
+    def test_mes_antigo_da_assinatura_entra_na_lista(self, alice, make_subscription):
+        """Assinatura ancorada fora da janela continua editável sem se alterar."""
+        antiga = add_months(timezone.localdate().replace(day=1), -30)
+
+        choices = month_choices(antiga)
+
+        assert len(choices) == 13
+        assert choices[-1][0] == antiga.isoformat()
+
+    def test_mes_passado_ancora_sem_lancar_nada(self, alice_logged, alice, account, category, make_card):
+        """O caso que motivou o campo: anual paga em janeiro, cadastrada hoje.
+
+        Janeiro foi pago por fora, então nada é lançado agora — o mês só diz de
+        onde a contagem parte, e a próxima cobrança é a de janeiro que vem.
+        """
+        card = make_card(alice)
+        janeiro = timezone.localdate().replace(month=1, day=1)
+
+        alice_logged.post(
+            reverse('app:subscription_create'),
+            subscription_payload(account, card, category, recurrence=Recurrence.ANNUAL, start=janeiro.isoformat()),
+        )
+
+        subscription = Subscription.objects.get()
+        assert subscription.start == janeiro
+        assert subscription.transactions.count() == 0
+        assert subscription.next_reference == add_months(janeiro, 12)
+
+    def test_mensal_ancorada_no_passado_cobra_so_o_mes_corrente(self, alice_logged, alice, account, category, make_card):
+        """O passado fica de fora; o mês corrente continua sendo do sistema."""
+        card = make_card(alice)
+        janeiro = timezone.localdate().replace(month=1, day=1)
+        corrente = timezone.localdate().replace(day=1)
+
+        alice_logged.post(
+            reverse('app:subscription_create'),
+            subscription_payload(account, card, category, start=janeiro.isoformat()),
+        )
+
+        subscription = Subscription.objects.get()
+        # charge_day 1 já passou em qualquer dia do mês: sai a do mês corrente.
+        assert [transaction.reference for transaction in subscription.transactions.all()] == [corrente]
+
+    def test_ancora_marca_a_ultima_competencia_antes_do_mes_corrente(self, alice, make_subscription):
+        """A conta da âncora, mês a mês, sem depender do relógio."""
+        subscription = make_subscription(alice, start=date(2026, 1, 1), recurrence=Recurrence.QUARTERLY)
+
+        subscription.anchor_past(today=date(2026, 9, 5))
+
+        # Competências: jan, abr, jul, out. A última antes de setembro é julho.
+        assert subscription.last_reference == date(2026, 7, 1)
+        assert subscription.next_reference == date(2026, 10, 1)
+
+    def test_ancora_no_mes_corrente_nao_marca_nada(self, alice, make_subscription):
+        subscription = make_subscription(alice, start=date(2026, 9, 1))
+
+        subscription.anchor_past(today=date(2026, 9, 5))
+
+        assert subscription.last_reference is None
+        assert subscription.next_reference == date(2026, 9, 1)
+
+    def test_mes_fora_da_lista_e_recusado(self, alice, account, category, make_card):
+        futuro = add_months(timezone.localdate().replace(day=1), 1)
+
+        form = SubscriptionForm(
+            data=subscription_payload(account, make_card(alice), category, start=futuro.isoformat()),
+            user=alice,
+        )
+
+        assert not form.is_valid()
+        assert 'start' in form.errors
+
+    def test_primeira_cobranca_nao_muda_depois_de_cobrar(self, alice, account, category, make_subscription):
+        subscription = make_subscription(alice, charge_day=1)
+        subscription.generate_charges()
+
+        form = SubscriptionForm(
+            data=subscription_payload(account, subscription.card, category, charge_day='1', start=add_months(subscription.start, -1).isoformat()),
+            user=alice,
+            instance=subscription,
+        )
+
+        assert not form.is_valid()
+        assert 'start' in form.errors
+
+    def test_edicao_mantendo_o_mesmo_mes_passa(self, alice, account, category, make_subscription):
+        subscription = make_subscription(alice, charge_day=1)
+        subscription.generate_charges()
+
+        form = SubscriptionForm(
+            data=subscription_payload(account, subscription.card, category, charge_day='1', start=subscription.start.isoformat()),
+            user=alice,
+            instance=subscription,
+        )
+
+        assert form.is_valid(), form.errors
 
 
 # --------------------------------------------------------------------------

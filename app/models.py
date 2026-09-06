@@ -650,6 +650,30 @@ class Subscription(models.Model):
             reference=reference,
         )
 
+    def anchor_past(self, today=None):
+        """Marca como já cobrada toda competência anterior ao mês corrente.
+
+        O mês informado no cadastro diz quando a assinatura começou a cobrar,
+        não o que o sistema tem a lançar. A anual paga em janeiro foi paga por
+        fora: criar a transação dela agora ou duplicaria o lançamento feito à
+        mão ou faria aparecer, num mês já fechado, uma saída que ninguém
+        conferiu. O que a âncora faz é alinhar a contagem — de janeiro em
+        diante, a próxima competência cai onde deve.
+
+        O mês corrente não entra: ele ainda é do sistema, e sai no dia da
+        cobrança como em qualquer assinatura nova. E isto não é o mesmo que a
+        recuperação de meses parados: lá as competências já eram
+        responsabilidade do sistema, e o que faltou foi só alguém rodar a
+        geração.
+        """
+        today = today or timezone.localdate()
+        current = today.replace(day=1)
+
+        reference = self.start
+        while reference < current:
+            self.last_reference = reference
+            reference = add_months(reference, self.interval)
+
     def generate_charges(self, today=None):
         """Lança o que já venceu e ainda não saiu, uma transação por competência.
 
