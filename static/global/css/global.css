@@ -832,10 +832,9 @@ button.secondary {
     /* Itens dividem a largura e quebram para a linha de baixo quando não cabem.
 
        Flex, e não grid: o grid tem colunas de largura igual para todas as
-       linhas, então a página que sobrar para a segunda linha fica do tamanho de
+       linhas, então a página que sobrar para a última linha fica do tamanho de
        uma coluna, sozinha, com o resto da faixa vazio ao lado. No flex cada
-       linha reparte o que tem: quatro botões dividem a primeira, e o que sobrou
-       ocupa a segunda inteira. */
+       linha reparte o que tem: a última se divide entre quem sobrou. */
     .topbar nav {
         order: 3;
         width: 100%;
@@ -843,9 +842,11 @@ button.secondary {
     }
 
     .topbar nav a {
-        /* 90px é a largura de partida; o flex-grow estica a partir dela até
-           fechar a linha. */
-        flex: 1 1 90px;
+        /* Um terço da linha descontados os dois vãos: três abas por linha em
+           qualquer largura de celular, em vez de a conta mudar com o aparelho.
+           O flex-grow só entra na última linha incompleta, que estica para
+           fechar a faixa. */
+        flex: 1 1 calc((100% - 12px) / 3);
         padding: 8px 4px;
         border: 1px solid var(--border);
         border-radius: 8px;
