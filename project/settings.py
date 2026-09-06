@@ -70,7 +70,7 @@ WSGI_APPLICATION = 'project.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB'),
+        'NAME': os.getenv('POSTGRES_DB', 'postgres'),
         'USER': os.getenv('POSTGRES_USER'),
         'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
         'HOST': os.getenv('POSTGRES_HOST', 'postgres'),
@@ -174,7 +174,7 @@ ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-OPENAI_MODEL = os.getenv('OPENAI_MODEL')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.6-luna')
 
 OPENAI_TRANSCRIBE_MODEL = os.getenv('OPENAI_TRANSCRIBE_MODEL', 'gpt-4o-transcribe')
 
