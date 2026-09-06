@@ -18,7 +18,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS').split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS').split(',')
 
 INSTALLED_APPS = [
-    'project.admin.OTPAdminConfig',
+    'project.apps.OTPAdminConfig',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -117,7 +117,7 @@ AXES_COOLOFF_TIME = timedelta(hours=1)
 
 AXES_RESET_ON_SUCCESS = True
 
-AXES_CLIENT_IP_CALLABLE = 'app.utils.get_ip.get_client_ip'
+AXES_CLIENT_IP_CALLABLE = 'app.utils.request.get_client_ip'
 
 AXES_LOCKOUT_TEMPLATE = None
 
