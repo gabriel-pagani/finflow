@@ -1,0 +1,1 @@
+- Viewing the contents of the .env file is strictly prohibited.
