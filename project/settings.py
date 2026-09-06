@@ -34,6 +34,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'project.middleware.PermissionsPolicyMiddleware',
     'django.middleware.csp.ContentSecurityPolicyMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -69,7 +70,7 @@ WSGI_APPLICATION = 'project.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB'),
+        'NAME': os.getenv('POSTGRES_DB', 'postgres'),
         'USER': os.getenv('POSTGRES_USER'),
         'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
         'HOST': os.getenv('POSTGRES_HOST', 'postgres'),
@@ -106,7 +107,6 @@ AUTH_PASSWORD_VALIDATORS = [
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
     'django.contrib.auth.backends.ModelBackend',
-    # 'django_auth_ldap.backend.LDAPBackend',
 ]
 
 AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
@@ -166,17 +166,26 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.6-luna')
+
+OPENAI_TRANSCRIBE_MODEL = os.getenv('OPENAI_TRANSCRIBE_MODEL', 'gpt-4o-transcribe')
+
+ASSISTANT_ATTACHMENT_RETENTION_DAYS = int(os.getenv('ASSISTANT_ATTACHMENT_RETENTION_DAYS', '30'))
+
 SECURE_CSP = {
     'default-src': [CSP.SELF],
     'script-src': [CSP.SELF],
     'style-src': [CSP.SELF, CSP.UNSAFE_INLINE],
-    'img-src': [CSP.SELF],
+    'img-src': [CSP.SELF, 'data:', 'blob:'],
     'font-src': [CSP.SELF],
+    'media-src': [CSP.SELF, 'blob:'],
     'connect-src': [CSP.SELF],
     'form-action': [CSP.SELF],
-    'frame-ancestors': [CSP.SELF],
+    'frame-ancestors': [CSP.NONE],
     'base-uri': [CSP.SELF],
-    'object-src': [CSP.SELF],
+    'object-src': [CSP.NONE],
 }
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -207,42 +216,3 @@ if not DEBUG:
     SESSION_COOKIE_NAME = '__Host-sessionid'
 
     CSRF_COOKIE_NAME = '__Host-csrftoken'
-
-# Auth LDAP
-from django_auth_ldap.config import LDAPSearch, ActiveDirectoryGroupType
-from ldap import SCOPE_SUBTREE
-
-AUTH_LDAP_SERVER_URI = os.getenv('AUTH_LDAP_SERVER_URI')
-
-AUTH_LDAP_BIND_DN = os.getenv('AUTH_LDAP_BIND_DN')
-
-AUTH_LDAP_BIND_PASSWORD = os.getenv('AUTH_LDAP_BIND_PASSWORD')
-
-AUTH_LDAP_GROUP_TYPE = ActiveDirectoryGroupType()
-
-AUTH_LDAP_USER_SEARCH = LDAPSearch(
-    os.getenv('AUTH_LDAP_USER_SEARCH'),
-    SCOPE_SUBTREE,
-    "(sAMAccountName=%(user)s)"
-)
-
-AUTH_LDAP_USER_ATTR_MAP = {
-    "first_name": "givenName",
-    "last_name": "sn",
-    "email": "mail",
-}
-
-AUTH_LDAP_ALWAYS_UPDATE_USER = True
-
-AUTH_LDAP_MIRROR_GROUPS = True
-
-AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
-    os.getenv('AUTH_LDAP_GROUP_SEARCH'),
-    SCOPE_SUBTREE,
-    "(objectClass=group)"
-)
-
-AUTH_LDAP_USER_FLAGS_BY_GROUP = {
-    "is_staff": [os.getenv('STAFF_GROUP_DN'), os.getenv('ADMIN_GROUP_DN')],
-    "is_superuser": os.getenv('ADMIN_GROUP_DN'),
-}
