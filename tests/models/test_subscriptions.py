@@ -19,7 +19,8 @@ from django.utils import timezone
 import pytest
 
 from app.forms import SubscriptionForm
-from app.models import RECURRENCE_MONTHS, Card, Method, Recurrence, Subscription, Transaction, Type, add_months
+from app.models import RECURRENCE_MONTHS, Card, Method, Recurrence, Subscription, Transaction, Type
+from app.utils.dates import add_months
 
 
 pytestmark = pytest.mark.django_db

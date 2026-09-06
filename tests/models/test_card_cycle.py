@@ -19,7 +19,8 @@ import pytest
 
 from django.core.exceptions import ValidationError
 
-from app.models import Account, BusinessRule, Card, Installment, Method, Transaction, Type, next_business_day
+from app.models import Account, BusinessRule, Card, Installment, Method, Transaction, Type
+from app.utils.dates import next_business_day
 from app.forms import TransactionForm
 
 
