@@ -18,8 +18,8 @@ from django.urls import reverse
 from django.utils import timezone
 import pytest
 
-from app.forms import SubscriptionForm, month_choices
-from app.models import Card, Method, Recurrence, Subscription, Transaction, Type, add_months
+from app.forms import SubscriptionForm
+from app.models import RECURRENCE_MONTHS, Card, Method, Recurrence, Subscription, Transaction, Type, add_months
 
 
 pytestmark = pytest.mark.django_db
@@ -27,12 +27,16 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def alice_subscription(alice, make_subscription):
-    """Assinatura da Alice que começa em janeiro e cobra dia 10.
+    """Assinatura mensal da Alice, cobrada até dezembro e devendo janeiro.
+
+    A última competência gerada é o que ancora os testes no calendário: com
+    dezembro/2025 lançado, a próxima é janeiro/2026, e o dia de hoje que cada
+    caso informa decide se ela já venceu.
 
     O cartão fecha dia 20 e vence dia 27: a cobrança do dia 10 entra na fatura
     do próprio mês, que vence no 27 dele.
     """
-    return make_subscription(alice, start=date(2026, 1, 1), charge_day=10)
+    return make_subscription(alice, charge_day=10, last_reference=date(2025, 12, 1))
 
 
 def subscription_payload(account, card, category, **overrides):
@@ -41,7 +45,7 @@ def subscription_payload(account, card, category, **overrides):
         'value': '55.90',
         'charge_day': '1',
         'recurrence': 'MONTHLY',
-        'start': timezone.localdate().replace(day=1).isoformat(),
+        'anchor_month': '1',
         'account': account.pk,
         'card': card.pk,
         'category': category.pk,
@@ -105,15 +109,20 @@ class TestGeracao:
         assert alice_subscription.last_reference == date(2026, 2, 1)
 
     def test_assinatura_nova_comeca_no_mes_do_cadastro(self, alice, make_subscription):
-        """Sem retroagir: quem cadastra hoje não ganha histórico inventado."""
+        """Sem retroagir: quem cadastra hoje não ganha histórico inventado.
+
+        O mês de referência é janeiro e a recorrência é mensal, então a fase
+        aceita qualquer mês — e a primeira competência é a de hoje, não a de
+        janeiro.
+        """
         subscription = make_subscription(alice)
 
-        assert subscription.start == timezone.localdate().replace(day=1)
         assert subscription.last_reference is None
+        assert subscription.next_reference() == timezone.localdate().replace(day=1)
 
     def test_dia_31_cobra_no_ultimo_dia_do_mes_curto(self, alice, make_subscription):
         """Fevereiro não tem 31: a cobrança encosta no fim do mês, não escorrega."""
-        subscription = make_subscription(alice, start=date(2026, 2, 1), charge_day=31)
+        subscription = make_subscription(alice, charge_day=31, last_reference=date(2026, 1, 1))
 
         transaction = subscription.generate_charges(today=date(2026, 2, 28))[0]
 
@@ -122,16 +131,16 @@ class TestGeracao:
         assert transaction.datetime.date() == date(2026, 3, 27)
 
     def test_geracao_em_lote_alcanca_todos_os_usuarios(self, alice, bob, make_subscription):
-        make_subscription(alice, start=date(2026, 1, 1), charge_day=10)
-        make_subscription(bob, start=date(2026, 1, 1), charge_day=10)
+        make_subscription(alice, charge_day=10, last_reference=date(2025, 12, 1))
+        make_subscription(bob, charge_day=10, last_reference=date(2025, 12, 1))
 
         assert Subscription.generate_due(today=date(2026, 1, 10)) == 2
         assert Transaction.objects.filter(user=alice).count() == 1
         assert Transaction.objects.filter(user=bob).count() == 1
 
     def test_geracao_por_usuario_nao_toca_a_do_outro(self, alice, bob, make_subscription):
-        make_subscription(alice, start=date(2026, 1, 1), charge_day=10)
-        make_subscription(bob, start=date(2026, 1, 1), charge_day=10)
+        make_subscription(alice, charge_day=10, last_reference=date(2025, 12, 1))
+        make_subscription(bob, charge_day=10, last_reference=date(2025, 12, 1))
 
         assert Subscription.generate_due(user=alice, today=date(2026, 1, 10)) == 1
         assert Transaction.objects.filter(user=bob).count() == 0
@@ -157,12 +166,13 @@ class TestRecorrencia:
         (Recurrence.ANNUAL, 1),
     ])
     def test_quantas_cobrancas_saem_num_ano(self, recurrence, expected, alice, make_subscription):
-        subscription = make_subscription(alice, start=date(2026, 1, 1), charge_day=10, recurrence=recurrence)
+        last = add_months(date(2026, 1, 1), -RECURRENCE_MONTHS[recurrence])
+        subscription = make_subscription(alice, charge_day=10, recurrence=recurrence, last_reference=last)
 
         assert len(subscription.generate_charges(today=date(2026, 12, 31))) == expected
 
     def test_trimestral_salta_de_tres_em_tres(self, alice, make_subscription):
-        subscription = make_subscription(alice, start=date(2026, 1, 1), charge_day=10, recurrence=Recurrence.QUARTERLY)
+        subscription = make_subscription(alice, charge_day=10, recurrence=Recurrence.QUARTERLY, last_reference=date(2025, 10, 1))
 
         created = subscription.generate_charges(today=date(2026, 8, 1))
 
@@ -171,7 +181,7 @@ class TestRecorrencia:
         ]
 
     def test_anual_espera_o_ano_virar(self, alice, make_subscription):
-        subscription = make_subscription(alice, start=date(2026, 3, 1), charge_day=10, recurrence=Recurrence.ANNUAL)
+        subscription = make_subscription(alice, charge_day=10, recurrence=Recurrence.ANNUAL, last_reference=date(2025, 3, 1))
         subscription.generate_charges(today=date(2026, 3, 10))
 
         # O ano inteiro passa sem nada a lançar, mesmo com a tela sendo aberta
@@ -201,7 +211,7 @@ class TestRecorrencia:
         ano sem nada a fazer — o custo dela precisa ser a consulta que já
         aconteceu, e mais nada.
         """
-        subscription = make_subscription(alice, start=date(2026, 1, 1), charge_day=10)
+        subscription = make_subscription(alice, charge_day=10, last_reference=date(2025, 12, 1))
 
         with django_assert_num_queries(0):
             assert subscription.generate_charges(today=date(2026, 1, 9)) == []
@@ -266,7 +276,7 @@ class TestCadastro:
 
         subscription = Subscription.objects.get()
         assert subscription.transactions.count() == 1
-        assert subscription.last_reference == subscription.start
+        assert subscription.last_reference == timezone.localdate().replace(day=1)
 
     def test_cartao_e_obrigatorio(self, alice_logged, alice, account, category, make_card):
         card = make_card(alice)
@@ -317,7 +327,7 @@ class TestCadastro:
         assert Subscription.objects.filter(pk=subscription.pk).exists()
 
     def test_remocao_pela_tela_preserva_as_cobrancas(self, alice_logged, alice, make_subscription):
-        subscription = make_subscription(alice, start=date(2026, 1, 1))
+        subscription = make_subscription(alice, last_reference=date(2025, 12, 1))
         subscription.generate_charges(today=date(2026, 1, 10))
 
         response = alice_logged.post(reverse('app:subscription_delete', args=[subscription.pk]))
@@ -328,117 +338,101 @@ class TestCadastro:
 
 
 # --------------------------------------------------------------------------
-# Primeira cobrança
+# Mês de referência
 # --------------------------------------------------------------------------
 
-class TestPrimeiraCobranca:
-    """A âncora da assinatura, escolhida no cadastro.
+class TestMesDeReferencia:
+    """O mês escolhido no cadastro, e o que ele decide.
 
-    Serve para o que já vinha sendo cobrado antes de existir cadastro: a anual
-    paga em janeiro cobra em janeiro, e não no mês em que alguém se lembrou de
-    registrá-la.
+    Ele não é data e não tem ano: guarda a fase da recorrência. Serve para a
+    anual paga em janeiro cobrar em janeiro, e não no mês em que alguém se
+    lembrou de registrá-la. Nada anterior ao cadastro é lançado — o mês só
+    alinha a contagem daqui para a frente.
     """
 
-    def test_opcoes_cobrem_os_doze_ultimos_meses(self):
-        choices = month_choices()
-        current = timezone.localdate().replace(day=1)
+    def test_mes_de_referencia_fixa_a_fase_da_anual(self, alice, make_subscription):
+        """O caso que motivou o campo: anual paga em janeiro, cadastrada hoje."""
+        subscription = make_subscription(alice, anchor_month=1, recurrence=Recurrence.ANNUAL)
 
-        assert len(choices) == 12
-        assert choices[0][0] == current.isoformat()
-        # O último é onze meses atrás: um ano fechado, contando o corrente.
-        assert choices[-1][0] == add_months(current, -11).isoformat()
+        assert subscription.next_reference(today=date(2026, 9, 5)) == date(2027, 1, 1)
 
-    def test_mes_antigo_da_assinatura_entra_na_lista(self, alice, make_subscription):
-        """Assinatura ancorada fora da janela continua editável sem se alterar."""
-        antiga = add_months(timezone.localdate().replace(day=1), -30)
+    def test_mensal_ignora_o_mes_de_referencia(self, alice, make_subscription):
+        """Numa mensal todo mês serve, então a próxima é sempre a corrente."""
+        subscription = make_subscription(alice, anchor_month=1)
 
-        choices = month_choices(antiga)
+        assert subscription.next_reference(today=date(2026, 9, 5)) == date(2026, 9, 1)
 
-        assert len(choices) == 13
-        assert choices[-1][0] == antiga.isoformat()
+    def test_trimestral_cai_na_proxima_da_fase(self, alice, make_subscription):
+        """Ancorada em janeiro, ela cobra jan, abr, jul e out.
 
-    def test_mes_passado_ancora_sem_lancar_nada(self, alice_logged, alice, account, category, make_card):
-        """O caso que motivou o campo: anual paga em janeiro, cadastrada hoje.
-
-        Janeiro foi pago por fora, então nada é lançado agora — o mês só diz de
-        onde a contagem parte, e a próxima cobrança é a de janeiro que vem.
+        Em setembro a próxima é outubro — não "três meses a partir de hoje".
         """
+        subscription = make_subscription(alice, anchor_month=1, recurrence=Recurrence.QUARTERLY)
+
+        assert subscription.next_reference(today=date(2026, 9, 5)) == date(2026, 10, 1)
+
+    def test_mes_de_referencia_ainda_por_vir_no_ano(self, alice, make_subscription):
+        subscription = make_subscription(alice, anchor_month=12, recurrence=Recurrence.ANNUAL)
+
+        assert subscription.next_reference(today=date(2026, 9, 5)) == date(2026, 12, 1)
+
+    def test_cadastro_de_anual_de_janeiro_nao_lanca_nada(self, alice_logged, alice, account, category, make_card):
+        """Pela tela, o cadastro fica quieto até a competência chegar."""
         card = make_card(alice)
-        janeiro = timezone.localdate().replace(month=1, day=1)
+        hoje = timezone.localdate()
 
         alice_logged.post(
             reverse('app:subscription_create'),
-            subscription_payload(account, card, category, recurrence=Recurrence.ANNUAL, start=janeiro.isoformat()),
+            subscription_payload(account, card, category, recurrence=Recurrence.ANNUAL, anchor_month='1'),
         )
 
         subscription = Subscription.objects.get()
-        assert subscription.start == janeiro
         assert subscription.transactions.count() == 0
-        assert subscription.next_reference == add_months(janeiro, 12)
+        # Janeiro já passou neste ano, então a próxima é a do ano que vem.
+        assert subscription.next_reference() == date(hoje.year + 1, 1, 1)
 
-    def test_mensal_ancorada_no_passado_cobra_so_o_mes_corrente(self, alice_logged, alice, account, category, make_card):
+    def test_mensal_de_janeiro_cobra_o_mes_corrente(self, alice_logged, alice, account, category, make_card):
         """O passado fica de fora; o mês corrente continua sendo do sistema."""
         card = make_card(alice)
-        janeiro = timezone.localdate().replace(month=1, day=1)
         corrente = timezone.localdate().replace(day=1)
 
         alice_logged.post(
             reverse('app:subscription_create'),
-            subscription_payload(account, card, category, start=janeiro.isoformat()),
+            subscription_payload(account, card, category, anchor_month='1'),
         )
 
         subscription = Subscription.objects.get()
         # charge_day 1 já passou em qualquer dia do mês: sai a do mês corrente.
         assert [transaction.reference for transaction in subscription.transactions.all()] == [corrente]
 
-    def test_ancora_marca_a_ultima_competencia_antes_do_mes_corrente(self, alice, make_subscription):
-        """A conta da âncora, mês a mês, sem depender do relógio."""
-        subscription = make_subscription(alice, start=date(2026, 1, 1), recurrence=Recurrence.QUARTERLY)
-
-        subscription.anchor_past(today=date(2026, 9, 5))
-
-        # Competências: jan, abr, jul, out. A última antes de setembro é julho.
-        assert subscription.last_reference == date(2026, 7, 1)
-        assert subscription.next_reference == date(2026, 10, 1)
-
-    def test_ancora_no_mes_corrente_nao_marca_nada(self, alice, make_subscription):
-        subscription = make_subscription(alice, start=date(2026, 9, 1))
-
-        subscription.anchor_past(today=date(2026, 9, 5))
-
-        assert subscription.last_reference is None
-        assert subscription.next_reference == date(2026, 9, 1)
-
-    def test_mes_fora_da_lista_e_recusado(self, alice, account, category, make_card):
-        futuro = add_months(timezone.localdate().replace(day=1), 1)
-
+    def test_mes_fora_do_calendario_e_recusado(self, alice, account, category, make_card):
         form = SubscriptionForm(
-            data=subscription_payload(account, make_card(alice), category, start=futuro.isoformat()),
+            data=subscription_payload(account, make_card(alice), category, anchor_month='13'),
             user=alice,
         )
 
         assert not form.is_valid()
-        assert 'start' in form.errors
+        assert 'anchor_month' in form.errors
 
-    def test_primeira_cobranca_nao_muda_depois_de_cobrar(self, alice, account, category, make_subscription):
-        subscription = make_subscription(alice, charge_day=1)
+    def test_mes_de_referencia_nao_muda_depois_de_cobrar(self, alice, account, category, make_subscription):
+        subscription = make_subscription(alice, charge_day=1, anchor_month=1)
         subscription.generate_charges()
 
         form = SubscriptionForm(
-            data=subscription_payload(account, subscription.card, category, charge_day='1', start=add_months(subscription.start, -1).isoformat()),
+            data=subscription_payload(account, subscription.card, category, charge_day='1', anchor_month='7'),
             user=alice,
             instance=subscription,
         )
 
         assert not form.is_valid()
-        assert 'start' in form.errors
+        assert 'anchor_month' in form.errors
 
     def test_edicao_mantendo_o_mesmo_mes_passa(self, alice, account, category, make_subscription):
-        subscription = make_subscription(alice, charge_day=1)
+        subscription = make_subscription(alice, charge_day=1, anchor_month=1)
         subscription.generate_charges()
 
         form = SubscriptionForm(
-            data=subscription_payload(account, subscription.card, category, charge_day='1', start=subscription.start.isoformat()),
+            data=subscription_payload(account, subscription.card, category, charge_day='1', anchor_month='1'),
             user=alice,
             instance=subscription,
         )
@@ -458,7 +452,7 @@ class TestGeracaoPelaTela:
         A assinatura começa no mês passado e cobra no dia 1º, então há sempre ao
         menos uma competência vencida quando a página é aberta.
         """
-        make_subscription(alice, start=date(2026, 1, 1), charge_day=1)
+        make_subscription(alice, charge_day=1)
 
         response = alice_logged.get(reverse(route))
 
@@ -466,7 +460,7 @@ class TestGeracaoPelaTela:
         assert Transaction.objects.filter(user=alice).exists()
 
     def test_a_tela_do_outro_usuario_nao_gera_nada(self, bob_logged, alice, make_subscription):
-        make_subscription(alice, start=date(2026, 1, 1), charge_day=1)
+        make_subscription(alice, charge_day=1)
 
         bob_logged.get(reverse('app:overview'))
 

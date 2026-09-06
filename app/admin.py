@@ -165,19 +165,19 @@ class InvestmentAdmin(VersionAdmin):
 
 @admin.register(Subscription)
 class SubscriptionAdmin(VersionAdmin):
-    """Assinaturas, com as competências em somente leitura.
+    """Assinaturas, com a última competência em somente leitura.
 
-    `start` e `last_reference` são controle da geração, não cadastro: mexer
-    neles à mão é o caminho para a mesma cobrança sair duas vezes, ou para um
-    mês inteiro nunca sair. O que se edita aqui é o molde — conta, cartão,
-    categoria, descrição, valor e dia.
+    `last_reference` é controle da geração, não cadastro: mexer nele à mão é o
+    caminho para a mesma cobrança sair duas vezes, ou para um mês inteiro nunca
+    sair. O que se edita aqui é o molde — conta, cartão, categoria, descrição,
+    valor, dia, mês de referência e recorrência.
     """
 
     list_display = ('user', 'description', 'account', 'card', 'category_display', 'value', 'charge_day', 'recurrence', 'last_reference',)
     list_filter = ('user', 'account', 'card', 'category', 'recurrence',)
     search_fields = ('description',)
     autocomplete_fields = ('category',)
-    readonly_fields = ('start', 'last_reference',)
+    readonly_fields = ('last_reference',)
 
     @admin.display(description='Categoria', ordering='category__description')
     def category_display(self, obj):

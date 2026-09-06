@@ -41,7 +41,7 @@
                         data-value="{{ subscription.value|stringformat:'.2f' }}"
                         data-charge-day="{{ subscription.charge_day|unlocalize }}"
                         data-recurrence="{{ subscription.recurrence }}"
-                        data-start="{{ subscription.start|date:'Y-m-d' }}"
+                        data-anchor-month="{{ subscription.anchor_month|unlocalize }}"
                         data-account="{{ subscription.account_id|unlocalize }}"
                         data-card="{{ subscription.card_id|unlocalize }}"
                         data-category="{% if subscription.category_id %}{{ subscription.category_id|unlocalize }}{% endif %}"

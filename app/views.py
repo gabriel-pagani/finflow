@@ -567,7 +567,7 @@ class SubscriptionCreateView(RevisionCreateMixin, SubscriptionWriteMixin, Create
         if self.object.generate_charges():
             messages.success(self.request, f'Cobrança lançada no vencimento da fatura do cartão {self.object.card}.')
         else:
-            messages.info(self.request, f'A próxima cobrança será lançada no dia {self.object.charge_day} de {self.object.next_reference:%m/%Y}.')
+            messages.info(self.request, f'A próxima cobrança será lançada no dia {self.object.charge_day} de {self.object.next_reference():%m/%Y}.')
 
         return response
 

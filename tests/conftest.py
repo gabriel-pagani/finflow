@@ -262,6 +262,7 @@ def make_subscription(account, category, business_rules, make_card):
             'description': 'Spotify',
             'value': Decimal('21.90'),
             'charge_day': 10,
+            'anchor_month': 1,
         }
         fields.update(kwargs)
         fields.setdefault('card', make_card(user))

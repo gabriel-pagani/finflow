@@ -27,14 +27,13 @@ def add_months(dt, months):
     return dt.replace(year=year, month=month, day=day)
 
 
-def current_reference():
-    """A competência de hoje: o primeiro dia do mês corrente.
+def current_month():
+    """O número do mês corrente, default do mês de referência da assinatura.
 
-    Default da primeira competência de uma assinatura. É função, e não o valor
-    calculado na importação, senão todo cadastro feito depois do deploy nasceria
-    com o mês em que o processo subiu.
+    É função, e não o valor calculado na importação: um default avaliado uma vez
+    prenderia todo cadastro ao mês em que o processo subiu.
     """
-    return timezone.localdate().replace(day=1)
+    return timezone.localdate().month
 
 
 def next_business_day(day):
@@ -557,6 +556,11 @@ class Subscription(models.Model):
     o que ela deve ter gerado depende de que dia é hoje. Quem gera é o
     `generate_due`, chamado pelo comando do cron e pelas telas.
 
+    O que a assinatura guarda do passado é só o mês de referência, e ele não é
+    data: é a fase da recorrência. Serve para a anual paga em janeiro cobrar em
+    janeiro, mesmo cadastrada em setembro. O que ficou para trás não vira
+    lançamento — nunca foi responsabilidade do sistema.
+
     Alterar o cadastro vale para as próximas cobranças. As que já saíram
     guardam o valor e a data que valiam quando saíram: recalculá-las mudaria
     fatura que o usuário já conferiu, e apagaria o histórico de um preço que
@@ -572,11 +576,14 @@ class Subscription(models.Model):
     charge_day = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name='Dia da Cobrança')
     recurrence = models.CharField(max_length=20, choices=Recurrence.choices, default=Recurrence.MONTHLY, verbose_name='Recorrência')
 
-    # A competência é o mês, e por isso as duas datas ficam no dia 1º. `start` é
-    # o primeiro mês que a assinatura cobra — o do cadastro, porque assinatura
-    # nova não retroage — e `last_reference` é o último já lançado, que é o que
-    # impede a mesma cobrança de sair duas vezes.
-    start = models.DateField(default=current_reference, verbose_name='Primeira Competência')
+    # O mês em que a assinatura cobrou pela primeira vez, de 1 a 12. Sem ano, de
+    # propósito: ele fixa a fase da recorrência, e para isso janeiro de 2000 e
+    # janeiro de 2026 dizem a mesma coisa — a anual cobra em janeiro. Numa
+    # mensal ele não muda nada, porque todo mês serve.
+    anchor_month = models.PositiveSmallIntegerField(default=current_month, validators=[MinValueValidator(1), MaxValueValidator(12)], verbose_name='Mês da Primeira Cobrança')
+
+    # A última competência lançada, e o que impede a mesma cobrança de sair duas
+    # vezes. Nulo enquanto a assinatura não cobrou nenhuma vez.
     last_reference = models.DateField(blank=True, null=True, verbose_name='Última Competência Gerada')
 
     TYPE = Type.OUT
@@ -602,15 +609,29 @@ class Subscription(models.Model):
         """Quantos meses separam uma cobrança da seguinte."""
         return RECURRENCE_MONTHS[self.recurrence]
 
-    @property
-    def next_reference(self):
+    def next_reference(self, today=None):
         """Competência da próxima cobrança: a que sai assim que o dia dela chegar.
 
-        Sai do que já foi gerado, e não do calendário: a anual cadastrada em
-        março cobra em março do ano seguinte, não em janeiro. Antes da primeira
-        cobrança, é o próprio `start`.
+        Depois da primeira, sai do que já foi gerado: a anual que cobrou em
+        março cobra em março do ano seguinte. Antes dela, sai do mês de
+        referência — a primeira competência daqui para a frente que cai na fase
+        certa. Uma anual de janeiro cadastrada em setembro cobra em janeiro do
+        ano que vem, e nada antes disso: competência que ficou para trás nunca
+        foi responsabilidade do sistema, e inventar a transação dela faria
+        aparecer, num mês já fechado, uma saída que ninguém conferiu.
         """
-        return add_months(self.last_reference, self.interval) if self.last_reference else self.start
+        if self.last_reference:
+            return add_months(self.last_reference, self.interval)
+
+        current = (today or timezone.localdate()).replace(day=1)
+
+        # Começa um ano atrás para o passo alcançar o mês corrente vindo de trás,
+        # em vez de pular por cima dele.
+        reference = date(current.year - 1, self.anchor_month, 1)
+        while reference < current:
+            reference = add_months(reference, self.interval)
+
+        return reference
 
     def charge_date(self, reference):
         """Dia em que a assinatura cobra, dentro do mês da competência.
@@ -650,36 +671,13 @@ class Subscription(models.Model):
             reference=reference,
         )
 
-    def anchor_past(self, today=None):
-        """Marca como já cobrada toda competência anterior ao mês corrente.
-
-        O mês informado no cadastro diz quando a assinatura começou a cobrar,
-        não o que o sistema tem a lançar. A anual paga em janeiro foi paga por
-        fora: criar a transação dela agora ou duplicaria o lançamento feito à
-        mão ou faria aparecer, num mês já fechado, uma saída que ninguém
-        conferiu. O que a âncora faz é alinhar a contagem — de janeiro em
-        diante, a próxima competência cai onde deve.
-
-        O mês corrente não entra: ele ainda é do sistema, e sai no dia da
-        cobrança como em qualquer assinatura nova. E isto não é o mesmo que a
-        recuperação de meses parados: lá as competências já eram
-        responsabilidade do sistema, e o que faltou foi só alguém rodar a
-        geração.
-        """
-        today = today or timezone.localdate()
-        current = today.replace(day=1)
-
-        reference = self.start
-        while reference < current:
-            self.last_reference = reference
-            reference = add_months(reference, self.interval)
-
     def generate_charges(self, today=None):
         """Lança o que já venceu e ainda não saiu, uma transação por competência.
 
         Vencido é o mês cujo dia de cobrança já chegou: quem cobra dia 10 só
-        lança no dia 10, e não no 1º. Meses anteriores a `start` nunca entram —
-        assinatura cadastrada hoje não inventa histórico.
+        lança no dia 10, e não no 1º. Competência anterior ao cadastro nunca
+        entra — quem garante isso é `next_reference`, que só olha do mês
+        corrente para a frente enquanto a assinatura não cobrou nenhuma vez.
         """
         today = today or timezone.localdate()
         created = []
@@ -687,7 +685,7 @@ class Subscription(models.Model):
         # A saída barata, antes de abrir transação e travar a linha: este
         # caminho roda a cada página aberta, e uma assinatura anual passa onze
         # meses do ano sem nada a fazer.
-        if self.charge_date(self.next_reference) > today:
+        if self.charge_date(self.next_reference(today)) > today:
             return created
 
         with db_transaction.atomic():
@@ -696,7 +694,7 @@ class Subscription(models.Model):
             # leriam a mesma linha e lançariam a mesma cobrança duas vezes.
             locked = Subscription.objects.select_for_update().get(pk=self.pk)
 
-            reference = locked.next_reference
+            reference = locked.next_reference(today)
             current = today.replace(day=1)
 
             while reference <= current:
@@ -734,13 +732,6 @@ class Subscription(models.Model):
             pending = pending.filter(user=user)
 
         return sum(len(subscription.generate_charges(today)) for subscription in pending)
-
-    def save(self, *args, **kwargs):
-        # Competência é mês: o dia informado não importa, e guardá-lo faria a
-        # comparação com `last_reference` depender de dois dias diferentes.
-        if self.start:
-            self.start = self.start.replace(day=1)
-        super().save(*args, **kwargs)
 
     @property
     def category_display(self):
