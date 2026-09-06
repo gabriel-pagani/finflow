@@ -172,37 +172,20 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
-# O assistente. A chave nunca aparece no cliente: quem fala com o modelo é o
-# servidor, e o navegador só recebe o texto que já saiu de lá.
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 OPENAI_MODEL = os.getenv('OPENAI_MODEL')
 
-# O áudio não vai para o modelo do chat: ele não escuta. É transcrito na entrada,
-# por um modelo próprio, e o que entra na conversa é o texto — que fica legível
-# no histórico e custa uma fração do que custaria mandar o áudio a cada rodada.
 OPENAI_TRANSCRIBE_MODEL = os.getenv('OPENAI_TRANSCRIBE_MODEL', 'gpt-4o-transcribe')
 
-# Dias que a foto e o áudio do chat ficam no disco. O que vence é o arquivo: a
-# transcrição, a mensagem e o lançamento que a foto gerou são permanentes, e o
-# arquivo é o único pedaço pesado que ninguém relê depois de conferido. Zero
-# desliga a expiração, e é o que mantém o comportamento de guardar para sempre.
-# Quem aplica isto é o comando `prune_attachments`, não a aplicação servindo.
 ASSISTANT_ATTACHMENT_RETENTION_DAYS = int(os.getenv('ASSISTANT_ATTACHMENT_RETENTION_DAYS', '30'))
 
 SECURE_CSP = {
     'default-src': [CSP.SELF],
     'script-src': [CSP.SELF],
     'style-src': [CSP.SELF, CSP.UNSAFE_INLINE],
-    # O blob: é a foto recém-escolhida, antes de existir no servidor: a prévia no
-    # compositor e a miniatura da mensagem que acabou de subir saem da memória do
-    # navegador. Sem ele a imagem só aparecia depois de um F5, quando passava a
-    # vir da rota de anexo — que é o 'self' aqui.
     'img-src': [CSP.SELF, 'data:', 'blob:'],
     'font-src': [CSP.SELF],
-    # O áudio gravado no chat é ouvido antes de ser enviado, e nesse momento ele
-    # só existe como blob na memória do navegador — não há URL de onde baixá-lo.
-    # Depois de enviado, vem da própria aplicação, pela rota que confere o dono.
     'media-src': [CSP.SELF, 'blob:'],
     'connect-src': [CSP.SELF],
     'form-action': [CSP.SELF],
@@ -236,9 +219,6 @@ if not DEBUG:
 
     SECURE_REFERRER_POLICY = 'same-origin'
 
-    # O prefixo __Host- faz o navegador recusar o cookie se ele não vier por
-    # HTTPS, com Path=/ e sem Domain. Assim um subdomínio comprometido não
-    # consegue plantar um cookie que se passe por este (cookie tossing).
     SESSION_COOKIE_NAME = '__Host-sessionid'
 
     CSRF_COOKIE_NAME = '__Host-csrftoken'
