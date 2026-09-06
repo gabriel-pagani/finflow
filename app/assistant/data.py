@@ -38,11 +38,10 @@ from ..models import (
     Transaction,
     Type,
     Yield,
-    add_months,
 )
+from ..utils.dates import add_months
+from ..utils.formatting import ZERO, to_money
 
-
-ZERO = Decimal('0.00')
 
 # Métodos que o painel do realizado considera: dinheiro que já saiu da conta. O
 # crédito fica de fora porque ainda vai vencer, e somá-lo ao saldo contaria duas
@@ -67,11 +66,6 @@ def json_default(value):
     if hasattr(value, 'isoformat'):
         return value.isoformat()
     raise TypeError(f'Sem conversão para JSON: {type(value).__name__}')
-
-
-def money(value):
-    """Total que veio de um Sum, já com o None do conjunto vazio resolvido."""
-    return (value or ZERO).quantize(Decimal('0.01'))
 
 
 
@@ -614,9 +608,9 @@ def serialize_row(entry):
     return {
         'key': entry['key'],
         'label': entry['label'],
-        'income': money(entry['income']),
-        'outcome': money(entry['outcome']),
-        'net': money(entry['income'] - entry['outcome']),
+        'income': to_money(entry['income']),
+        'outcome': to_money(entry['outcome']),
+        'net': to_money(entry['income'] - entry['outcome']),
         'count': entry['count'],
     }
 
@@ -682,13 +676,13 @@ def summarize(queryset):
         for row in queryset.order_by().values('type').annotate(total=Sum('value'), count=Count('id'))
     }
 
-    income = money(rows.get(Type.IN, {}).get('total'))
-    outcome = money(rows.get(Type.OUT, {}).get('total'))
+    income = to_money(rows.get(Type.IN, {}).get('total'))
+    outcome = to_money(rows.get(Type.OUT, {}).get('total'))
 
     return {
         'income': income,
         'outcome': outcome,
-        'net': money(income - outcome),
+        'net': to_money(income - outcome),
         'transactions': sum(row['count'] for row in rows.values()),
     }
 
@@ -760,7 +754,7 @@ def position(user):
         )
         entry['income' if row['type'] == Type.IN else 'outcome'] += row['total']
 
-    accounts = [{**entry, 'balance': money(entry['income'] - entry['outcome'])} for entry in by_account.values()]
+    accounts = [{**entry, 'balance': to_money(entry['income'] - entry['outcome'])} for entry in by_account.values()]
     accounts.sort(key=lambda item: item['description'])
 
     investments = (
@@ -783,19 +777,19 @@ def position(user):
             'description': investment.description,
             'account': {'id': investment.account_id, 'description': str(investment.account)},
             'category': {'id': investment.category_id, 'description': investment.category_display},
-            'applied': money(investment.applied),
-            'yielded': money(investment.yielded),
-            'redeemed': money(investment.redeemed),
-            'balance': money(balance),
+            'applied': to_money(investment.applied),
+            'yielded': to_money(investment.yielded),
+            'redeemed': to_money(investment.redeemed),
+            'balance': to_money(balance),
         })
 
     balance = sum((account['balance'] for account in accounts), ZERO)
 
     return {
         'scope': POSITION_SCOPE,
-        'balance': money(balance),
-        'invested': money(invested_total),
-        'total': money(balance + invested_total),
+        'balance': to_money(balance),
+        'invested': to_money(invested_total),
+        'total': to_money(balance + invested_total),
         'accounts': accounts,
         'investments': serialized_investments,
     }
@@ -824,7 +818,7 @@ def forecast(user, today, filters):
             f'Saída em crédito, natureza normal, com vencimento entre {today.isoformat()} e '
             f'{horizon.isoformat()}. Não se soma ao saldo: é o que sairá dele.'
         ),
-        'total': money(window.aggregate(total=Sum('value'))['total']),
+        'total': to_money(window.aggregate(total=Sum('value'))['total']),
         'breakdowns': {name: breakdown(window, name, filters.top) for name in filters.group_by},
     }
 
