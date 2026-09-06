@@ -54,7 +54,7 @@
                         <td>{{ subscription.category_display }}</td>
                         <td>{{ subscription.get_recurrence_display }}</td>
                         <td class="right">Dia {{ subscription.charge_day|unlocalize }}</td>
-                        <td class="right cell-outcome">R$ -{{ subscription.value|floatformat:2 }}</td>
+                        <td class="right cell-outcome">-{{ subscription.value|floatformat:2 }}</td>
                         <td class="right nowrap">
                             <button type="button" class="icon-button" data-subscription-edit title="Editar">Editar</button>
                             <button type="button" class="icon-button danger" data-subscription-delete title="Remover">Remover</button>

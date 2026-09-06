@@ -421,16 +421,18 @@ function isMobile() {
     return window.innerWidth <= MOBILE_BREAKPOINT;
 }
 
+// Só o número, sem símbolo: o sistema inteiro é em real, e repetir a moeda em
+// cada linha, rótulo e tooltip não diz nada que a tela já não diga.
 function formatCurrency(value) {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function formatCompact(value) {
     // Valor curto para os rótulos sobre as barras, que ficam lado a lado.
     if (Math.abs(value) >= 1000) {
-        return 'R$ ' + (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
+        return (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
     }
-    return 'R$ ' + value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    return value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
 
 function buildChart(elementId, buildOption) {

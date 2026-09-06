@@ -158,7 +158,7 @@ def consultar_financas(user, today, arguments):
 
 def money_label(value):
     """Valor como o usuário lê, para o cartão de confirmação."""
-    return f'R$ {number_format(value, decimal_pos=2, use_l10n=True)}'
+    return number_format(value, decimal_pos=2, use_l10n=True)
 
 
 def moment_label(moment):

@@ -12,6 +12,7 @@ from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.utils import timezone
+from django.utils.formats import number_format
 
 
 # Sábado e domingo no weekday() do Python, que conta a partir da segunda.
@@ -25,6 +26,16 @@ def add_months(dt, months):
     day = min(dt.day, [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
 
     return dt.replace(year=year, month=month, day=day)
+
+
+def money(value):
+    """O valor como o usuário lê: duas casas e a vírgula do português.
+
+    Sem o símbolo da moeda. O sistema inteiro é em real, e repetir "R$" em cada
+    rótulo, linha e tooltip não acrescenta informação a quem já está olhando as
+    próprias finanças.
+    """
+    return number_format(value, decimal_pos=2, use_l10n=True)
 
 
 def current_month():
@@ -334,7 +345,7 @@ class Installment(models.Model):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'
 
     def __str__(self):
-        return f'R${self.value} ({self.installments}x)'
+        return f'{money(self.value)} ({self.installments}x)'
 
     class Meta:
         ordering = ['-datetime']
@@ -426,7 +437,7 @@ class InvestmentEntry(models.Model):
             self.generate_transactions()
 
     def __str__(self):
-        return f'R${self.value} ({self.datetime:%d/%m/%Y})'
+        return f'{money(self.value)} ({self.datetime:%d/%m/%Y})'
 
     class Meta:
         abstract = True
@@ -530,7 +541,7 @@ class Transfer(models.Model):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'
 
     def __str__(self):
-        return f'R${self.value} ({self.origin} → {self.destination})'
+        return f'{money(self.value)} ({self.origin} → {self.destination})'
 
     class Meta:
         ordering = ['-datetime']
@@ -738,7 +749,7 @@ class Subscription(models.Model):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'
 
     def __str__(self):
-        return f'{self.description} (R${self.value} · {self.get_recurrence_display()})'
+        return f'{self.description} ({money(self.value)} · {self.get_recurrence_display()})'
 
     class Meta:
         ordering = ['description']
@@ -882,15 +893,15 @@ class Transaction(models.Model):
 
     def __str__(self):
         if self.installment_id:
-            return f'{self.category_display} (R${self.value}) - {self.parcel}/{self.installment.installments}'
+            return f'{self.category_display} ({money(self.value)}) - {self.parcel}/{self.installment.installments}'
         if self.redemption_id:
-            return f'{self.category_display} (R${self.value}) - Resgate'
+            return f'{self.category_display} ({money(self.value)}) - Resgate'
         if self.contribution_id:
-            return f'{self.category_display} (R${self.value}) - Aplicação'
+            return f'{self.category_display} ({money(self.value)}) - Aplicação'
         if self.transfer_id:
             sentido = 'Envio' if self.type == Type.OUT else 'Recebimento'
-            return f'{self.category_display} (R${self.value}) - Transferência ({sentido})'
-        return f'{self.category_display} (R${self.value})'
+            return f'{self.category_display} ({money(self.value)}) - Transferência ({sentido})'
+        return f'{self.category_display} ({money(self.value)})'
 
     class Meta:
         ordering = ['-datetime']

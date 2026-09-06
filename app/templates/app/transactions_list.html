@@ -75,7 +75,7 @@
                         <td>{{ transaction.get_method_display }}</td>
                         <td>{{ transaction.category_display }}</td>
                         <td>{{ transaction.description|default:'-' }}</td>
-                        <td class="right {% if transaction.type == 'IN' %}cell-income{% else %}cell-outcome{% endif %}">R$ {% if transaction.type == 'OUT' %}-{% endif %}{{ transaction.value|floatformat:2 }}</td>
+                        <td class="right {% if transaction.type == 'IN' %}cell-income{% else %}cell-outcome{% endif %}">{% if transaction.type == 'OUT' %}-{% endif %}{{ transaction.value|floatformat:2 }}</td>
                         <td class="right nowrap">
                             {% if transaction.is_derived %}
                                 {% comment %}

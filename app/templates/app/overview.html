@@ -7,19 +7,19 @@
 
     <section class="cards">
         <div class="card metric metric-income">
-            <strong>R$ {{ cards.income|floatformat:2 }}</strong>
+            <strong>{{ cards.income|floatformat:2 }}</strong>
             <span>Valor Total de Entradas</span>
         </div>
         <div class="card metric metric-outcome">
-            <strong>R$ {{ cards.outcome|floatformat:2 }}</strong>
+            <strong>{{ cards.outcome|floatformat:2 }}</strong>
             <span>Valor Total de Saídas</span>
         </div>
         <div class="card metric metric-invested">
-            <strong>R$ {{ cards.invested|floatformat:2 }}</strong>
+            <strong>{{ cards.invested|floatformat:2 }}</strong>
             <span>Saldo Investido</span>
         </div>
         <div class="card metric metric-balance">
-            <strong>R$ {{ cards.balance|floatformat:2 }}</strong>
+            <strong>{{ cards.balance|floatformat:2 }}</strong>
             <span>Saldo Atual</span>
         </div>
     </section>

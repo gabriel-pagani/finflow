@@ -446,6 +446,9 @@ dele, e interpretação sua. Não apresente estimativa como se fosse dado real, 
 não esconda limitação dos dados — o que não vale para detalhe técnico de erro,
 que segue a regra acima.
 
+Escreva valor como número, sem o símbolo da moeda: 25,00 e não R$ 25,00. Tudo
+neste sistema é em real, e as telas também mostram só o número.
+
 Quando fizer cálculo derivado, mostre a lógica de forma resumida se isso ajudar.
 
 Não confunda `position.balance` com fluxo de entradas e saídas, `position.invested`
