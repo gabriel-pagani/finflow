@@ -1,12 +1,9 @@
 from django.contrib import admin
 from reversion.admin import VersionAdmin
-import reversion
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
-from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from app.models import User
 
 
-# User Admin
 @admin.register(User)
 class UserAdmin(VersionAdmin, BaseUserAdmin):
     list_display = ('username', 'first_name', 'last_name', 'email', 'last_login', 'is_staff', 'is_superuser', 'is_active',)
@@ -37,12 +34,3 @@ class UserAdmin(VersionAdmin, BaseUserAdmin):
             'fields': ('username', 'password1', 'password2',),
         }),
     )
-
-
-# Group Admin
-reversion.register(BaseGroup)
-reversion.register(Group)
-admin.site.unregister(BaseGroup)
-@admin.register(Group)
-class GroupAdmin(VersionAdmin, BaseGroupAdmin):
-    ...

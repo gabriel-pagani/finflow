@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser, Group as BaseGroup
+from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 
 
@@ -13,11 +13,3 @@ class User(AbstractUser):
             email = User.objects.filter(email=self.email).exclude(pk=self.pk)
             if email.exists():
                 raise ValidationError({'email': 'Já existe um usuário com este e-mail.'})
-
-
-class Group(BaseGroup):
-    class Meta:
-        proxy = True
-        verbose_name = BaseGroup._meta.verbose_name
-        verbose_name_plural = BaseGroup._meta.verbose_name_plural
-        app_label = 'app'
