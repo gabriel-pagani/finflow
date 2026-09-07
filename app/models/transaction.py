@@ -22,7 +22,8 @@ class Transaction(models.Model):
     category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, related_name='transactions', verbose_name='Categoria')
     description = models.CharField(max_length=200, blank=True, verbose_name='Descrição')
     value = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], verbose_name='Valor')
-    occurred_at = models.DateTimeField(verbose_name='Data e Hora da Transação')
+    occurred_at = models.DateField(verbose_name='Data da Transação')
+    effective_at = models.DateField(editable=False, verbose_name='Data Efetiva')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data e Hora da Criação')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Data e Hora da Atualização')
 
@@ -37,9 +38,20 @@ class Transaction(models.Model):
             if self.user_id and self.card.user_id != self.user_id:
                 raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
             if self.method and self.method != Method.CREDIT:
-                raise ValidationError({'card': f'O cartão só se aplica a lançamentos em {Method.CREDIT.label}.'})
+                raise ValidationError({'card': f'O cartão só se aplica a transações em {Method.CREDIT.label}.'})
+        elif self.method == Method.CREDIT:
+            raise ValidationError({'card': f'Transações em {Method.CREDIT.label} exigem que seja informado um cartão.'})
         if self.category_id and self.nature != Nature.REGULAR:
-            raise ValidationError({'category': f'Lançamentos com natureza {Nature(self.nature).label} não recebem categoria.'})
+            raise ValidationError({'category': f'Transações com natureza {Nature(self.nature).label} não recebem categoria.'})
+
+    def calculate_effective_at(self):
+        if self.method == Method.CREDIT and self.card_id:
+            return self.card.charge_date(self.occurred_at)
+        return self.occurred_at
+
+    def save(self, *args, **kwargs):
+        self.effective_at = self.calculate_effective_at()
+        super().save(*args, **kwargs)
 
     @property
     def category_display(self):
@@ -49,9 +61,25 @@ class Transaction(models.Model):
         return f'{self.category_display} ({self.value})'
 
     class Meta:
-        ordering = ['-occurred_at']
+        ordering = ['-occurred_at', '-id']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(method=Method.CREDIT, card__isnull=False)
+                    | (~models.Q(method=Method.CREDIT) & models.Q(card__isnull=True))
+                ),
+                name='transaction_card_only_on_credit',
+                violation_error_message=f'Transações em {Method.CREDIT.label} exigem um cartão, e o cartão só se aplica a esse método.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(nature=Nature.REGULAR) | models.Q(category__isnull=True),
+                name='transaction_category_only_when_regular',
+                violation_error_message=f'Apenas transações com natureza {Nature.REGULAR.label} recebem categoria.',
+            ),
+        ]
         indexes = [
             models.Index(fields=['user', '-occurred_at'], name='transaction_user_date_idx'),
+            models.Index(fields=['user', '-effective_at'], name='transaction_effective_at_idx'),
         ]
         verbose_name = 'Transação'
         verbose_name_plural = 'Transações'
