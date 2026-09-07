@@ -4,6 +4,7 @@ from .card import Card
 from .category import Category
 from .choices import Method, Nature, Type
 from .group import Group
+from .transaction import Transaction
 from .user import User
 
 
@@ -15,6 +16,7 @@ __all__ = [
     'Group',
     'Method',
     'Nature',
+    'Transaction',
     'Type',
     'User',
 ]

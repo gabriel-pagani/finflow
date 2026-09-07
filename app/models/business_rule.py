@@ -13,6 +13,8 @@ class BusinessRule(models.Model):
 
     class Meta:
         ordering = ['account__description', 'type', 'method']
-        unique_together = ('account', 'type', 'method')
+        constraints = [
+            models.UniqueConstraint(fields=['account', 'type', 'method'], name='business_rule_unique_combination'),
+        ]
         verbose_name = 'Regra de Negócio'
         verbose_name_plural = 'Regras de Negócio'
