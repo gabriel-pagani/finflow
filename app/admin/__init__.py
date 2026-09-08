@@ -1,4 +1,4 @@
-from . import account, business_rule, card, category, group, transaction, user
+from . import account, business_rule, card, category, group, installment, transaction, user
 
 
 __all__ = [
@@ -7,6 +7,7 @@ __all__ = [
     'card',
     'category',
     'group',
+    'installment',
     'transaction',
     'user',
 ]
