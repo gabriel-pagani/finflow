@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 from django.contrib.auth import get_user_model
 
-from app.models import Account, BusinessRule, Card, Category, Method, Transaction, Type
+from app.models import Account, BusinessRule, Card, Category, Installment, Method, Transaction, Type
 
 
 @pytest.fixture
@@ -89,4 +89,20 @@ def make_transaction(user, account, debit_rule):
             'occurred_at': date(2026, 9, 4),
         }
         return Transaction(**{**defaults, **fields})
+    return build
+
+
+@pytest.fixture
+def make_installment(user, account, card):
+    """Monta um parcelamento válido, sem salvar, trocando o que o teste pedir."""
+    def build(**fields):
+        defaults = {
+            'user': user,
+            'account': account,
+            'card': card,
+            'value': Decimal('1000.00'),
+            'installments': 3,
+            'occurred_at': date(2026, 9, 4),
+        }
+        return Installment(**{**defaults, **fields})
     return build

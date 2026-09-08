@@ -28,6 +28,9 @@ class Transaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data e Hora da Criação')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Data e Hora da Atualização')
 
+    installment = models.ForeignKey('app.Installment', on_delete=models.CASCADE, blank=True, null=True, editable=False, related_name='transactions', verbose_name='Parcelamento')
+    parcel = models.PositiveSmallIntegerField(blank=True, null=True, editable=False, verbose_name='Parcela')
+
     def clean(self):
         super().clean()
         if self.account_id and self.type and self.method:
@@ -81,6 +84,19 @@ class Transaction(models.Model):
                 condition=models.Q(nature=Nature.REGULAR) | models.Q(category__isnull=True),
                 name='transaction_category_only_when_regular',
                 violation_error_message=f'Apenas transações com natureza {Nature.REGULAR.label} recebem categoria.',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(installment__isnull=False, parcel__isnull=False)
+                    | models.Q(installment__isnull=True, parcel__isnull=True)
+                ),
+                name='transaction_parcel_only_within_installment',
+                violation_error_message='O número da parcela só existe em transações de um parcelamento.',
+            ),
+            models.UniqueConstraint(
+                fields=['installment', 'parcel'],
+                name='transaction_unique_installment_parcel',
+                violation_error_message='O parcelamento já tem uma transação com esse número de parcela.',
             ),
         ]
         indexes = [
