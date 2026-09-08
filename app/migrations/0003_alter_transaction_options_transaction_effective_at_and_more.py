@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AlterModelOptions(
             name='transaction',
-            options={'ordering': ['-occurred_at', '-id'], 'verbose_name': 'Transação', 'verbose_name_plural': 'Transações'},
+            options={'ordering': ['-effective_at', '-id'], 'verbose_name': 'Transação', 'verbose_name_plural': 'Transações'},
         ),
         migrations.AddField(
             model_name='transaction',

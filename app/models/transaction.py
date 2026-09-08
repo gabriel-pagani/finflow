@@ -61,7 +61,7 @@ class Transaction(models.Model):
         return f'{self.category_display} ({self.value})'
 
     class Meta:
-        ordering = ['-occurred_at', '-id']
+        ordering = ['-effective_at', '-id']
         constraints = [
             models.CheckConstraint(
                 condition=(
