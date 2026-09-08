@@ -15,7 +15,7 @@ from .choices import Method, Nature, Type
 class Transaction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transactions', verbose_name='Usuário')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='transactions', verbose_name='Conta')
-    card = models.ForeignKey(Card, on_delete=models.PROTECT, blank=True, null=True, related_name='transactions', verbose_name='Cartão')
+    card = models.ForeignKey(Card, on_delete=models.RESTRICT, blank=True, null=True, related_name='transactions', verbose_name='Cartão')
     type = models.CharField(max_length=20, choices=Type.choices, verbose_name='Tipo')
     method = models.CharField(max_length=20, choices=Method.choices, verbose_name='Método')
     nature = models.CharField(max_length=20, choices=Nature.choices, default=Nature.REGULAR, verbose_name='Natureza')
