@@ -48,6 +48,11 @@ class Card(models.Model):
         ordering = ['account__description', 'last_digits']
         constraints = [
             models.UniqueConstraint(fields=['user', 'account', 'last_digits'], name='card_unique_user_account_digits'),
+            models.CheckConstraint(
+                condition=models.Q(closing_day__range=(1, 31)) & models.Q(due_day__range=(1, 31)),
+                name='card_days_within_month',
+                violation_error_message='Os dias de fechamento e vencimento devem estar entre 1 e 31.',
+            ),
         ]
         verbose_name = 'Cartão'
         verbose_name_plural = 'Cartões'

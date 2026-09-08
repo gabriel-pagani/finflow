@@ -64,6 +64,11 @@ class Transaction(models.Model):
         ordering = ['-effective_at', '-id']
         constraints = [
             models.CheckConstraint(
+                condition=models.Q(value__gte=Decimal('0.01')),
+                name='transaction_value_positive',
+                violation_error_message='O valor deve ser maior que zero.',
+            ),
+            models.CheckConstraint(
                 condition=(
                     models.Q(method=Method.CREDIT, card__isnull=False)
                     | (~models.Q(method=Method.CREDIT) & models.Q(card__isnull=True))
