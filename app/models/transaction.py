@@ -83,7 +83,6 @@ class Transaction(models.Model):
             ),
         ]
         indexes = [
-            models.Index(fields=['user', '-occurred_at'], name='transaction_user_date_idx'),
             models.Index(fields=['user', '-effective_at'], name='transaction_effective_at_idx'),
         ]
         verbose_name = 'Transação'
