@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 
+from ..utils.formatting import format_to_money
 from .account import Account
 from .business_rule import BusinessRule
 from .card import Card
@@ -58,7 +59,7 @@ class Transaction(models.Model):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'
 
     def __str__(self):
-        return f'{self.category_display} ({self.value})'
+        return f'{self.category_display} ({format_to_money(self.value)})'
 
     class Meta:
         ordering = ['-effective_at', '-id']

@@ -10,4 +10,4 @@ def test_sem_categoria_mostra_o_rotulo_padrao(make_transaction):
 
 
 def test_str_da_transacao_usa_o_rotulo(make_transaction):
-    assert str(make_transaction()) == 'Categoria Não Identificada (10.00)'
+    assert str(make_transaction()) == 'Categoria Não Identificada (10,00)'
