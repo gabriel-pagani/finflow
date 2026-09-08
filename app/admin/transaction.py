@@ -13,7 +13,7 @@ class TransactionAdmin(VersionAdmin):
     list_select_related = ('account', 'card', 'category', 'installment', 'user')
     date_hierarchy = 'effective_at'
     ordering = ('-effective_at', '-id')
-    readonly_fields = ('installment', 'parcel', 'effective_at', 'created_at', 'updated_at')
+    readonly_fields = ('installment', 'parcel', 'transfer', 'effective_at', 'created_at', 'updated_at')
 
     @admin.display(description='Categoria', ordering='category__description')
     def category_display(self, obj):
