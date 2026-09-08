@@ -25,6 +25,9 @@ reset-system-cache:
 clean-system:
 	@make backup-database && docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
 
+run-tests:
+	@docker compose -f deploy/docker-compose.yml run --rm tests python -m pytest -vv $(args)
+
 make-migrations:
 	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
 

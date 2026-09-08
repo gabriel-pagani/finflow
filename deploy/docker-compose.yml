@@ -38,6 +38,7 @@ services:
     build:
       context: ../
       dockerfile: deploy/Dockerfile
+      target: production
     image: ${PROJECT_NAME:-finflow}-django
     expose:
       - "8000"
@@ -63,6 +64,26 @@ services:
     networks:
       - network
     restart: unless-stopped
+
+  tests:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+      target: test
+    image: ${PROJECT_NAME:-finflow}-django-tests
+    volumes:
+      - ../app:/app/app
+      - ../tests:/app/tests
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m pytest -vv
+    profiles:
+      - tests
+    networks:
+      - network
 
   nginx:
     image: nginx:1.30-alpine

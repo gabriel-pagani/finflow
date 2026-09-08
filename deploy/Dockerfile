@@ -10,7 +10,7 @@ COPY ../requirements.txt .
 RUN pip install --upgrade pip && pip install --prefix=/install -r requirements.txt
 
 # STAGE 2
-FROM python:3.12-slim-trixie
+FROM python:3.12-slim-trixie AS production
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -30,3 +30,12 @@ RUN mkdir -p /app/static_root /app/media_root && chown django:django /app/static
 USER django
 
 EXPOSE 8000
+
+# STAGE 3
+FROM production AS test
+
+USER root
+
+RUN pip install --no-cache-dir -r test-requirements.txt && chown django:django /app
+
+USER django
