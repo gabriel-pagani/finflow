@@ -30,6 +30,7 @@ class Transaction(models.Model):
 
     installment = models.ForeignKey('app.Installment', on_delete=models.CASCADE, blank=True, null=True, editable=False, related_name='transactions', verbose_name='Parcelamento')
     parcel = models.PositiveSmallIntegerField(blank=True, null=True, editable=False, verbose_name='Parcela')
+    transfer = models.ForeignKey('app.Transfer', on_delete=models.CASCADE, blank=True, null=True, editable=False, related_name='transactions', verbose_name='Transferência')
 
     def clean(self):
         super().clean()
@@ -97,6 +98,16 @@ class Transaction(models.Model):
                 fields=['installment', 'parcel'],
                 name='transaction_unique_installment_parcel',
                 violation_error_message='O parcelamento já tem uma transação com esse número de parcela.',
+            ),
+            models.UniqueConstraint(
+                fields=['transfer', 'type'],
+                name='transaction_unique_transfer_leg',
+                violation_error_message='A transferência já tem uma transação desse tipo.',
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(installment__isnull=False, transfer__isnull=False),
+                name='transaction_single_origin',
+                violation_error_message='Uma transação vem de um parcelamento ou de uma transferência, nunca dos dois.',
             ),
         ]
         indexes = [

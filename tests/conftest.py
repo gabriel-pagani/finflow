@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 from django.contrib.auth import get_user_model
 
-from app.models import Account, BusinessRule, Card, Category, Installment, Method, Transaction, Type
+from app.models import Account, BusinessRule, Card, Category, Installment, Method, Transaction, Transfer, Type
 
 
 @pytest.fixture
@@ -47,6 +47,18 @@ def debit_rule(account):
 @pytest.fixture
 def credit_rule(account):
     return BusinessRule.objects.create(account=account, type=Type.OUT, method=Method.CREDIT)
+
+
+@pytest.fixture
+def transfer_out_rule(account):
+    """Saída em débito na conta de origem."""
+    return BusinessRule.objects.create(account=account, type=Type.OUT, method=Method.DEBIT)
+
+
+@pytest.fixture
+def transfer_in_rule(other_account):
+    """Entrada em não se aplica na conta de destino."""
+    return BusinessRule.objects.create(account=other_account, type=Type.IN, method=Method.NOT_APPLICABLE)
 
 
 @pytest.fixture
@@ -105,4 +117,19 @@ def make_installment(user, account, card):
             'occurred_at': date(2026, 9, 4),
         }
         return Installment(**{**defaults, **fields})
+    return build
+
+
+@pytest.fixture
+def make_transfer(user, account, other_account, transfer_out_rule, transfer_in_rule):
+    """Monta uma transferência válida entre as duas contas, sem salvar."""
+    def build(**fields):
+        defaults = {
+            'user': user,
+            'origin': account,
+            'destination': other_account,
+            'value': Decimal('250.00'),
+            'occurred_at': date(2026, 9, 4),
+        }
+        return Transfer(**{**defaults, **fields})
     return build

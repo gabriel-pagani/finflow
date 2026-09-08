@@ -6,6 +6,7 @@ from .choices import Method, Nature, Type
 from .group import Group
 from .installment import Installment
 from .transaction import Transaction
+from .transfer import Transfer
 from .user import User
 
 
@@ -19,6 +20,7 @@ __all__ = [
     'Method',
     'Nature',
     'Transaction',
+    'Transfer',
     'Type',
     'User',
 ]
