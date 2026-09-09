@@ -46,6 +46,10 @@ class Transaction(models.Model):
                 raise ValidationError({'card': f'O cartão só se aplica a transações em {Method.CREDIT.label}.'})
         elif self.method == Method.CREDIT:
             raise ValidationError({'card': f'Transações em {Method.CREDIT.label} exigem que seja informado um cartão.'})
+        if self.installment_id and self.nature != Nature.REGULAR:
+            raise ValidationError({'nature': f'A parcela de um parcelamento é sempre de natureza {Nature.REGULAR.label}.'})
+        if self.transfer_id and self.nature != Nature.INTERNAL:
+            raise ValidationError({'nature': f'A perna de uma transferência é sempre de natureza {Nature.INTERNAL.label}.'})
         if self.category_id and self.nature != Nature.REGULAR:
             raise ValidationError({'category': f'Transações com natureza {Nature(self.nature).label} não recebem categoria.'})
 

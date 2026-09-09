@@ -46,3 +46,23 @@ def test_categoria_fora_da_natureza_normal_e_recusada(make_transaction, category
 
 def test_categoria_na_natureza_normal_e_aceita(make_transaction, category):
     make_transaction(category=category).full_clean()
+
+
+def test_parcela_fora_da_natureza_normal_e_recusada(make_installment, credit_rule):
+    parcelamento = make_installment()
+    parcelamento.save()
+    parcela = parcelamento.transactions.first()
+    parcela.nature = Nature.INTERNAL
+    with pytest.raises(ValidationError) as erro:
+        parcela.full_clean()
+    assert 'nature' in erro.value.error_dict
+
+
+def test_perna_de_transferencia_fora_da_natureza_interna_e_recusada(make_transfer):
+    transferencia = make_transfer()
+    transferencia.save()
+    perna = transferencia.transactions.first()
+    perna.nature = Nature.REGULAR
+    with pytest.raises(ValidationError) as erro:
+        perna.full_clean()
+    assert 'nature' in erro.value.error_dict
