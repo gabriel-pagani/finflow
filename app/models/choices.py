@@ -16,3 +16,11 @@ class Nature(models.TextChoices):
     REGULAR = 'REGULAR', 'Normal'
     INTERNAL = 'INTERNAL', 'Movimentação Interna'
     ADJUSTMENT = 'ADJUSTMENT', 'Ajuste de Saldo'
+
+
+class Recurrence(models.IntegerChoices):
+    MONTHLY = 1, 'Mensal'
+    BIMONTHLY = 2, 'Bimestral'
+    QUARTERLY = 3, 'Trimestral'
+    SEMIANNUAL = 6, 'Semestral'
+    ANNUAL = 12, 'Anual'

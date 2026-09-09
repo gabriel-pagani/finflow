@@ -13,7 +13,7 @@ class TransactionAdmin(VersionAdmin):
     list_select_related = ('account', 'card', 'category', 'installment', 'user')
     date_hierarchy = 'effective_at'
     ordering = ('-effective_at', '-id')
-    readonly_fields = ('installment', 'parcel', 'transfer', 'effective_at', 'created_at', 'updated_at')
+    readonly_fields = ('installment', 'parcel', 'transfer', 'subscription', 'reference', 'effective_at', 'created_at', 'updated_at')
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.is_derived:

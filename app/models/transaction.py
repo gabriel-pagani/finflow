@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.functions import TruncMonth
 
 from ..utils.formatting import format_to_money
 from .account import Account
@@ -31,6 +32,8 @@ class Transaction(models.Model):
     installment = models.ForeignKey('app.Installment', on_delete=models.CASCADE, blank=True, null=True, editable=False, related_name='transactions', verbose_name='Parcelamento')
     parcel = models.PositiveSmallIntegerField(blank=True, null=True, editable=False, verbose_name='Parcela')
     transfer = models.ForeignKey('app.Transfer', on_delete=models.CASCADE, blank=True, null=True, editable=False, related_name='transactions', verbose_name='Transferência')
+    subscription = models.ForeignKey('app.Subscription', on_delete=models.RESTRICT, blank=True, null=True, editable=False, related_name='transactions', verbose_name='Assinatura')
+    reference = models.DateField(blank=True, null=True, editable=False, verbose_name='Competência')
 
     def clean(self):
         super().clean()
@@ -50,6 +53,15 @@ class Transaction(models.Model):
             raise ValidationError({'nature': f'A parcela de um parcelamento é sempre de natureza {Nature.REGULAR.label}.'})
         if self.transfer_id and self.nature != Nature.INTERNAL:
             raise ValidationError({'nature': f'A perna de uma transferência é sempre de natureza {Nature.INTERNAL.label}.'})
+        if self.subscription_id:
+            if self.nature != self.subscription.NATURE:
+                raise ValidationError({'nature': f'A cobrança de uma assinatura é sempre de natureza {self.subscription.NATURE.label}.'})
+            if self.type != self.subscription.TYPE:
+                raise ValidationError({'type': f'A cobrança de uma assinatura é sempre do tipo {self.subscription.TYPE.label}.'})
+            if self.card_id != self.subscription.card_id:
+                raise ValidationError({'card': 'A cobrança precisa usar o cartão da assinatura.'})
+            if self.occurred_at and self.reference and self.occurred_at.replace(day=1) != self.reference:
+                raise ValidationError({'occurred_at': 'A data da cobrança precisa cair dentro da competência.'})
         if self.category_id and self.nature != Nature.REGULAR:
             raise ValidationError({'category': f'Transações com natureza {Nature(self.nature).label} não recebem categoria.'})
 
@@ -118,9 +130,26 @@ class Transaction(models.Model):
                 violation_error_message='A transferência já tem uma transação desse tipo.',
             ),
             models.CheckConstraint(
-                condition=~models.Q(installment__isnull=False, transfer__isnull=False),
+                condition=(
+                    ~models.Q(installment__isnull=False, transfer__isnull=False)
+                    & ~models.Q(installment__isnull=False, subscription__isnull=False)
+                    & ~models.Q(transfer__isnull=False, subscription__isnull=False)
+                ),
                 name='transaction_single_origin',
-                violation_error_message='Uma transação vem de um parcelamento ou de uma transferência, nunca dos dois.',
+                violation_error_message='Uma transação vem de um parcelamento, de uma transferência ou de uma assinatura, nunca de mais de um.',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(subscription__isnull=False, reference__isnull=False)
+                    | models.Q(subscription__isnull=True, reference__isnull=True)
+                ),
+                name='transaction_reference_only_within_subscription',
+                violation_error_message='A competência só existe em transações de uma assinatura.',
+            ),
+            models.UniqueConstraint(
+                fields=['subscription', 'reference'],
+                name='transaction_unique_subscription_reference',
+                violation_error_message='A assinatura já tem uma cobrança nessa competência.',
             ),
             models.CheckConstraint(
                 condition=models.Q(installment__isnull=True) | models.Q(nature=Nature.REGULAR),
@@ -131,6 +160,16 @@ class Transaction(models.Model):
                 condition=models.Q(transfer__isnull=True) | models.Q(nature=Nature.INTERNAL),
                 name='transaction_transfer_leg_is_internal',
                 violation_error_message=f'A perna de uma transferência é sempre de natureza {Nature.INTERNAL.label}.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(subscription__isnull=True) | models.Q(nature=Nature.REGULAR),
+                name='transaction_subscription_charge_is_regular',
+                violation_error_message=f'A cobrança de uma assinatura é sempre de natureza {Nature.REGULAR.label}.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(subscription__isnull=True) | models.Q(reference=TruncMonth('occurred_at')),
+                name='transaction_charge_within_reference',
+                violation_error_message='A data da cobrança precisa cair dentro da competência.',
             ),
         ]
         indexes = [
