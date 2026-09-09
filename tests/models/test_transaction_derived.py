@@ -7,8 +7,11 @@ apagam pelo queryset, que não passa por lá — é o caminho que segue aberto.
 """
 import pytest
 from django.contrib import admin as django_admin
+from django.contrib.admin.sites import site
+from django.contrib.admin.utils import get_deleted_objects
 from django.core.exceptions import ValidationError
 from django.test import RequestFactory
+from django.urls import resolve, reverse
 
 from app.models import Card, Installment, Transaction, Transfer
 
@@ -114,3 +117,34 @@ def test_admin_bloqueia_a_exclusao_em_massa_da_derivada(make_installment, credit
     parcelamento.save()
     _, _, perms_needed, _ = transaction_admin.get_deleted_objects(parcelamento.transactions.all(), admin_request)
     assert perms_needed
+
+
+def delete_view_request(instance, user):
+    path = reverse(f'admin:app_{instance._meta.model_name}_delete', args=[instance.pk])
+    request = RequestFactory().get(path)
+    request.user = user
+    request.resolver_match = resolve(path)
+
+    return request
+
+
+def test_admin_deixa_apagar_o_parcelamento_apesar_das_parcelas(make_installment, credit_rule, admin_user):
+    parcelamento = make_installment()
+    parcelamento.save()
+    _, _, perms_needed, _ = get_deleted_objects([parcelamento], delete_view_request(parcelamento, admin_user), site)
+    assert perms_needed == set()
+
+
+def test_admin_deixa_apagar_a_transferencia_apesar_das_pernas(make_transfer, admin_user):
+    transferencia = make_transfer()
+    transferencia.save()
+    _, _, perms_needed, _ = get_deleted_objects([transferencia], delete_view_request(transferencia, admin_user), site)
+    assert perms_needed == set()
+
+
+def test_admin_continua_barrando_a_parcela_na_propria_tela(make_installment, credit_rule, admin_user):
+    parcelamento = make_installment()
+    parcelamento.save()
+    parcela = parcelamento.transactions.first()
+    _, _, perms_needed, _ = get_deleted_objects([parcela], delete_view_request(parcela, admin_user), site)
+    assert perms_needed == {Transaction._meta.verbose_name}
