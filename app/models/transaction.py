@@ -58,6 +58,15 @@ class Transaction(models.Model):
         self.effective_at = self.calculate_effective_at()
         super().save(*args, **kwargs)
 
+    def delete(self, *args, **kwargs):
+        if self.is_derived:
+            raise ValidationError('Esta transação é derivada e só pode ser apagada junto do parcelamento ou da transferência que a criou.')
+        return super().delete(*args, **kwargs)
+
+    @property
+    def is_derived(self):
+        return bool(self.installment_id or self.transfer_id)
+
     @property
     def category_display(self):
         return str(self.category) if self.category_id else 'Categoria Não Identificada'

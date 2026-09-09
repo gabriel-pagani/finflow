@@ -15,6 +15,16 @@ class TransactionAdmin(VersionAdmin):
     ordering = ('-effective_at', '-id')
     readonly_fields = ('installment', 'parcel', 'transfer', 'effective_at', 'created_at', 'updated_at')
 
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.is_derived:
+            return [field.name for field in self.model._meta.fields if field.name != 'id']
+        return self.readonly_fields
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.is_derived:
+            return False
+        return super().has_delete_permission(request, obj)
+
     @admin.display(description='Categoria', ordering='category__description')
     def category_display(self, obj):
         return obj.category_display
