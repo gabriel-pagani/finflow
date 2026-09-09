@@ -5,7 +5,6 @@ from app.models import Transaction, Transfer
 
 
 class LegInline(admin.TabularInline):
-    """As duas pernas geradas, só para consulta: quem as escreve é o save da transferência."""
     model = Transaction
     fields = ('account', 'type', 'method', 'value', 'effective_at')
     readonly_fields = fields
