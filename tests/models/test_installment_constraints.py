@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 from django.db.utils import IntegrityError
 
-from app.models import Transaction
+from app.models import Nature, Transaction
 
 
 @pytest.mark.parametrize('value', [Decimal('0.00'), Decimal('-10.00')])
@@ -49,3 +49,11 @@ def test_transacao_avulsa_nao_carrega_parcela(make_transaction):
     transacao.save()
     assert transacao.installment_id is None
     assert transacao.parcel is None
+
+
+def test_parcela_fora_da_natureza_normal_e_recusada(make_installment):
+    parcelamento = make_installment()
+    parcelamento.save()
+    parcela = parcelamento.transactions.order_by('parcel').first()
+    with pytest.raises(IntegrityError):
+        Transaction.objects.filter(pk=parcela.pk).update(nature=Nature.INTERNAL)

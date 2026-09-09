@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 from django.db.utils import IntegrityError
 
-from app.models import Transaction, Type
+from app.models import Nature, Transaction, Type
 
 
 @pytest.mark.parametrize('value', [Decimal('0.00'), Decimal('-10.00')])
@@ -38,3 +38,11 @@ def test_transacao_nao_vem_de_duas_origens(make_transfer, make_installment, cred
     parcela = parcelamento.transactions.first()
     with pytest.raises(IntegrityError):
         Transaction.objects.filter(pk=parcela.pk).update(transfer=transferencia)
+
+
+def test_perna_fora_da_natureza_interna_e_recusada(make_transfer):
+    transferencia = make_transfer()
+    transferencia.save()
+    saida = transferencia.transactions.get(type=Type.OUT)
+    with pytest.raises(IntegrityError):
+        Transaction.objects.filter(pk=saida.pk).update(nature=Nature.REGULAR)

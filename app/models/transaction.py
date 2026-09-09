@@ -109,6 +109,16 @@ class Transaction(models.Model):
                 name='transaction_single_origin',
                 violation_error_message='Uma transação vem de um parcelamento ou de uma transferência, nunca dos dois.',
             ),
+            models.CheckConstraint(
+                condition=models.Q(installment__isnull=True) | models.Q(nature=Nature.REGULAR),
+                name='transaction_parcel_is_regular',
+                violation_error_message=f'A parcela de um parcelamento é sempre de natureza {Nature.REGULAR.label}.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(transfer__isnull=True) | models.Q(nature=Nature.INTERNAL),
+                name='transaction_transfer_leg_is_internal',
+                violation_error_message=f'A perna de uma transferência é sempre de natureza {Nature.INTERNAL.label}.',
+            ),
         ]
         indexes = [
             models.Index(fields=['user', '-effective_at'], name='transaction_effective_at_idx'),
