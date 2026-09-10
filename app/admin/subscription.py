@@ -38,6 +38,11 @@ class SubscriptionAdmin(VersionAdmin):
     readonly_fields = ('created_at', 'updated_at')
     inlines = (PeriodInline, ChargeInline)
 
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.transactions.exists():
+            return Subscription.LOCKED_AFTER_CHARGES + self.readonly_fields
+        return self.readonly_fields
+
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('periods')
 

@@ -30,6 +30,8 @@ class Subscription(models.Model):
     METHOD = Method.CREDIT
     NATURE = Nature.REGULAR
 
+    LOCKED_AFTER_CHARGES = ('user', 'account', 'card', 'category', 'description', 'recurrence')
+
     def clean(self):
         super().clean()
         if self.account_id and not BusinessRule.objects.filter(account=self.account, type=self.TYPE, method=self.METHOD).exists():
@@ -39,6 +41,23 @@ class Subscription(models.Model):
                 raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})
             if self.user_id and self.card.user_id != self.user_id:
                 raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
+        erros = {
+            campo: 'Com cobranças lançadas, este campo não pode mais ser alterado.'
+            for campo in self.changed_after_charges()
+        }
+        if erros:
+            raise ValidationError(erros)
+
+    def changed_after_charges(self):
+        if not self.pk or not self.transactions.exists():
+            return []
+
+        anterior = Subscription.objects.get(pk=self.pk)
+
+        return [
+            campo for campo in self.LOCKED_AFTER_CHARGES
+            if getattr(self, self._meta.get_field(campo).attname) != getattr(anterior, self._meta.get_field(campo).attname)
+        ]
 
     @property
     def interval(self):

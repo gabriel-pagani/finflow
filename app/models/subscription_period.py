@@ -32,6 +32,17 @@ class SubscriptionPeriod(models.Model):
             for irmao in irmaos:
                 if self.overlaps(irmao):
                     raise ValidationError({'started_at': f'Este período se sobrepõe ao que começou em {irmao.started_at:%d/%m/%Y}.'})
+        if self.pk:
+            anterior = SubscriptionPeriod.objects.get(pk=self.pk)
+            if self.started_at != anterior.started_at and anterior.charges().exists():
+                raise ValidationError({'started_at': 'Com cobranças lançadas, a data da primeira cobrança não pode mais ser alterada.'})
+
+    def charges(self):
+        charges = self.subscription.transactions.filter(occurred_at__gte=self.started_at)
+        if self.cancelled_at:
+            charges = charges.filter(occurred_at__lte=self.cancelled_at)
+
+        return charges
 
     def overlaps(self, other):
         fim = self.cancelled_at or date.max
