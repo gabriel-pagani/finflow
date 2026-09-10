@@ -14,6 +14,14 @@ class TransactionAdmin(VersionAdmin):
     date_hierarchy = 'effective_at'
     ordering = ('-effective_at', '-id')
     readonly_fields = ('installment', 'parcel', 'transfer', 'subscription', 'reference', 'effective_at', 'created_at', 'updated_at')
+    fieldsets = (
+        (None, {
+            'fields': ('user', 'account', 'card', 'type', 'method', 'nature', 'category', 'description', 'value', 'occurred_at', 'effective_at', 'created_at', 'updated_at',)
+        }),
+        ('Origens', {
+            'fields': ('installment', 'parcel', 'transfer', 'subscription', 'reference')
+        }),
+    )
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.is_derived:
