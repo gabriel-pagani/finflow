@@ -2,7 +2,6 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
 from django.db import models, transaction
 
 from ..utils.formatting import format_to_money
@@ -17,7 +16,7 @@ class Transfer(models.Model):
     origin = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='transfers_out', verbose_name='Conta de Origem')
     destination = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='transfers_in', verbose_name='Conta de Destino')
     description = models.CharField(max_length=200, blank=True, verbose_name='Descrição')
-    value = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], verbose_name='Valor')
+    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor')
     occurred_at = models.DateField(verbose_name='Data da Transferência')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data e Hora da Criação')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Data e Hora da Atualização')
@@ -32,8 +31,6 @@ class Transfer(models.Model):
 
     def clean(self):
         super().clean()
-        if self.origin_id and self.destination_id and self.origin_id == self.destination_id:
-            raise ValidationError({'destination': 'A conta de destino deve ser diferente da conta de origem.'})
         if self.origin_id and not BusinessRule.objects.filter(account=self.origin, type=self.ORIGIN_TYPE, method=self.ORIGIN_METHOD).exists():
             raise ValidationError({'origin': f'A conta de origem não permite {self.ORIGIN_TYPE.label.lower()} em {self.ORIGIN_METHOD.label}, necessário para registrar a transferência.'})
         if self.destination_id and not BusinessRule.objects.filter(account=self.destination, type=self.DESTINATION_TYPE, method=self.DESTINATION_METHOD).exists():
