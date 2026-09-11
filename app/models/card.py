@@ -3,7 +3,6 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 
 from .account import Account
@@ -14,9 +13,9 @@ from .choices import Method, Type
 class Card(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cards', verbose_name='Usuário')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='cards', verbose_name='Conta')
-    last_digits = models.CharField(max_length=4, validators=[RegexValidator(r'^\d{4}$', 'Informe exatamente os quatro últimos dígitos.')], verbose_name='Últimos Quatro Dígitos')
-    closing_day = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name='Dia de Fechamento')
-    due_day = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name='Dia de Vencimento')
+    last_digits = models.CharField(max_length=4, verbose_name='Últimos Quatro Dígitos')
+    closing_day = models.PositiveSmallIntegerField(verbose_name='Dia de Fechamento')
+    due_day = models.PositiveSmallIntegerField(verbose_name='Dia de Vencimento')
 
     TYPE = Type.OUT
     METHOD = Method.CREDIT
@@ -47,7 +46,16 @@ class Card(models.Model):
     class Meta:
         ordering = ['account__description', 'last_digits']
         constraints = [
-            models.UniqueConstraint(fields=['user', 'account', 'last_digits'], name='card_unique_user_account_digits'),
+            models.UniqueConstraint(
+                fields=['user', 'account', 'last_digits'],
+                name='card_unique_user_account_digits',
+                violation_error_message='Esse cartão já foi cadastrado.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(last_digits__regex=r'^\d{4}$'),
+                name='card_last_digits_four_numbers',
+                violation_error_message='Informe exatamente os últimos quatro dígitos do cartão.',
+            ),
             models.CheckConstraint(
                 condition=models.Q(closing_day__range=(1, 31)) & models.Q(due_day__range=(1, 31)),
                 name='card_days_within_month',
