@@ -36,6 +36,19 @@ class SubscriptionPeriod(models.Model):
             anterior = SubscriptionPeriod.objects.get(pk=self.pk)
             if self.started_at != anterior.started_at and anterior.charges().exists():
                 raise ValidationError({'started_at': 'Com cobranças lançadas, a data da primeira cobrança não pode mais ser alterada.'})
+            ultima = anterior.charges().aggregate(models.Max('occurred_at'))['occurred_at__max']
+            if self.cancelled_at and ultima and self.cancelled_at < ultima:
+                raise ValidationError({'cancelled_at': f'A última cobrança deste período caiu em {ultima:%d/%m/%Y}. O encerramento não pode ser anterior a ela.'})
+
+    def delete(self, *args, **kwargs):
+        if self.has_charges():
+            raise ValidationError('Com cobranças lançadas, o período não pode mais ser apagado.')
+        return super().delete(*args, **kwargs)
+
+    def has_charges(self):
+        gravado = SubscriptionPeriod.objects.filter(pk=self.pk).first() if self.pk else None
+
+        return gravado is not None and gravado.charges().exists()
 
     def charges(self):
         charges = self.subscription.transactions.filter(occurred_at__gte=self.started_at)

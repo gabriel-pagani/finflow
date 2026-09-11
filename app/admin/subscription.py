@@ -1,11 +1,24 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError
+from django.forms.models import BaseInlineFormSet
 from reversion.admin import VersionAdmin
 
 from app.models import Subscription, SubscriptionPeriod, Transaction
 
 
+class PeriodFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        # O erro vai para o formset porque o de uma linha marcada para exclusão
+        # é ignorado na validação, e o delete do model estouraria no salvamento.
+        for form in self.forms:
+            if self._should_delete_form(form) and form.instance.has_charges():
+                raise ValidationError(f'O período que começou em {form.initial["started_at"]:%d/%m/%Y} tem cobranças lançadas e não pode ser apagado.')
+
+
 class PeriodInline(admin.TabularInline):
     model = SubscriptionPeriod
+    formset = PeriodFormSet
     fields = ('started_at', 'cancelled_at')
     ordering = ('started_at',)
     extra = 0

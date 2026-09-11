@@ -107,6 +107,37 @@ def test_periodo_com_cobranca_ainda_pode_ser_encerrado(com_cobranca):
     assert SubscriptionPeriod.objects.get(pk=periodo.pk).cancelled_at == date(2026, 4, 30)
 
 
+def test_periodo_nao_encerra_antes_da_ultima_cobranca(com_cobranca):
+    periodo = com_cobranca.current_period
+    periodo.cancelled_at = date(2026, 3, 9)
+    with pytest.raises(ValidationError) as erro:
+        periodo.full_clean()
+    assert 'cancelled_at' in erro.value.error_dict
+
+
+def test_periodo_encerra_no_dia_da_ultima_cobranca(com_cobranca):
+    periodo = com_cobranca.current_period
+    periodo.cancelled_at = date(2026, 3, 10)
+    periodo.full_clean()
+
+
+def test_periodo_encerrado_nao_recua_o_encerramento_para_antes_da_ultima_cobranca(subscribe, credit_rule):
+    assinatura = subscribe(started_at=date(2026, 1, 10), cancelled_at=date(2026, 3, 20))
+    assinatura.generate_charges(date(2026, 6, 30))
+    periodo = assinatura.periods.get()
+    periodo.cancelled_at = date(2026, 2, 28)
+    with pytest.raises(ValidationError) as erro:
+        periodo.full_clean()
+    assert 'cancelled_at' in erro.value.error_dict
+
+
+def test_encerramento_retroativo_depois_de_apagar_a_cobranca(com_cobranca):
+    com_cobranca.transactions.get(reference=date(2026, 3, 1)).delete()
+    periodo = com_cobranca.current_period
+    periodo.cancelled_at = date(2026, 3, 9)
+    periodo.full_clean()
+
+
 def test_periodo_sem_cobranca_ainda_muda_a_data_de_inicio(subscribe, credit_rule):
     assinatura = subscribe(started_at=date(2030, 1, 10))
     periodo = assinatura.current_period
@@ -115,6 +146,63 @@ def test_periodo_sem_cobranca_ainda_muda_a_data_de_inicio(subscribe, credit_rule
     periodo.full_clean()
     periodo.save()
     assert SubscriptionPeriod.objects.get(pk=periodo.pk).started_at == date(2030, 2, 20)
+
+
+def test_periodo_com_cobranca_nao_pode_ser_apagado(com_cobranca):
+    periodo = com_cobranca.current_period
+    with pytest.raises(ValidationError):
+        periodo.delete()
+    assert SubscriptionPeriod.objects.filter(pk=periodo.pk).exists()
+
+
+def test_exclusao_do_periodo_olha_as_datas_gravadas(com_cobranca):
+    periodo = com_cobranca.current_period
+    periodo.started_at = date(2030, 1, 10)
+    assert not periodo.charges().exists()
+    with pytest.raises(ValidationError):
+        periodo.delete()
+    assert SubscriptionPeriod.objects.filter(pk=periodo.pk).exists()
+
+
+def test_periodo_sem_cobranca_pode_ser_apagado(subscribe, make_period, credit_rule):
+    assinatura = subscribe(started_at=date(2026, 1, 10), cancelled_at=date(2026, 2, 15))
+    futuro = make_period(assinatura, started_at=date(2030, 1, 10))
+    assinatura.generate_charges(date(2026, 3, 31))
+    assert not futuro.charges().exists()
+    futuro.delete()
+    assert list(assinatura.periods.values_list('started_at', flat=True)) == [date(2026, 1, 10)]
+
+
+def formset_excluindo(assinatura, periodo, admin_user):
+    request = RequestFactory().post('/')
+    request.user = admin_user
+    model_admin = django_admin.site.get_model_admin(Subscription)
+    inline = next(i for i in model_admin.get_inline_instances(request, assinatura) if i.model is SubscriptionPeriod)
+    data = {
+        'periods-TOTAL_FORMS': '1',
+        'periods-INITIAL_FORMS': '1',
+        'periods-0-id': str(periodo.pk),
+        'periods-0-subscription': str(assinatura.pk),
+        'periods-0-started_at': periodo.started_at.isoformat(),
+        'periods-0-cancelled_at': periodo.cancelled_at.isoformat() if periodo.cancelled_at else '',
+        'periods-0-DELETE': 'on',
+    }
+
+    return inline.get_formset(request, assinatura)(data, instance=assinatura)
+
+
+def test_admin_recusa_apagar_periodo_com_cobranca(com_cobranca, admin_user):
+    formset = formset_excluindo(com_cobranca, com_cobranca.current_period, admin_user)
+    assert not formset.is_valid()
+    assert 'cobranças lançadas' in formset.non_form_errors()[0]
+
+
+def test_admin_apaga_periodo_sem_cobranca(subscribe, credit_rule, admin_user):
+    assinatura = subscribe(started_at=date(2030, 1, 10))
+    formset = formset_excluindo(assinatura, assinatura.current_period, admin_user)
+    assert formset.is_valid(), formset.non_form_errors()
+    formset.save()
+    assert not assinatura.periods.exists()
 
 
 def test_cada_periodo_reconhece_as_proprias_cobrancas(subscribe, make_period, credit_rule):
