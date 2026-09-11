@@ -31,9 +31,9 @@ class Transfer(models.Model):
 
     def clean(self):
         super().clean()
-        if self.origin_id and not BusinessRule.objects.filter(account=self.origin, type=self.ORIGIN_TYPE, method=self.ORIGIN_METHOD).exists():
+        if self.origin_id and not BusinessRule.objects.filter(account_id=self.origin_id, type=self.ORIGIN_TYPE, method=self.ORIGIN_METHOD).exists():
             raise ValidationError({'origin': f'A conta de origem não permite {self.ORIGIN_TYPE.label.lower()} em {self.ORIGIN_METHOD.label}, necessário para registrar a transferência.'})
-        if self.destination_id and not BusinessRule.objects.filter(account=self.destination, type=self.DESTINATION_TYPE, method=self.DESTINATION_METHOD).exists():
+        if self.destination_id and not BusinessRule.objects.filter(account_id=self.destination_id, type=self.DESTINATION_TYPE, method=self.DESTINATION_METHOD).exists():
             raise ValidationError({'destination': f'A conta de destino não permite {self.DESTINATION_TYPE.label.lower()} em {self.DESTINATION_METHOD.label}, necessário para registrar a transferência.'})
 
     def generate_transactions(self):
