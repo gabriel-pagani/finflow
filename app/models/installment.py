@@ -2,7 +2,6 @@ from decimal import Decimal, ROUND_DOWN
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 
 from ..utils.dates import add_months
@@ -21,8 +20,8 @@ class Installment(models.Model):
     card = models.ForeignKey(Card, on_delete=models.RESTRICT, related_name='installments', verbose_name='Cartão')
     category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, related_name='installments', verbose_name='Categoria')
     description = models.CharField(max_length=200, blank=True, verbose_name='Descrição')
-    value = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], verbose_name='Valor Total')
-    installments = models.PositiveSmallIntegerField(validators=[MinValueValidator(2), MaxValueValidator(360)], verbose_name='Número de Parcelas')
+    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Total')
+    installments = models.PositiveSmallIntegerField(verbose_name='Número de Parcelas')
     occurred_at = models.DateField(verbose_name='Data da Compra')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data e Hora da Criação')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Data e Hora da Atualização')
@@ -35,12 +34,6 @@ class Installment(models.Model):
         super().clean()
         if self.account_id and not BusinessRule.objects.filter(account=self.account, type=self.TYPE, method=self.METHOD).exists():
             raise ValidationError({'account': f'A conta não permite {self.TYPE.label.lower()} em {self.METHOD.label}, necessário para registrar as parcelas.'})
-        if self.installments is not None and not 2 <= self.installments <= 360:
-            raise ValidationError({'installments': 'Um parcelamento deve ter de 2 a 360 parcelas.'})
-        if self.value is not None and self.installments:
-            minimum = Decimal('0.01') * self.installments
-            if self.value < minimum:
-                raise ValidationError({'installments': f'Um parcelamento em {self.installments}x exige um valor de ao menos {format_to_money(minimum)}, para nenhuma parcela ficar zerada.'})
         if self.card_id:
             if self.account_id and self.card.account_id != self.account_id:
                 raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})

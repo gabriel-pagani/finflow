@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 import pytest
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 
 from app.models import Account, BusinessRule, Method, Type
 
@@ -23,7 +23,7 @@ def test_conta_sem_regra_de_credito_e_recusada(make_installment, db):
 def test_numero_de_parcelas_fora_da_faixa_e_recusado(make_installment, credit_rule, installments):
     with pytest.raises(ValidationError) as erro:
         make_installment(installments=installments).full_clean()
-    assert 'installments' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
 @pytest.mark.parametrize('installments', [2, 360])
@@ -35,7 +35,7 @@ def test_valor_que_zera_uma_parcela_e_recusado(make_installment, credit_rule):
     """R$ 1,00 em 101x daria parcelas de zero, que a transação não aceitaria."""
     with pytest.raises(ValidationError) as erro:
         make_installment(value=Decimal('1.00'), installments=101).full_clean()
-    assert 'installments' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
 def test_valor_que_cobre_exatamente_um_centavo_por_parcela_e_aceito(make_installment, credit_rule):
