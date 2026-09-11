@@ -5,8 +5,7 @@ from .category import Category
 from .choices import Method, Nature, Recurrence, Type
 from .group import Group
 from .installment import Installment
-from .subscription import Subscription
-from .subscription_period import SubscriptionPeriod
+from .subscription import Subscription, SubscriptionPeriod
 from .transaction import Transaction
 from .transfer import Transfer
 from .user import User
