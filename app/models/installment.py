@@ -32,7 +32,7 @@ class Installment(models.Model):
 
     def clean(self):
         super().clean()
-        if self.account_id and not BusinessRule.objects.filter(account=self.account, type=self.TYPE, method=self.METHOD).exists():
+        if self.account_id and not BusinessRule.objects.filter(account_id=self.account_id, type=self.TYPE, method=self.METHOD).exists():
             raise ValidationError({'account': f'A conta não permite {self.TYPE.label.lower()} em {self.METHOD.label}, necessário para registrar as parcelas.'})
         if self.card_id:
             if self.account_id and self.card.account_id != self.account_id:
