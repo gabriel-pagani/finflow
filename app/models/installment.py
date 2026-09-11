@@ -87,11 +87,6 @@ class Installment(models.Model):
         ordering = ['-occurred_at', '-id']
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(value__gte=Decimal('0.01')),
-                name='installment_value_positive',
-                violation_error_message='O valor deve ser maior que zero.',
-            ),
-            models.CheckConstraint(
                 condition=models.Q(installments__range=(2, 360)),
                 name='installment_parcels_within_range',
                 violation_error_message='Um parcelamento deve ter de 2 a 360 parcelas.',
