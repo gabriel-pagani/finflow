@@ -73,6 +73,7 @@ services:
     image: ${PROJECT_NAME:-finflow}-django-tests
     volumes:
       - ../app:/app/app
+      - ../assistant:/app/assistant
       - ../tests:/app/tests
     env_file:
       - .env
