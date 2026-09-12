@@ -20,5 +20,6 @@ class User(AbstractUser):
                 Lower('email'),
                 condition=models.Q(email__isnull=False) & ~models.Q(email=''),
                 name='user_unique_email_case_insensitive',
+                violation_error_message='Já existe um usuário com este e-mail.',
             ),
         ]

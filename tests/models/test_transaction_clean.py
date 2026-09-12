@@ -2,7 +2,7 @@
 import pytest
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 
-from app.models import Method, Nature
+from app.models import BusinessRule, Method, Nature, Type
 
 
 def test_transacao_valida_passa(make_transaction):
@@ -38,9 +38,10 @@ def test_cartao_de_outro_usuario_e_recusado(make_transaction, credit_rule, other
     assert 'card' in erro.value.error_dict
 
 
-def test_categoria_fora_da_natureza_normal_e_recusada(make_transaction, category):
+def test_categoria_fora_da_natureza_normal_e_recusada(make_transaction, account, category):
+    BusinessRule.objects.create(account=account, type=Type.OUT, method=Method.NOT_APPLICABLE)
     with pytest.raises(ValidationError) as erro:
-        make_transaction(nature=Nature.INTERNAL, category=category).full_clean()
+        make_transaction(nature=Nature.ADJUSTMENT, method=Method.NOT_APPLICABLE, category=category).full_clean()
     assert NON_FIELD_ERRORS in erro.value.error_dict
 
 

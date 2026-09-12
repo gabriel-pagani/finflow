@@ -30,7 +30,7 @@ def test_cartao_fora_do_credito_e_recusado(make_transaction, card):
 
 def test_categoria_fora_da_natureza_normal_e_recusada(make_transaction, category):
     with pytest.raises(IntegrityError):
-        make_transaction(nature=Nature.INTERNAL, category=category).save()
+        make_transaction(nature=Nature.ADJUSTMENT, method=Method.NOT_APPLICABLE, category=category).save()
 
 
 @pytest.mark.parametrize('campo, valor', [
@@ -56,3 +56,21 @@ def test_data_efetiva_antes_da_transacao_e_recusada(make_transaction):
     transacao.save()
     with pytest.raises(IntegrityError):
         Transaction.objects.filter(pk=transacao.pk).update(effective_at=transacao.occurred_at - timedelta(days=1))
+
+
+def test_ajuste_com_metodo_e_recusado(make_transaction):
+    with pytest.raises(IntegrityError):
+        make_transaction(nature=Nature.ADJUSTMENT).save()
+
+
+def test_ajuste_sem_metodo_e_aceito(make_transaction):
+    transacao = make_transaction(nature=Nature.ADJUSTMENT, method=Method.NOT_APPLICABLE)
+    transacao.save()
+    assert transacao.pk
+
+
+def test_data_efetiva_adiada_fora_do_credito_e_recusada(make_transaction):
+    transacao = make_transaction()
+    transacao.save()
+    with pytest.raises(IntegrityError):
+        Transaction.objects.filter(pk=transacao.pk).update(effective_at=transacao.occurred_at + timedelta(days=30))

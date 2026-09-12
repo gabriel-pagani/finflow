@@ -104,6 +104,11 @@ class Transaction(models.Model):
                 violation_error_message=f'Apenas transações com natureza {Nature.REGULAR.label} recebem categoria.',
             ),
             models.CheckConstraint(
+                condition=~models.Q(nature=Nature.ADJUSTMENT) | models.Q(method=Method.NOT_APPLICABLE),
+                name='transaction_adjustment_without_method',
+                violation_error_message=f'Um ajuste de saldo não tem método, use {Method.NOT_APPLICABLE.label}.',
+            ),
+            models.CheckConstraint(
                 condition=(
                     models.Q(installment__isnull=False, parcel__isnull=False)
                     | models.Q(installment__isnull=True, parcel__isnull=True)
@@ -120,6 +125,11 @@ class Transaction(models.Model):
                 condition=models.Q(effective_at__gte=models.F('occurred_at')),
                 name='transaction_effective_after_occurrence',
                 violation_error_message='A data efetiva não pode ser anterior à data da transação.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(method=Method.CREDIT) | models.Q(effective_at=models.F('occurred_at')),
+                name='transaction_effective_equals_occurrence_outside_credit',
+                violation_error_message=f'Fora do {Method.CREDIT.label}, a data efetiva é a própria data da transação.',
             ),
             models.UniqueConstraint(
                 fields=['installment', 'parcel'],
@@ -142,9 +152,26 @@ class Transaction(models.Model):
                 violation_error_message=f'A parcela de um parcelamento é sempre de natureza {Nature.REGULAR.label}.',
             ),
             models.CheckConstraint(
-                condition=models.Q(transfer__isnull=True) | models.Q(nature=Nature.INTERNAL),
-                name='transaction_transfer_leg_is_internal',
-                violation_error_message=f'A perna de uma transferência é sempre de natureza {Nature.INTERNAL.label}.',
+                condition=models.Q(installment__isnull=True) | models.Q(type=Type.OUT, method=Method.CREDIT),
+                name='transaction_parcel_is_credit_expense',
+                violation_error_message=f'A parcela de um parcelamento é sempre {Type.OUT.label.lower()} em {Method.CREDIT.label}.',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(transfer__isnull=False, nature=Nature.INTERNAL)
+                    | (models.Q(transfer__isnull=True) & ~models.Q(nature=Nature.INTERNAL))
+                ),
+                name='transaction_internal_only_within_transfer',
+                violation_error_message=f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(transfer__isnull=True)
+                    | models.Q(type=Type.OUT, method=Method.DEBIT)
+                    | models.Q(type=Type.IN, method=Method.NOT_APPLICABLE)
+                ),
+                name='transaction_transfer_leg_methods',
+                violation_error_message='A saída da transferência é em débito e a entrada não se aplica.',
             ),
         ]
         indexes = [
