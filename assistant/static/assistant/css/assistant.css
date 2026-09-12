@@ -1,0 +1,247 @@
+/* Chat do assistente: .assistant-floating é o atalho no canto da janela,
+   .assistant-embedded é a página, onde o painel é o conteúdo. */
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.assistant-toggle {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    box-shadow: 0 6px 20px rgb(31 36 48 / 25%);
+    z-index: 40;
+}
+
+.assistant-toggle img {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.assistant-panel {
+    position: fixed;
+    right: 24px;
+    bottom: 92px;
+    z-index: 40;
+    width: min(420px, calc(100vw - 32px));
+    height: min(620px, calc(100vh - 140px));
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgb(31 36 48 / 18%);
+    overflow: hidden;
+}
+
+.assistant-panel header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.assistant-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.assistant-actions button {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.assistant-messages {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Item de flex encolhe abaixo do conteúdo quando a coluna enche; a conversa
+   rola, ela não se espreme. */
+.assistant-messages > * {
+    flex-shrink: 0;
+}
+
+.assistant-message {
+    max-width: 85%;
+    padding: 8px 11px;
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+}
+
+.assistant-message.user,
+.assistant-message.error,
+.assistant-message.empty {
+    white-space: pre-wrap;
+}
+
+.assistant-message p + p,
+.assistant-message p + ul,
+.assistant-message p + ol,
+.assistant-message ul + p,
+.assistant-message ol + p {
+    margin-top: 8px;
+}
+
+.assistant-message ul,
+.assistant-message ol {
+    margin: 4px 0 0;
+    padding-left: 20px;
+    list-style: revert;
+}
+
+.assistant-message li {
+    margin-bottom: 2px;
+}
+
+.assistant-message strong {
+    font-weight: 600;
+}
+
+.assistant-message em {
+    font-style: italic;
+}
+
+.assistant-message code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.92em;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--muted) 15%, transparent);
+}
+
+.assistant-message.user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: #fff;
+}
+
+.assistant-message.assistant {
+    align-self: flex-start;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.assistant-message.error {
+    align-self: stretch;
+    background: color-mix(in srgb, var(--outcome) 10%, var(--surface));
+    border: 1px solid var(--outcome);
+    color: var(--outcome);
+}
+
+.assistant-message.empty {
+    align-self: center;
+    color: var(--muted);
+    text-align: center;
+    max-width: 100%;
+}
+
+.assistant-status {
+    align-self: flex-start;
+    color: var(--muted);
+    font-size: 12px;
+    font-style: italic;
+    padding: 0 4px;
+}
+
+.assistant-composer {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.assistant-composer textarea {
+    flex: 1;
+    min-width: 0;
+    min-height: 38px;
+    max-height: 120px;
+    font: inherit;
+    line-height: 20px;
+    padding: 8px 10px;
+    resize: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    box-sizing: border-box;
+}
+
+.assistant-composer button {
+    height: 38px;
+    align-self: flex-end;
+}
+
+.assistant-panel[data-busy="true"] .assistant-composer button,
+.assistant-panel[data-busy="true"] .assistant-composer textarea {
+    opacity: .6;
+    pointer-events: none;
+}
+
+/* Página do assistente ---------------------------------------------------- */
+
+.assistant-embedded {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Conversa se lê numa coluna: numa tela larga as bolhas ficariam a meio palmo
+   uma da outra. */
+.assistant-embedded .assistant-panel {
+    position: static;
+    height: auto;
+    flex: 1;
+    min-height: 0;
+    box-shadow: none;
+    width: auto;
+    max-width: 860px;
+    margin-inline: auto;
+}
+
+/* Presa à janela, para quem rola ser a conversa e não a página inteira com o
+   compositor junto. */
+body.page-assistant {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+}
+
+@media (max-width: 768px) {
+    /* No celular o atalho sai: a página do assistente já é o painel em tela
+       cheia, com endereço próprio. */
+    .assistant-floating {
+        display: none;
+    }
+
+    body.page-assistant {
+        height: var(--assistant-viewport, 100dvh);
+    }
+
+    .assistant-actions button {
+        height: 36px;
+        padding: 0 12px;
+    }
+}

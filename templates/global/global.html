@@ -7,6 +7,7 @@
     <link rel="icon" href="{% static 'global/images/black-favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'global/css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'global/css/global.css' %}">
+    {% if perms.assistant.use_assistant %}<link rel="stylesheet" href="{% static 'assistant/css/assistant.css' %}">{% endif %}
     {% block styles %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -22,6 +23,7 @@
                 <a href="{% url 'app:forecast' %}"{% if route == 'forecast' %} class="active"{% endif %}>Previsão</a>
                 <a href="{% url 'app:transactions_list' %}"{% if 'transaction' in route or 'installment' in route or 'transfer' in route %} class="active"{% endif %}>Transações</a>
                 <a href="{% url 'app:cards_list' %}"{% if 'card' in route %} class="active"{% endif %}>Cartões</a>
+                {% if perms.assistant.use_assistant %}<a href="{% url 'assistant:page' %}"{% if request.resolver_match.app_name == 'assistant' %} class="active"{% endif %}>Assistente</a>{% endif %}
             </nav>
             {% endwith %}
             <form class="logout" method="post" action="{% url 'app:logout' %}">
@@ -43,6 +45,11 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+
+    {% if perms.assistant.use_assistant %}
+        {% if not assistant_page %}{% include 'assistant/panel.html' %}{% endif %}
+        <script src="{% static 'assistant/js/assistant.js' %}"></script>
+    {% endif %}
 
     {% block scripts %}{% endblock %}
 </body>

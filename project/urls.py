@@ -8,5 +8,6 @@ admin.site.index_title = "Painel de Controle"
 
 urlpatterns = [
     path('', include('app.urls', namespace='app')),
+    path('assistant/', include('assistant.urls', namespace='assistant')),
     path(F'{settings.ADMIN_PANEL_PATH}/', admin.site.urls),
 ]

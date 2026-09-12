@@ -1,0 +1,9 @@
+{% extends 'global/global.html' %}
+
+{% block title %}Assistente - FinFlow{% endblock %}
+
+{% block body_class %}page-fill page-assistant{% endblock %}
+
+{% block content %}
+    {% include 'assistant/panel.html' with embedded=True %}
+{% endblock %}
