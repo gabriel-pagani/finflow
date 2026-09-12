@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.urls import reverse
 
+from assistant import client as client_module
 from assistant.client import HISTORY_LIMIT, MAX_ROUNDS, converse, history
 from assistant.models import Conversation, Message, Role
 
@@ -59,6 +60,24 @@ def test_json_quebrado_volta_como_erro(user, fake_openai):
     list(converse(conversa, user, 'Oi'))
 
     assert json.loads(conversa.messages.filter(role=Role.TOOL).get().content)['ok'] is False
+
+
+def test_chamada_identica_a_uma_que_falhou_nao_roda_de_novo(user, fake_openai, monkeypatch):
+    conversa = Conversation.objects.create(user=user)
+    executadas = []
+    original = client_module.execute
+    monkeypatch.setattr('assistant.client.execute', lambda call, *args: executadas.append(call) or original(call, *args))
+    fake_openai.turns.extend([
+        fake_openai.tool_turn('analisar_transacoes', '{"start": "ontem"}', call_id='call_1'),
+        fake_openai.tool_turn('analisar_transacoes', '{"start": "ontem"}', call_id='call_2'),
+        fake_openai.text_turn('Qual período?'),
+    ])
+
+    list(converse(conversa, user, 'Quanto gastei?'))
+
+    assert len(executadas) == 1
+    saidas = [json.loads(message.content) for message in conversa.messages.filter(role=Role.TOOL)]
+    assert 'idêntica' in saidas[1]['error']
 
 
 def test_modelo_em_laco_para_no_teto(user, fake_openai):

@@ -131,6 +131,10 @@ def converse(conversation, user, text, upload=None):
     message.items = [attachments.user_item(text, attachment)]
     message.save(update_fields=['items'])
 
+    # Chamada idêntica a uma que já falhou nesta mensagem daria o mesmo erro, e
+    # repeti-la só consome as rodadas até o teto.
+    failed = set()
+
     for _ in range(MAX_ROUNDS):
         try:
             stream = client().responses.create(
@@ -164,7 +168,13 @@ def converse(conversation, user, text, upload=None):
         for call in calls:
             yield {'type': 'tool', 'name': call.get('name', '')}
 
-            payload, proposal = execute(call, user, today, conversation)
+            signature = (call.get('name'), call.get('arguments'))
+            if signature in failed:
+                payload, proposal = {'ok': False, 'error': 'Chamada idêntica a uma que já falhou nesta mensagem; não foi executada de novo. Corrija o que o erro apontou ou explique ao usuário o que falta.'}, None
+            else:
+                payload, proposal = execute(call, user, today, conversation)
+                if payload.get('ok') is False:
+                    failed.add(signature)
             result = json.dumps(payload, ensure_ascii=False, default=str)
             Message.objects.create(
                 conversation=conversation,
