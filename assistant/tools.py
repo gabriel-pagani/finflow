@@ -92,8 +92,8 @@ TOOLS = [
     ),
     function(
         'listar_transacoes',
-        'Transações uma a uma, com ids, datas, rótulos e a origem (parcelamento ou transferência). Traz a '
-        'contagem do recorte inteiro. Não some a lista: para totais use '
+        'Transações uma a uma, com ids, datas, rótulos e a origem (installment_id do parcelamento ou '
+        'transfer_id da transferência). Traz a contagem do recorte inteiro. Não some a lista: para totais use '
         'analisar_transacoes. Filtro null não filtra.',
         {
             **FILTERS,
@@ -117,7 +117,7 @@ TOOLS = [
         'closing_day': {'type': 'integer', 'description': 'Dia do fechamento da fatura, de 1 a 31.'},
         'due_day': {'type': 'integer', 'description': 'Dia do vencimento da fatura, de 1 a 31.'},
     }),
-    proposal('propor_transacao', Kind.TRANSACTION, f'Cria, edita ou apaga uma transação avulsa. Parcela e perna de transferência não passam por aqui. {EDIT_RULE}', {
+    proposal('propor_transacao', Kind.TRANSACTION, f'Cria, edita ou apaga uma transação avulsa pelo id dela. Parcela e perna de transferência não passam por aqui. {EDIT_RULE}', {
         'occurred_at': OCCURRED_AT,
         'account': {'type': 'integer', 'description': 'Id da conta.'},
         'type': {'type': 'string', 'enum': queries.Type.values, 'description': 'IN entrada, OUT saída.'},
@@ -128,7 +128,7 @@ TOOLS = [
         'description': DESCRIPTION,
         'value': VALUE,
     }, clearable=('category', 'description')),
-    proposal('propor_parcelamento', Kind.INSTALLMENT, 'Cria ou apaga uma compra parcelada no crédito. Apagar leva junto todas as parcelas.', {
+    proposal('propor_parcelamento', Kind.INSTALLMENT, 'Cria ou apaga uma compra parcelada no crédito. Para apagar, o id é o installment_id da listagem, não o id de uma parcela. Apagar leva junto todas as parcelas.', {
         'occurred_at': OCCURRED_AT,
         'account': {'type': 'integer', 'description': 'Id da conta.'},
         'card': {'type': 'integer', 'description': 'Id do cartão, da mesma conta.'},
@@ -137,7 +137,7 @@ TOOLS = [
         'value': {'type': 'string', 'description': 'Valor TOTAL da compra, não o da parcela, com ponto decimal.'},
         'installments': {'type': 'integer', 'description': 'Número de parcelas, de 2 a 360.'},
     }),
-    proposal('propor_transferencia', Kind.TRANSFER, 'Cria ou apaga uma transferência entre duas contas do usuário. Apagar leva junto as duas transações.', {
+    proposal('propor_transferencia', Kind.TRANSFER, 'Cria ou apaga uma transferência entre duas contas do usuário. Para apagar, o id é o transfer_id da listagem, não o id de uma das pernas. Apagar leva junto as duas transações.', {
         'occurred_at': OCCURRED_AT,
         'origin': {'type': 'integer', 'description': 'Id da conta de origem.'},
         'destination': {'type': 'integer', 'description': 'Id da conta de destino, diferente da origem.'},

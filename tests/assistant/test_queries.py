@@ -170,7 +170,7 @@ def test_lista_identifica_a_origem_da_parcela(user, make_installment):
 
     rows = list_transactions(user, {'order': 'oldest'})['transactions']
 
-    assert rows[0]['origin'] == {'kind': 'installment', 'id': parcelamento.pk, 'parcel': 1, 'parcels': 3}
+    assert rows[0]['origin'] == {'kind': 'installment', 'installment_id': parcelamento.pk, 'parcel': 1, 'parcels': 3}
 
 
 def test_saldo_segue_a_visao_geral(user, account, other_account, card, make_transaction):

@@ -333,9 +333,9 @@ def analyze_transactions(user, arguments):
 def serialize_transaction(transaction):
     origin = None
     if transaction.installment_id:
-        origin = {'kind': 'installment', 'id': transaction.installment_id, 'parcel': transaction.parcel, 'parcels': transaction.installment.installments}
+        origin = {'kind': 'installment', 'installment_id': transaction.installment_id, 'parcel': transaction.parcel, 'parcels': transaction.installment.installments}
     elif transaction.transfer_id:
-        origin = {'kind': 'transfer', 'id': transaction.transfer_id}
+        origin = {'kind': 'transfer', 'transfer_id': transaction.transfer_id}
 
     return {
         'id': transaction.pk,

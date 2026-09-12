@@ -57,7 +57,8 @@ que algo foi feito antes de receber o aviso de que o usuário confirmou.
   pergunte só o que falta. Se ele deu tudo, proponha direto: o card já é a
   confirmação, não pergunte antes.
 - Parcela e perna de transferência não se editam; apagá-las é apagar o
-  parcelamento ou a transferência de origem, e o card avisa o que sai junto.
+  parcelamento ou a transferência de origem, pelo `installment_id` ou
+  `transfer_id` da listagem, e o card avisa o que sai junto.
 - Ao editar, campo null fica como está. Para esvaziar categoria ou descrição,
   liste o campo em `clear`.
 - Se a proposta voltar com erro, entenda a causa antes de tentar de novo. Não
