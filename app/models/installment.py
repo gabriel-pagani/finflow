@@ -1,7 +1,7 @@
 from decimal import Decimal, ROUND_DOWN
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import models, transaction
 
 from ..utils.dates import add_months
@@ -32,13 +32,22 @@ class Installment(models.Model):
 
     def clean(self):
         super().clean()
+        errors = {}
+
         if self.account_id and not BusinessRule.objects.filter(account_id=self.account_id, type=self.TYPE, method=self.METHOD).exists():
-            raise ValidationError({'account': f'A conta não permite {self.TYPE.label.lower()} em {self.METHOD.label}, necessário para registrar as parcelas.'})
+            errors['account'] = f'A conta não permite {self.TYPE.label.lower()} em {self.METHOD.label}, necessário para registrar as parcelas.'
+
         if self.card_id:
+            card = []
             if self.account_id and self.card.account_id != self.account_id:
-                raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})
+                card.append('O cartão escolhido pertence a outra conta.')
             if self.user_id and self.card.user_id != self.user_id:
-                raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
+                card.append('O cartão escolhido pertence a outro usuário.')
+            if card:
+                errors['card'] = card
+
+        if errors:
+            raise ValidationError(errors)
 
     def parcel_values(self):
         """Divide o total em parcelas iguais, com a sobra dos centavos na última."""

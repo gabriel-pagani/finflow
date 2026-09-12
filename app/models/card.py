@@ -2,7 +2,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import models
 
 from .account import Account
@@ -24,12 +24,18 @@ class Card(models.Model):
 
     def clean(self):
         super().clean()
+        errors = {}
+
         if self.account_id and not BusinessRule.objects.filter(account_id=self.account_id, type=self.TYPE, method=self.METHOD).exists():
-            raise ValidationError({'account': f'A conta não permite {self.TYPE.label.lower()} em {self.METHOD.label}, necessário para registrar as compras do cartão.'})
+            errors['account'] = f'A conta não permite {self.TYPE.label.lower()} em {self.METHOD.label}, necessário para registrar as compras do cartão.'
+
         if self.pk and self.transactions.exists():
             anterior = Card.objects.get(pk=self.pk)
             if (self.user_id, self.account_id, self.last_digits) != (anterior.user_id, anterior.account_id, anterior.last_digits):
-                raise ValidationError('Esse cartão já tem transações registradas, apenas as datas de fechamento e vencimento podem ser alteradas.')
+                errors[NON_FIELD_ERRORS] = 'Esse cartão já tem transações registradas, apenas as datas de fechamento e vencimento podem ser alteradas.'
+
+        if errors:
+            raise ValidationError(errors)
 
     @staticmethod
     def _next_month(year, month):

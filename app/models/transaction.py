@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import models
 
 from ..utils.formatting import format_to_money
@@ -33,16 +33,26 @@ class Transaction(models.Model):
 
     def clean(self):
         super().clean()
+        errors = {}
+
         if self.nature == Nature.INTERNAL and not self.transfer_id:
-            raise ValidationError({'nature': f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.'})
+            errors['nature'] = f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.'
+
         if self.account_id and self.type and self.method:
             if not BusinessRule.objects.filter(account_id=self.account_id, type=self.type, method=self.method).exists():
-                raise ValidationError(f'A conta {self.account} não permite {self.get_type_display().lower()} em {self.get_method_display()}.')
+                errors[NON_FIELD_ERRORS] = f'A conta {self.account} não permite {self.get_type_display().lower()} em {self.get_method_display()}.'
+
         if self.card_id:
+            card = []
             if self.account_id and self.card.account_id != self.account_id:
-                raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})
+                card.append('O cartão escolhido pertence a outra conta.')
             if self.user_id and self.card.user_id != self.user_id:
-                raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
+                card.append('O cartão escolhido pertence a outro usuário.')
+            if card:
+                errors['card'] = card
+
+        if errors:
+            raise ValidationError(errors)
 
     def calculate_effective_at(self):
         if self.method == Method.CREDIT and self.card_id:
