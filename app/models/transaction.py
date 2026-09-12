@@ -37,7 +37,7 @@ class Transaction(models.Model):
             raise ValidationError({'nature': f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.'})
         if self.account_id and self.type and self.method:
             if not BusinessRule.objects.filter(account_id=self.account_id, type=self.type, method=self.method).exists():
-                raise ValidationError('Combinação de conta, tipo e método não permitida pelas regras de negócio.')
+                raise ValidationError(f'A conta {self.account} não permite {self.get_type_display().lower()} em {self.get_method_display()}.')
         if self.card_id:
             if self.account_id and self.card.account_id != self.account_id:
                 raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})

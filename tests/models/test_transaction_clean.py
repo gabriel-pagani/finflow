@@ -9,9 +9,10 @@ def test_transacao_valida_passa(make_transaction):
     make_transaction().full_clean()
 
 
-def test_combinacao_fora_das_regras_de_negocio_e_recusada(make_transaction):
-    with pytest.raises(ValidationError):
+def test_combinacao_fora_das_regras_de_negocio_e_recusada(make_transaction, account):
+    with pytest.raises(ValidationError) as erro:
         make_transaction(method=Method.NOT_APPLICABLE).full_clean()
+    assert erro.value.message_dict[NON_FIELD_ERRORS] == [f'A conta {account} não permite saída em {Method.NOT_APPLICABLE.label}.']
 
 
 def test_credito_sem_cartao_e_recusado(make_transaction, credit_rule):
