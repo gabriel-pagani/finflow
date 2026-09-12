@@ -4,7 +4,7 @@ from django.db.models import Value
 from django.views.generic.edit import CreateView, UpdateView
 
 from ..forms import InstallmentForm, TransactionForm, TransferForm
-from ..models import Installment, Method, Transaction, Transfer, Type
+from ..models import Installment, Method, Nature, Transaction, Transfer, Type
 from .mixins import FilteredTransactionsMixin, ModalDeleteView, ModalWriteMixin, OwnedListView
 
 
@@ -17,6 +17,7 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
         filters = super().get_filters()
         filters['type'] = [value for value in get.getlist('type') if value in Type.values]
         filters['method'] = [value for value in get.getlist('method') if value in Method.values]
+        filters['nature'] = [value for value in get.getlist('nature') if value in Nature.values]
         filters['search'] = get.get('search', '').strip()
         return filters
 
@@ -28,6 +29,8 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
             queryset = queryset.filter(type__in=filters['type'])
         if filters['method']:
             queryset = queryset.filter(method__in=filters['method'])
+        if filters['nature']:
+            queryset = queryset.filter(nature__in=filters['nature'])
         if filters['search']:
             queryset = queryset.annotate(
                 description_unaccent=Unaccent('description'),
@@ -40,6 +43,7 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
 
         context['types'] = Type.choices
         context['method_choices'] = Method.choices
+        context['nature_choices'] = Nature.choices
         context['search_enabled'] = True
 
         # Formulários dos modais de criação. Na edição o JS preenche os campos

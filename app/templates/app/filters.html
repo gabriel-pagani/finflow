@@ -24,6 +24,9 @@
         {% if method_choices %}
             {% include 'app/multiselect.html' with name='method' legend='Método' empty='Todos' choices=method_choices selected=filters.method %}
         {% endif %}
+        {% if nature_choices %}
+            {% include 'app/multiselect.html' with name='nature' legend='Natureza' empty='Todas' gender='f' choices=nature_choices selected=filters.nature %}
+        {% endif %}
 
         {% if search_enabled %}
             <label>

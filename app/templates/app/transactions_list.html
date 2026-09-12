@@ -22,6 +22,7 @@
                     <th>Conta</th>
                     <th>Tipo</th>
                     <th>Método</th>
+                    <th>Natureza</th>
                     <th>Categoria</th>
                     <th>Descrição</th>
                     <th class="right">Valor</th>
@@ -70,6 +71,7 @@
                             <td class="cell-outcome">{{ transaction.get_type_display }}</td>
                         {% endif %}
                         <td>{{ transaction.get_method_display }}</td>
+                        <td>{{ transaction.get_nature_display }}</td>
                         <td>{{ transaction.category_display }}</td>
                         <td>{{ transaction.description|default:'-' }}</td>
                         <td class="right {% if transaction.type == 'IN' %}cell-income{% else %}cell-outcome{% endif %}">{% if transaction.type == 'OUT' %}-{% endif %}{{ transaction.value|floatformat:2 }}</td>
@@ -94,7 +96,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="8">Nenhuma transação encontrada para os filtros selecionados.</td></tr>
+                    <tr><td colspan="9">Nenhuma transação encontrada para os filtros selecionados.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
