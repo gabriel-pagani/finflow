@@ -28,19 +28,16 @@ class CardWriteMixin(ModalWriteMixin):
 
 class CardCreateView(CardWriteMixin, CreateView):
     success_message = 'Cartão cadastrado com sucesso.'
-    revision_comment = 'Criado pela tela de cartões.'
 
 
 class CardUpdateView(CardWriteMixin, UpdateView):
     success_message = 'Cartão atualizado com sucesso. O ciclo novo vale para as próximas compras; lançamentos já feitos mantêm a data que tinham.'
-    revision_comment = 'Editado pela tela de cartões.'
 
 
 class CardDeleteView(ModalDeleteView):
     model = Card
     list_route = 'app:cards_list'
     success_message = 'Cartão removido com sucesso.'
-    revision_comment = 'Removido pela tela de cartões.'
 
     def form_valid(self, form):
         if self.object.transactions.exists() or self.object.installments.exists():

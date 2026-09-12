@@ -61,12 +61,10 @@ class TransactionWriteMixin(ModalWriteMixin):
 
 class TransactionCreateView(TransactionWriteMixin, CreateView):
     success_message = 'Transação criada com sucesso.'
-    revision_comment = 'Criado pela tela de transações.'
 
 
 class TransactionUpdateView(TransactionWriteMixin, UpdateView):
     success_message = 'Transação atualizada com sucesso.'
-    revision_comment = 'Editado pela tela de transações.'
 
     def get_object(self, queryset=None):
         transaction = super().get_object(queryset)
@@ -77,7 +75,6 @@ class TransactionUpdateView(TransactionWriteMixin, UpdateView):
 
 class TransactionDeleteView(ModalDeleteView):
     model = Transaction
-    revision_comment = 'Removido pela tela de transações.'
     success_message = 'Transação removida com sucesso.'
 
     def get_target(self):
@@ -99,11 +96,9 @@ class InstallmentCreateView(ModalWriteMixin, CreateView):
     model = Installment
     form_class = InstallmentForm
     success_message = 'Parcelamento criado com sucesso.'
-    revision_comment = 'Criado pela tela de transações.'
 
 
 class TransferCreateView(ModalWriteMixin, CreateView):
     model = Transfer
     form_class = TransferForm
     success_message = 'Transferência criada com sucesso.'
-    revision_comment = 'Criado pela tela de transações.'

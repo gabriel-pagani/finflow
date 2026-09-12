@@ -7,7 +7,6 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import ListView
 from django.views.generic.edit import DeleteView
-import reversion
 
 from ..models import Account, Category, Nature, Transaction
 
@@ -75,7 +74,6 @@ class OwnedListView(LoginRequiredMixin, ListView):
 class ModalWriteMixin(LoginRequiredMixin):
     list_route = 'app:transactions_list'
     success_message = ''
-    revision_comment = ''
 
     def get_queryset(self):
         return super().get_queryset().filter(user=self.request.user)
@@ -105,10 +103,7 @@ class ModalWriteMixin(LoginRequiredMixin):
         return redirect(self.get_success_url())
 
     def form_valid(self, form):
-        with reversion.create_revision():
-            reversion.set_user(self.request.user)
-            reversion.set_comment(self.revision_comment)
-            response = super().form_valid(form)
+        response = super().form_valid(form)
 
         messages.success(self.request, self.success_message)
         return response
@@ -131,11 +126,6 @@ class ModalDeleteView(ModalWriteMixin, DeleteView):
 
     def form_valid(self, form):
         target = self.get_target()
-
-        with reversion.create_revision():
-            reversion.set_user(self.request.user)
-            reversion.set_comment(self.revision_comment)
-            reversion.add_to_revision(target)
 
         message = self.get_success_message()
         target.delete()
