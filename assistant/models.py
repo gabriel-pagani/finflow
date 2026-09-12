@@ -1,7 +1,11 @@
 from datetime import timedelta
+from pathlib import Path
+from uuid import uuid4
 
 from django.conf import settings
 from django.db import models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 
@@ -9,6 +13,11 @@ class Role(models.TextChoices):
     USER = 'user', 'Usuário'
     ASSISTANT = 'assistant', 'Assistente'
     TOOL = 'tool', 'Ferramenta'
+
+
+class AttachmentKind(models.TextChoices):
+    IMAGE = 'image', 'Imagem'
+    AUDIO = 'audio', 'Áudio'
 
 
 class Kind(models.TextChoices):
@@ -73,6 +82,42 @@ class Message(models.Model):
         ]
         verbose_name = 'Mensagem'
         verbose_name_plural = 'Mensagens'
+
+
+# O nome que veio do navegador não entra no caminho: é escolhido por quem envia.
+def attachment_path(instance, filename):
+    return f'assistant/{instance.message.conversation.user_id}/{uuid4().hex}{Path(filename).suffix}'
+
+
+class Attachment(models.Model):
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='attachment', verbose_name='Mensagem')
+    kind = models.CharField(max_length=10, choices=AttachmentKind.choices, verbose_name='Tipo')
+    file = models.FileField(upload_to=attachment_path, max_length=200, verbose_name='Arquivo')
+    # O tipo que a inspeção dos bytes confirmou, e não o que o navegador disse.
+    mime = models.CharField(max_length=60, verbose_name='Tipo de Conteúdo')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data e Hora da Criação')
+
+    def __str__(self):
+        return f'{self.get_kind_display()} de {self.message.conversation.user}'
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(kind__in=AttachmentKind.values),
+                name='attachment_kind_within_choices',
+                violation_error_message='O tipo precisa ser uma das opções previstas.',
+            ),
+        ]
+        verbose_name = 'Anexo'
+        verbose_name_plural = 'Anexos'
+
+
+# O Django não apaga o arquivo junto da linha, e limpar a conversa deixaria o
+# comprovante no volume.
+@receiver(post_delete, sender=Attachment)
+def remove_attachment_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
 
 
 class Proposal(models.Model):

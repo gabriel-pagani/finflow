@@ -11,7 +11,24 @@ function setupAssistant(root) {
     const list = root.querySelector('.assistant-messages');
     const form = root.querySelector('.assistant-composer');
     const input = form.querySelector('textarea');
+    const tray = form.querySelector('.assistant-attachment');
+    const fileInput = form.querySelector('.assistant-file');
+    const attachButton = form.querySelector('.assistant-attach');
+    const recordButton = form.querySelector('.assistant-record');
     const urls = root.dataset;
+
+    // O anexo escolhido ou gravado e ainda não enviado; um por mensagem.
+    let attachment = null;
+    // O gravador em curso; nulo é parado.
+    let recorder = null;
+
+    // Um cupom fotografado de perto é legível bem antes disso; o resto é tempo
+    // de upload no 4G.
+    const MAX_SIDE = 1600;
+
+    // Em ordem de preferência: o Chrome grava webm, o Safari só mp4. O servidor
+    // confere pelos bytes de qualquer jeito.
+    const AUDIO_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
 
     // Casa com o @media do CSS: no celular o foco automático sobe o teclado por
     // cima do que a pessoa abriu para ler.
@@ -95,7 +112,7 @@ function setupAssistant(root) {
         return html.join('');
     }
 
-    function bubble(role, text) {
+    function bubble(role, text, media) {
         const node = document.createElement('div');
         node.className = `assistant-message ${role}`;
 
@@ -103,12 +120,47 @@ function setupAssistant(root) {
             node.dataset.raw = text;
             node.innerHTML = renderMarkdown(text);
         } else {
-            node.textContent = text;
+            // Parágrafo próprio porque o áudio chega sem texto, e a transcrição
+            // só preenche depois.
+            const paragraph = document.createElement('p');
+            paragraph.className = 'text';
+            paragraph.textContent = text || '';
+            paragraph.hidden = !text;
+            node.appendChild(paragraph);
         }
+
+        if (media) node.appendChild(mediaNode(media));
 
         list.appendChild(node);
         scroll();
         return node;
+    }
+
+    function mediaNode(media) {
+        if (media.kind === 'image') {
+            const image = document.createElement('img');
+            image.className = 'assistant-photo';
+            image.src = media.url;
+            image.alt = 'Foto enviada';
+            image.title = 'Abrir em tamanho real';
+            image.addEventListener('load', scroll);
+            image.addEventListener('click', () => window.open(media.url, '_blank', 'noopener'));
+            return image;
+        }
+
+        const audio = document.createElement('audio');
+        audio.className = 'assistant-audio';
+        audio.controls = true;
+        audio.preload = 'metadata';
+        audio.src = media.url;
+        return audio;
+    }
+
+    function fillBubble(node, text) {
+        const paragraph = node.querySelector('.text');
+        paragraph.textContent = text;
+        paragraph.hidden = !text;
+        scroll();
     }
 
     // O acumulado é reprocessado a cada delta: uma marcação pode chegar aberta
@@ -238,7 +290,10 @@ function setupAssistant(root) {
     }
 
     function handle(event, state) {
-        if (event.type === 'delta') {
+        if (event.type === 'transcript') {
+            fillBubble(state.sent, event.text);
+            status('Pensando...');
+        } else if (event.type === 'delta') {
             clearStatus();
             if (!state.reply) state.reply = bubble('assistant', '');
             appendDelta(state.reply, event.text);
@@ -266,13 +321,125 @@ function setupAssistant(root) {
         return 'Não consegui responder agora. Tente de novo em instantes.';
     }
 
-    async function send(text) {
+    function holdAttachment(kind, blob, name) {
+        dropAttachment();
+        attachment = {kind: kind, blob: blob, name: name, url: URL.createObjectURL(blob)};
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'assistant-remove secondary';
+        remove.title = 'Remover o anexo';
+        remove.setAttribute('aria-label', 'Remover o anexo');
+        remove.textContent = '\u2715';
+        remove.addEventListener('click', () => dropAttachment());
+
+        tray.replaceChildren(mediaNode(attachment), remove);
+        tray.hidden = false;
+    }
+
+    // `keep` depois do envio: a bolha passou a usar a mesma URL, e revogá-la
+    // apagaria a foto que acabou de ser mandada.
+    function dropAttachment(keep) {
+        if (attachment && keep !== true) URL.revokeObjectURL(attachment.url);
+        attachment = null;
+        tray.replaceChildren();
+        tray.hidden = true;
+        fileInput.value = '';
+    }
+
+    // Reduz antes de subir e, de quebra, normaliza para JPEG o que o navegador
+    // souber desenhar, como o HEIC do iPhone. O que ele não desenhar vai como
+    // veio, e quem recusa é o servidor.
+    function shrink(file) {
+        return new Promise((resolve) => {
+            const url = URL.createObjectURL(file);
+            const image = new Image();
+
+            image.addEventListener('load', () => {
+                const scale = Math.min(1, MAX_SIDE / Math.max(image.width, image.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(image.width * scale);
+                canvas.height = Math.round(image.height * scale);
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+                canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.82);
+            });
+
+            image.addEventListener('error', () => {
+                URL.revokeObjectURL(url);
+                resolve(file);
+            });
+
+            image.src = url;
+        });
+    }
+
+    // O nome do erro separa quem bloqueou o microfone de quem não tem um.
+    function microphoneProblem(error) {
+        const name = error && error.name;
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+            return 'O acesso ao microfone foi recusado. Libere o Microfone nas permissões do site e tente de novo.';
+        }
+        if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+            return 'Nenhum microfone encontrado neste aparelho.';
+        }
+        if (name === 'NotReadableError' || name === 'AbortError') {
+            return 'O microfone está ocupado por outro programa. Feche quem está usando e tente de novo.';
+        }
+        return 'Não consegui usar o microfone.';
+    }
+
+    function showRecording(active) {
+        form.dataset.recording = active ? 'true' : 'false';
+        recordButton.title = active ? 'Parar a gravação' : 'Gravar um áudio';
+        recordButton.setAttribute('aria-label', recordButton.title);
+    }
+
+    async function startRecording() {
+        if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            bubble('error', 'Este navegador não grava áudio nesta página. Digite a mensagem ou mande uma foto.');
+            return;
+        }
+
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({audio: true});
+        } catch (error) {
+            console.error('Microfone recusado:', error);
+            bubble('error', microphoneProblem(error));
+            return;
+        }
+
+        const type = AUDIO_TYPES.find((candidate) => MediaRecorder.isTypeSupported(candidate));
+        const chunks = [];
+        recorder = new MediaRecorder(stream, type ? {mimeType: type} : undefined);
+
+        recorder.addEventListener('dataavailable', (event) => {
+            if (event.data && event.data.size) chunks.push(event.data);
+        });
+
+        recorder.addEventListener('stop', () => {
+            // Sem parar as trilhas, o indicador de microfone segue aceso na aba.
+            stream.getTracks().forEach((track) => track.stop());
+            recorder = null;
+            showRecording(false);
+
+            const blob = new Blob(chunks, {type: chunks.length ? chunks[0].type : 'audio/webm'});
+            if (blob.size) holdAttachment('audio', blob, 'audio');
+        });
+
+        recorder.start();
+        showRecording(true);
+    }
+
+    async function send(text, media) {
         panel.dataset.busy = 'true';
-        bubble('user', text);
-        status('Pensando...');
+        const sent = bubble('user', text, media);
+        status(media && media.kind === 'audio' ? 'Transcrevendo o áudio...' : 'Pensando...');
 
         const body = new FormData();
         body.append('message', text);
+        if (media) body.append('file', media.blob, media.name);
 
         try {
             const response = await post(urls.stream, body);
@@ -286,7 +453,7 @@ function setupAssistant(root) {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             const buffer = {value: ''};
-            const state = {reply: null};
+            const state = {reply: null, sent: sent};
 
             while (true) {
                 const {done, value} = await reader.read();
@@ -307,7 +474,7 @@ function setupAssistant(root) {
         if (block.kind === 'proposal') {
             proposalCard(block.id, block.summary, block.state, block.result);
         } else {
-            bubble(block.role, block.content);
+            bubble(block.role, block.content, block.attachment);
         }
     }
 
@@ -330,7 +497,7 @@ function setupAssistant(root) {
         data.blocks.forEach(renderBlock);
 
         if (!data.blocks.length) {
-            bubble('empty', 'Pergunte sobre suas finanças ou peça para lançar, editar ou apagar transações, parcelamentos, transferências e cartões.');
+            bubble('empty', 'Pergunte sobre suas finanças ou peça para lançar, editar ou apagar transações, parcelamentos, transferências e cartões. Dá para mandar foto do comprovante ou um áudio.');
         }
     }
 
@@ -363,6 +530,8 @@ function setupAssistant(root) {
     if (embedded) load();
 
     root.querySelector('.assistant-reset').addEventListener('click', async () => {
+        if (recorder) recorder.stop();
+        dropAttachment();
         await post(urls.reset);
         list.replaceChildren();
         load();
@@ -371,11 +540,26 @@ function setupAssistant(root) {
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         const text = input.value.trim();
-        if (!text || panel.dataset.busy === 'true') return;
+        // Foto sem legenda é mensagem: quem fotografa o cupom já disse o que queria.
+        if ((!text && !attachment) || panel.dataset.busy === 'true') return;
 
+        const media = attachment;
         input.value = '';
         input.style.height = 'auto';
-        send(text);
+        dropAttachment(true);
+        send(text, media);
+    });
+
+    attachButton.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (file) holdAttachment('image', await shrink(file), 'foto.jpg');
+    });
+
+    recordButton.addEventListener('click', () => {
+        if (recorder) recorder.stop();
+        else startRecording();
     });
 
     // Enter envia, Shift+Enter quebra a linha.

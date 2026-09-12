@@ -10,6 +10,7 @@ urlpatterns = [
     path('stream/', views.StreamView.as_view(), name='stream'),
     path('history/', views.HistoryView.as_view(), name='history'),
     path('reset/', views.ResetView.as_view(), name='reset'),
+    path('attachment/<int:pk>/', views.AttachmentView.as_view(), name='attachment'),
     path('proposal/<int:pk>/confirm/', views.ConfirmView.as_view(), name='confirm'),
     path('proposal/<int:pk>/cancel/', views.CancelView.as_view(), name='cancel'),
 ]

@@ -5,7 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 from openai import OpenAI, OpenAIError
 
-from .models import Message, Role
+from . import attachments
+from .models import AttachmentKind, Message, Role
 from .prompt import system_prompt
 from .tools import TOOLS, run
 
@@ -17,6 +18,17 @@ logger = logging.getLogger(__name__)
 MAX_ROUNDS = 8
 
 HISTORY_LIMIT = 40
+
+# Quantas mensagens com foto voltam com a foto. As anteriores viram um marcador:
+# reenviar todo comprovante a cada pergunta encareceria a conversa inteira, e o
+# que se pergunta logo depois de uma foto é sobre ela.
+IMAGE_MEMORY = 2
+
+# Sem vocabulário, "Pix" vira "pics" e "fatura" vira "fartura".
+TRANSCRIPTION_HINT = (
+    'Fala em português do Brasil sobre finanças pessoais: reais, Pix, boleto, débito, '
+    'crédito, fatura, parcelas, cartão, transferência, salário, mercado, farmácia.'
+)
 
 GENERIC_ERROR = 'Não consegui concluir agora. Tente de novo em instantes.'
 
@@ -37,7 +49,23 @@ def history(conversation):
     while window and window[0].role == Role.TOOL:
         window.pop(0)
 
-    return [item for message in window for item in message.items]
+    with_image = [message.pk for message in window if attachments.has_image(message.items)]
+    live = set(with_image[-IMAGE_MEMORY:])
+
+    return [item for message in window for item in attachments.resolve(message.items, inline=message.pk in live)]
+
+
+def transcribe(upload):
+    result = client().audio.transcriptions.create(
+        model=settings.OPENAI_TRANSCRIBE_MODEL,
+        file=(upload.name, upload.data, upload.mime),
+        language='pt',
+        prompt=TRANSCRIPTION_HINT,
+    )
+    text = (result.text or '').strip()
+    if not text:
+        raise ModelError('A transcrição voltou vazia.')
+    return text
 
 
 def collect(stream):
@@ -83,10 +111,25 @@ def execute(call, user, today, conversation):
         return {'ok': False, 'error': 'A ferramenta falhou. Avise que não foi possível concluir agora.'}, None
 
 
-def converse(conversation, user, text):
+def converse(conversation, user, text, upload=None):
     today = timezone.localdate()
 
-    Message.objects.create(conversation=conversation, role=Role.USER, content=text, items=[{'role': 'user', 'content': text}])
+    if upload is not None and upload.kind == AttachmentKind.AUDIO:
+        try:
+            spoken = transcribe(upload)
+        except (OpenAIError, ModelError):
+            logger.exception('Áudio da conversa %s não pôde ser transcrito.', conversation.pk)
+            yield {'type': 'error', 'message': 'Não consegui entender o áudio. Tente gravar de novo.'}
+            return
+
+        # O que foi digitado e o que foi dito são a mesma fala, e vão num turno só.
+        text = '\n'.join(part for part in (text, spoken) if part)
+        yield {'type': 'transcript', 'text': text}
+
+    message = Message.objects.create(conversation=conversation, role=Role.USER, content=text)
+    attachment = attachments.attach(message, upload) if upload is not None else None
+    message.items = [attachments.user_item(text, attachment)]
+    message.save(update_fields=['items'])
 
     for _ in range(MAX_ROUNDS):
         try:

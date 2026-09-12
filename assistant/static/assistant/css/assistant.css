@@ -96,6 +96,27 @@
     white-space: pre-wrap;
 }
 
+.assistant-message .assistant-photo {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    border-radius: 6px;
+    margin-top: 6px;
+    cursor: zoom-in;
+}
+
+.assistant-message .assistant-audio {
+    display: block;
+    width: 240px;
+    max-width: 100%;
+    margin-top: 6px;
+}
+
+.assistant-message .text[hidden] + .assistant-photo,
+.assistant-message .text[hidden] + .assistant-audio {
+    margin-top: 0;
+}
+
 .assistant-message p + p,
 .assistant-message p + ul,
 .assistant-message p + ol,
@@ -253,9 +274,86 @@
 
 .assistant-composer {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px 12px;
     border-top: 1px solid var(--border);
+}
+
+.assistant-attachment {
+    flex: 1 0 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+}
+
+.assistant-attachment .assistant-photo {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.assistant-attachment .assistant-audio {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+}
+
+.assistant-composer .assistant-remove {
+    align-self: center;
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    flex: none;
+}
+
+.assistant-composer .assistant-attach,
+.assistant-composer .assistant-record {
+    width: 38px;
+    padding: 0;
+    flex: none;
+}
+
+.assistant-composer .icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+/* Os dois ícones moram no botão; o estado da gravação escolhe qual aparece. */
+.assistant-record .icon-stop,
+.assistant-composer[data-recording="true"] .assistant-record .icon-mic {
+    display: none;
+}
+
+.assistant-composer[data-recording="true"] .assistant-record .icon-stop {
+    display: block;
+}
+
+/* Pisca em vermelho: sem um sinal assim, um toque acidental grava a sala
+   inteira até alguém reparar. */
+.assistant-composer[data-recording="true"] .assistant-record {
+    background: var(--outcome);
+    border-color: var(--outcome);
+    color: #fff;
+    animation: assistant-recording 1.2s ease-in-out infinite;
+}
+
+@keyframes assistant-recording {
+    50% { opacity: .55; }
+}
+
+.assistant-composer[data-recording="true"] textarea,
+.assistant-composer[data-recording="true"] .assistant-attach,
+.assistant-composer[data-recording="true"] button[type="submit"] {
+    opacity: .6;
+    pointer-events: none;
 }
 
 .assistant-composer textarea {
