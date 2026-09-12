@@ -14,7 +14,7 @@ from app.models import Account, Card, Method, Transaction
 def test_apagar_cartao_com_transacao_e_bloqueado(make_transaction, card):
     make_transaction(method=Method.CREDIT, card=card).save()
     with pytest.raises(RestrictedError):
-        card.delete()
+        Card.objects.filter(pk=card.pk).delete()
 
 
 def test_apagar_cartao_sem_transacao_e_liberado(card):

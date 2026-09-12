@@ -35,6 +35,11 @@ class Card(models.Model):
         if errors:
             raise ValidationError(errors)
 
+    def delete(self, *args, **kwargs):
+        if self.transactions.exists() or self.installments.exists():
+            raise ValidationError(f'O cartão {self} não pode ser removido: há transações ou parcelamentos lançados nele.')
+        return super().delete(*args, **kwargs)
+
     @staticmethod
     def _next_month(year, month):
         return (year + 1, 1) if month == 12 else (year, month + 1)

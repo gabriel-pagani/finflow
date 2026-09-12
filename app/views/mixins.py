@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -128,7 +129,12 @@ class ModalDeleteView(ModalWriteMixin, DeleteView):
         target = self.get_target()
 
         message = self.get_success_message()
-        target.delete()
+        try:
+            target.delete()
+        except ValidationError as error:
+            for text in error.messages:
+                messages.error(self.request, text)
+            return redirect(self.get_success_url())
 
         messages.success(self.request, message)
         return redirect(self.get_success_url())

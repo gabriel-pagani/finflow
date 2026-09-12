@@ -1,5 +1,3 @@
-from django.contrib import messages
-from django.shortcuts import redirect
 from django.views.generic.edit import CreateView, UpdateView
 
 from ..forms import CardForm
@@ -38,10 +36,3 @@ class CardDeleteView(ModalDeleteView):
     model = Card
     list_route = 'app:cards_list'
     success_message = 'Cartão removido com sucesso.'
-
-    def form_valid(self, form):
-        if self.object.transactions.exists() or self.object.installments.exists():
-            messages.error(self.request, f'O cartão {self.object} não pode ser removido: há transações ou parcelamentos lançados nele.')
-            return redirect(self.get_success_url())
-
-        return super().form_valid(form)

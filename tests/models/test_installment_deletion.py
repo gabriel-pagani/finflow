@@ -20,7 +20,7 @@ def test_apagar_o_parcelamento_leva_junto_as_parcelas(make_installment):
 def test_apagar_cartao_com_parcelamento_e_bloqueado(make_installment, card):
     make_installment().save()
     with pytest.raises(RestrictedError):
-        card.delete()
+        Card.objects.filter(pk=card.pk).delete()
 
 
 def test_apagar_conta_com_parcelamento_e_bloqueado(make_installment, account):
