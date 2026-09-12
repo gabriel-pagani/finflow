@@ -1,6 +1,6 @@
 """Regras de validação da transação, as que rodam via formulário."""
 import pytest
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 
 from app.models import Method, Nature
 
@@ -17,13 +17,13 @@ def test_combinacao_fora_das_regras_de_negocio_e_recusada(make_transaction):
 def test_credito_sem_cartao_e_recusado(make_transaction, credit_rule):
     with pytest.raises(ValidationError) as erro:
         make_transaction(method=Method.CREDIT).full_clean()
-    assert 'card' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
 def test_cartao_fora_do_credito_e_recusado(make_transaction, card):
     with pytest.raises(ValidationError) as erro:
         make_transaction(card=card).full_clean()
-    assert 'card' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
 def test_cartao_de_outra_conta_e_recusado(make_transaction, credit_rule, other_account_card):
@@ -41,7 +41,7 @@ def test_cartao_de_outro_usuario_e_recusado(make_transaction, credit_rule, other
 def test_categoria_fora_da_natureza_normal_e_recusada(make_transaction, category):
     with pytest.raises(ValidationError) as erro:
         make_transaction(nature=Nature.INTERNAL, category=category).full_clean()
-    assert 'category' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
 def test_categoria_na_natureza_normal_e_aceita(make_transaction, category):
@@ -55,7 +55,7 @@ def test_parcela_fora_da_natureza_normal_e_recusada(make_installment, credit_rul
     parcela.nature = Nature.INTERNAL
     with pytest.raises(ValidationError) as erro:
         parcela.full_clean()
-    assert 'nature' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
 def test_perna_de_transferencia_fora_da_natureza_interna_e_recusada(make_transfer):
@@ -65,4 +65,4 @@ def test_perna_de_transferencia_fora_da_natureza_interna_e_recusada(make_transfe
     perna.nature = Nature.REGULAR
     with pytest.raises(ValidationError) as erro:
         perna.full_clean()
-    assert 'nature' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict

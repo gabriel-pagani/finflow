@@ -2,7 +2,6 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
 from django.db import models
 
 from ..utils.formatting import format_to_money
@@ -22,7 +21,7 @@ class Transaction(models.Model):
     nature = models.CharField(max_length=20, choices=Nature.choices, default=Nature.REGULAR, verbose_name='Natureza')
     category = models.ForeignKey(Category, on_delete=models.PROTECT, blank=True, null=True, related_name='transactions', verbose_name='Categoria')
     description = models.CharField(max_length=200, blank=True, verbose_name='Descrição')
-    value = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], verbose_name='Valor')
+    value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor')
     occurred_at = models.DateField(verbose_name='Data da Transação')
     effective_at = models.DateField(editable=False, verbose_name='Data Efetiva')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data e Hora da Criação')
@@ -35,23 +34,13 @@ class Transaction(models.Model):
     def clean(self):
         super().clean()
         if self.account_id and self.type and self.method:
-            if not BusinessRule.objects.filter(account=self.account, type=self.type, method=self.method).exists():
+            if not BusinessRule.objects.filter(account_id=self.account_id, type=self.type, method=self.method).exists():
                 raise ValidationError('Combinação de conta, tipo e método não permitida pelas regras de negócio.')
         if self.card_id:
             if self.account_id and self.card.account_id != self.account_id:
                 raise ValidationError({'card': 'O cartão escolhido pertence a outra conta.'})
             if self.user_id and self.card.user_id != self.user_id:
                 raise ValidationError({'card': 'O cartão escolhido pertence a outro usuário.'})
-            if self.method and self.method != Method.CREDIT:
-                raise ValidationError({'card': f'O cartão só se aplica a transações em {Method.CREDIT.label}.'})
-        elif self.method == Method.CREDIT:
-            raise ValidationError({'card': f'Transações em {Method.CREDIT.label} exigem que seja informado um cartão.'})
-        if self.installment_id and self.nature != Nature.REGULAR:
-            raise ValidationError({'nature': f'A parcela de um parcelamento é sempre de natureza {Nature.REGULAR.label}.'})
-        if self.transfer_id and self.nature != Nature.INTERNAL:
-            raise ValidationError({'nature': f'A perna de uma transferência é sempre de natureza {Nature.INTERNAL.label}.'})
-        if self.category_id and self.nature != Nature.REGULAR:
-            raise ValidationError({'category': f'Transações com natureza {Nature(self.nature).label} não recebem categoria.'})
 
     def calculate_effective_at(self):
         if self.method == Method.CREDIT and self.card_id:
@@ -87,6 +76,21 @@ class Transaction(models.Model):
                 violation_error_message='O valor deve ser maior que zero.',
             ),
             models.CheckConstraint(
+                condition=models.Q(type__in=Type.values),
+                name='transaction_type_within_choices',
+                violation_error_message='O tipo precisa ser uma das opções previstas.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(method__in=Method.values),
+                name='transaction_method_within_choices',
+                violation_error_message='O método precisa ser uma das opções previstas.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(nature__in=Nature.values),
+                name='transaction_nature_within_choices',
+                violation_error_message='A natureza precisa ser uma das opções previstas.',
+            ),
+            models.CheckConstraint(
                 condition=(
                     models.Q(method=Method.CREDIT, card__isnull=False)
                     | (~models.Q(method=Method.CREDIT) & models.Q(card__isnull=True))
@@ -106,6 +110,16 @@ class Transaction(models.Model):
                 ),
                 name='transaction_parcel_only_within_installment',
                 violation_error_message='O número da parcela só existe em transações de um parcelamento.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(parcel__isnull=True) | models.Q(parcel__gte=1),
+                name='transaction_parcel_positive',
+                violation_error_message='O número da parcela começa em 1.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(effective_at__gte=models.F('occurred_at')),
+                name='transaction_effective_after_occurrence',
+                violation_error_message='A data efetiva não pode ser anterior à data da transação.',
             ),
             models.UniqueConstraint(
                 fields=['installment', 'parcel'],
