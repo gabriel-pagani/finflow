@@ -1,7 +1,7 @@
 """Unicidade do e-mail do usuário, sem diferenciar maiúsculas."""
 import pytest
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db.utils import IntegrityError
 
 User = get_user_model()
@@ -18,7 +18,7 @@ def test_email_repetido_em_outra_caixa_e_recusado_na_validacao(user_with_email):
     outro = User(username='mariana', password='segredo', email='GABRIEL@EXEMPLO.COM')
     with pytest.raises(ValidationError) as erro:
         outro.full_clean()
-    assert 'email' in erro.value.error_dict
+    assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
 def test_email_repetido_em_outra_caixa_e_recusado_no_banco(user_with_email):

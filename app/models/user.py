@@ -1,5 +1,4 @@
 from django.contrib.auth.models import AbstractUser
-from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -11,8 +10,6 @@ class User(AbstractUser):
     def clean(self):
         super().clean()
         self.email = self.email or None
-        if self.email and User.objects.filter(email__iexact=self.email).exclude(pk=self.pk).exists():
-            raise ValidationError({'email': 'Já existe um usuário com este e-mail.'})
 
     class Meta(AbstractUser.Meta):
         constraints = [
