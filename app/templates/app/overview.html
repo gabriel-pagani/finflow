@@ -1,0 +1,39 @@
+{% extends 'app/app.html' %}
+{% load static %}
+
+{% block title %}Visão Geral - FinFlow{% endblock %}
+
+{% block content %}
+    {% include 'app/filters.html' %}
+
+    <section class="cards">
+        <div class="card metric metric-income">
+            <strong>{{ cards.income|floatformat:2 }}</strong>
+            <span>Valor Total de Entradas</span>
+        </div>
+        <div class="card metric metric-outcome">
+            <strong>{{ cards.outcome|floatformat:2 }}</strong>
+            <span>Valor Total de Saídas</span>
+        </div>
+        <div class="card metric metric-balance">
+            <strong>{{ cards.balance|floatformat:2 }}</strong>
+            <span>Saldo Atual</span>
+        </div>
+    </section>
+
+    <section class="charts">
+        <div class="card">
+            <h2>Valor de Entradas e Saídas por Período</h2>
+            <div class="chart" data-bar-chart="data-months"></div>
+        </div>
+        <div class="card">
+            <h2>Valor Gasto por Categoria</h2>
+            <div class="chart" data-donut-chart="data-categories"></div>
+        </div>
+    </section>
+
+    {{ chart_months|json_script:"data-months" }}
+    {{ chart_categories|json_script:"data-categories" }}
+{% endblock %}
+
+{% block vendor %}<script src="{% static 'app/js/echarts.js' %}"></script>{% endblock %}

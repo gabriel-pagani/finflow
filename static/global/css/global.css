@@ -1,0 +1,405 @@
+/* A casca do sistema: tokens, corpo da página, topbar, mensagens e os
+   elementos base — card, tabela, campo, botão — que toda tela reaproveita.
+   O que é de uma tela específica mora em app/css/app.css. */
+
+:root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --border: #e2e4e8;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --accent: #3f4d7a;
+    --income: #5aa469;
+    --outcome: #c0504d;
+    --radius: 10px;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+}
+
+main {
+    /* Ocupa a largura da tela; o teto alto só evita linhas quilométricas
+       em monitores ultrawide. */
+    max-width: 2100px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Páginas que devem preencher a altura da janela em vez de parar na altura
+   do conteúdo. O body vira coluna para o main poder esticar. */
+body.page-fill {
+    display: flex;
+    flex-direction: column;
+    /* auto anula o height:100% do reset, que travaria o crescimento */
+    height: auto;
+    min-height: 100vh;
+}
+
+body.page-fill main {
+    flex: 1;
+    min-height: 0;
+}
+
+/* Topbar */
+.topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.brand {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 32px casa com os arquivos gerados (32/64/96 no srcset); mudar o tamanho
+   aqui sem regerar os PNGs traz a serrilha de volta. */
+.brand img {
+    width: 32px;
+    height: 32px;
+    flex: none;
+}
+
+.topbar nav {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.topbar nav a {
+    color: var(--muted);
+    text-decoration: none;
+    padding: 4px 0;
+}
+
+.topbar nav a:hover {
+    color: var(--accent);
+}
+
+/* A aba da página aberta. A cor sozinha já destacaria, mas o negrito é o que
+   se enxerga de relance sem depender de contraste. */
+.topbar nav a.active {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.logout {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+}
+
+/* Cards */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+}
+
+.card h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.card h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+/* O card cresce com a sobra e a tabela absorve o espaço, deixando a
+   paginação colada no rodapé do card. */
+.card.fill-height {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.card.fill-height .table-scroll {
+    flex: 1;
+    /* o max-height deixa de mandar quando o card já limita a altura */
+    max-height: none;
+}
+
+/* Cabeçalho, h1 e paginação mantêm o tamanho; só a tabela estica ou encolhe. */
+.card.fill-height > .card-header,
+.card.fill-height > h1,
+.card.fill-height > .pagination {
+    flex: none;
+}
+
+/* Card header: título à esquerda, ação principal à direita */
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+/* O h1 já tem margem própria; dentro do header quem espaça é o flex. */
+.card-header h1 {
+    margin-bottom: 0;
+}
+
+/* Forms and inputs */
+input,
+select,
+button,
+.button {
+    font: inherit;
+    line-height: 20px;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+input[type="date"] {
+    /* mantém o ícone de calendário que appearance:none removeria */
+    appearance: auto;
+    -webkit-appearance: auto;
+    /* Junto com a aparência nativa vem uma largura própria, do tamanho do texto
+       da data, que ignora a célula onde o campo está. Ao lado de um seletor que
+       ocupa a célula inteira, a data ficava visivelmente mais curta — some no
+       desktop, onde as colunas são estreitas, e salta no celular, onde cada uma
+       tem meia tela. Só o input de data precisa disto: os demais campos do
+       sistema têm appearance:none e já esticam sozinhos. */
+    width: 100%;
+}
+
+select {
+    /* seta própria, já que appearance:none removeu a nativa */
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                      linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 15px, calc(100% - 13px) 15px;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 32px;
+}
+
+button,
+.button {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+}
+
+button.danger {
+    background: var(--outcome);
+}
+
+button.secondary {
+    background: var(--surface);
+    color: var(--muted);
+    border-color: var(--border);
+}
+
+.icon-button {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.icon-button.danger {
+    background: var(--outcome);
+    border-color: var(--outcome);
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+th {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+td.right,
+th.right {
+    text-align: right;
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+
+td a {
+    color: var(--accent);
+    margin-left: 10px;
+}
+
+/* Messages */
+.messages {
+    background: #eef7f0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+}
+
+/* O fundo verde do bloco só serve para sucesso; erro precisa se distinguir. */
+.messages:has(.error) {
+    background: #fbeceb;
+    border-color: var(--outcome);
+}
+
+.messages .error {
+    color: var(--outcome);
+}
+
+/* hidden precisa vencer o display:inline-flex da regra geral de button. */
+[hidden] {
+    display: none !important;
+}
+
+/* ==========================================================================
+   Celular — nada aqui afeta a aparência no computador (min-width: 769px).
+   ========================================================================== */
+@media (max-width: 768px) {
+    main {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    /* Topbar: marca e ações na primeira linha, menu ocupando a segunda */
+    .topbar {
+        padding: 10px 12px;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .brand {
+        font-size: 17px;
+        margin-right: auto;
+    }
+
+    /* Itens dividem a largura e quebram para a linha de baixo quando não cabem.
+
+       Flex, e não grid: o grid tem colunas de largura igual para todas as
+       linhas, então a página que sobrar para a última linha fica do tamanho de
+       uma coluna, sozinha, com o resto da faixa vazio ao lado. No flex cada
+       linha reparte o que tem: a última se divide entre quem sobrou. */
+    .topbar nav {
+        order: 3;
+        width: 100%;
+        gap: 6px;
+    }
+
+    .topbar nav a {
+        /* Um terço da linha descontados os dois vãos: três abas por linha em
+           qualquer largura de celular, em vez de a conta mudar com o aparelho.
+           O flex-grow só entra na última linha incompleta, que estica para
+           fechar a faixa. */
+        flex: 1 1 calc((100% - 12px) / 3);
+        padding: 8px 4px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        text-align: center;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+
+    .logout {
+        margin-left: 0;
+        gap: 8px;
+    }
+
+    /* O nome do usuário não agrega no celular e espremia os botões. */
+    .logout span {
+        display: none;
+    }
+
+    .logout .button,
+    .logout button {
+        height: 36px;
+        padding: 0 12px;
+        font-size: 13px;
+    }
+
+    .card {
+        padding: 12px;
+    }
+
+    /* Cabeçalho do card empilha para o botão não espremer o título */
+    .card-header {
+        flex-wrap: wrap;
+    }
+
+    /* 16px evita o zoom automático do iOS ao focar um campo */
+    input,
+    select {
+        font-size: 16px;
+        height: 42px;
+    }
+
+    button,
+    .button {
+        height: 42px;
+    }
+
+    /* Alvo de toque maior nos botões da linha */
+    .icon-button {
+        height: 34px;
+    }
+
+    th,
+    td {
+        padding: 8px;
+        white-space: nowrap;
+    }
+}
+
+/* Telas bem estreitas: ações mais compactas. */
+@media (max-width: 380px) {
+    .brand {
+        font-size: 16px;
+    }
+
+    .logout .button,
+    .logout button {
+        padding: 0 10px;
+        font-size: 12px;
+    }
+}

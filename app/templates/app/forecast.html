@@ -1,0 +1,29 @@
+{% extends 'app/app.html' %}
+{% load static %}
+
+{% block title %}Previsão - FinFlow{% endblock %}
+
+{% block content %}
+    {% include 'app/filters.html' %}
+
+    <section class="card metric metric-outcome">
+        <strong>{{ total|floatformat:2 }}</strong>
+        <span>Gasto Total Previsto</span>
+    </section>
+
+    <section class="charts">
+        <div class="card">
+            <h2>Gasto Previsto por Período</h2>
+            <div class="chart" data-bar-chart="data-months"></div>
+        </div>
+        <div class="card">
+            <h2>Valor Gasto por Categoria</h2>
+            <div class="chart" data-donut-chart="data-categories"></div>
+        </div>
+    </section>
+
+    {{ chart_months|json_script:"data-months" }}
+    {{ chart_categories|json_script:"data-categories" }}
+{% endblock %}
+
+{% block vendor %}<script src="{% static 'app/js/echarts.js' %}"></script>{% endblock %}

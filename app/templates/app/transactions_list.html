@@ -1,0 +1,176 @@
+{% extends 'app/app.html' %}
+{% load l10n %}
+
+{% block title %}Transações - FinFlow{% endblock %}
+
+{% block body_class %}page-fill{% endblock %}
+
+{% block content %}
+    {% include 'app/filters.html' %}
+
+    <section class="card fill-height">
+        <div class="card-header">
+            <h1>Transações</h1>
+            <button type="button" data-new="transaction">Nova Transação</button>
+        </div>
+
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Conta</th>
+                    <th>Tipo</th>
+                    <th>Método</th>
+                    <th>Categoria</th>
+                    <th>Descrição</th>
+                    <th class="right">Valor</th>
+                    <th class="right">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in object_list %}
+                    {% comment %}
+                    A data da linha é a efetiva, que é por onde a listagem filtra
+                    e ordena: no crédito ela é o vencimento da fatura. O modal
+                    edita a data da compra, que é o que se digita — quem calcula
+                    a efetiva a partir dela é o model.
+
+                    A linha derivada não se edita: quem manda nos valores dela é
+                    o registro de origem. Remover é possível, e o clique apaga a
+                    origem inteira — o aviso na confirmação diz isso antes.
+
+                    unlocalize nos ids: com USE_THOUSAND_SEPARATOR o pk 1294
+                    sairia como "1.294" e a URL montada pelo JS não casaria com
+                    a rota <int:pk>, devolvendo 404.
+                    {% endcomment %}
+                    <tr data-row="transaction"
+                        data-id="{{ transaction.pk|unlocalize }}"
+                        data-label="{{ transaction }}"
+                        {% if transaction.is_derived %}data-origin-warning="{% if transaction.installment_id %}Esta é uma parcela: o parcelamento será removido por inteiro, com todas as suas parcelas.{% else %}Esta é uma perna de transferência: a transferência será removida por inteiro, com as duas transações que ela gerou.{% endif %}"
+                        {% else %}class="row-editable"
+                        data-editable
+                        data-occurred-at="{{ transaction.occurred_at|date:'Y-m-d' }}"
+                        data-account="{{ transaction.account_id|unlocalize }}"
+                        data-card="{% if transaction.card_id %}{{ transaction.card_id|unlocalize }}{% endif %}"
+                        data-type="{{ transaction.type }}"
+                        data-method="{{ transaction.method }}"
+                        data-nature="{{ transaction.nature }}"
+                        data-category="{% if transaction.category_id %}{{ transaction.category_id|unlocalize }}{% endif %}"
+                        data-description="{{ transaction.description }}"
+                        data-value="{{ transaction.value|stringformat:'.2f' }}"
+                        tabindex="0" role="button"
+                        title="Clique para editar"{% endif %}>
+                        <td>{{ transaction.effective_at|date:'d/m/Y' }}</td>
+                        <td>{{ transaction.account }}</td>
+                        {% if transaction.type == 'IN' %}
+                            {% comment %}Entrada em verde, saída em vermelho, no tipo e no valor.{% endcomment %}
+                            <td class="cell-income">{{ transaction.get_type_display }}</td>
+                        {% else %}
+                            <td class="cell-outcome">{{ transaction.get_type_display }}</td>
+                        {% endif %}
+                        <td>{{ transaction.get_method_display }}</td>
+                        <td>{{ transaction.category_display }}</td>
+                        <td>{{ transaction.description|default:'-' }}</td>
+                        <td class="right {% if transaction.type == 'IN' %}cell-income{% else %}cell-outcome{% endif %}">{% if transaction.type == 'OUT' %}-{% endif %}{{ transaction.value|floatformat:2 }}</td>
+                        <td class="right nowrap">
+                            {% if transaction.is_derived %}
+                                {% comment %}
+                                A origem continua nomeada na linha: é ela que
+                                explica por que não há Editar, e é ela que o
+                                Remover apaga.
+                                {% endcomment %}
+                                {% if transaction.installment_id %}
+                                    <span class="row-origin">Parcelamento</span>
+                                    <button type="button" class="icon-button danger" data-row-delete title="Remover parcelamento">Remover</button>
+                                {% else %}
+                                    <span class="row-origin">Transferência</span>
+                                    <button type="button" class="icon-button danger" data-row-delete title="Remover transferência">Remover</button>
+                                {% endif %}
+                            {% else %}
+                                <button type="button" class="icon-button" title="Editar">Editar</button>
+                                <button type="button" class="icon-button danger" data-row-delete title="Remover">Remover</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8">Nenhuma transação encontrada para os filtros selecionados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
+        {% include 'app/pagination.html' %}
+    </section>
+
+    {% comment %}
+    "Nova Transação" abre primeiro esta escolha: os três lançamentos partem do
+    mesmo botão, e só depois de escolhido o tipo é que o formulário aparece.
+    {% endcomment %}
+    <dialog class="modal modal-narrow" data-kind-modal>
+        <h2>Nova Transação</h2>
+        <p class="modal-text">O que você quer lançar?</p>
+
+        <div class="kind-options">
+            <button type="button" class="kind-option" data-kind-choice="transaction">
+                <strong>Transação Avulsa</strong>
+                <span>Um lançamento único de entrada ou saída.</span>
+            </button>
+            <button type="button" class="kind-option" data-kind-choice="installment">
+                <strong>Parcelamento</strong>
+                <span>Compra no crédito dividida em parcelas mensais.</span>
+            </button>
+            <button type="button" class="kind-option" data-kind-choice="transfer">
+                <strong>Transferência</strong>
+                <span>Movimentação de valor entre duas contas suas.</span>
+            </button>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="secondary" data-modal-close>Cancelar</button>
+        </div>
+    </dialog>
+
+    {% comment %}
+    O modal de transação atende criação e edição: o JS troca a action do form e
+    preenche os campos a partir dos data-attributes da linha. Parcelamento e
+    transferência só criam — editá-los exigiria regerar as transações filhas,
+    o que segue sendo assunto do admin.
+    {% endcomment %}
+    {% url 'app:transaction_create' as transaction_url %}
+    {% url 'app:installment_create' as installment_url %}
+    {% url 'app:transfer_create' as transfer_url %}
+    {% include 'app/form_modal.html' with kind='transaction' title='Nova Transação' action=transaction_url form=form deletable=True %}
+    {% include 'app/form_modal.html' with kind='installment' title='Novo Parcelamento' action=installment_url form=installment_form deletable=False %}
+    {% include 'app/form_modal.html' with kind='transfer' title='Nova Transferência' action=transfer_url form=transfer_form deletable=False %}
+
+    <dialog class="modal" data-modal="transaction-delete">
+        <form method="post" data-delete-form>
+            {% csrf_token %}
+            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+
+            <h2>Remover Transação</h2>
+            <p class="modal-text">Tem certeza que deseja remover <strong data-delete-label></strong>? Esta ação não pode ser desfeita.</p>
+            {% comment %}
+            Preenchido pelo JS só nas linhas derivadas, com o aviso do que sai
+            junto da origem.
+            {% endcomment %}
+            <p class="modal-text modal-warning" data-delete-warning hidden></p>
+
+            <div class="modal-actions">
+                <button type="button" class="secondary" data-modal-close>Cancelar</button>
+                <button type="submit" class="danger">Remover</button>
+            </div>
+        </form>
+    </dialog>
+{% endblock %}
+
+{% block config %}
+    <div data-record-urls
+         data-kind="transaction"
+         data-create-title="Nova Transação"
+         data-update-title="Editar Transação"
+         data-create-url="{% url 'app:transaction_create' %}"
+         data-update-url="{% url 'app:transaction_update' 0 %}"
+         data-delete-url="{% url 'app:transaction_delete' 0 %}"></div>
+{% endblock %}

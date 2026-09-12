@@ -1,0 +1,40 @@
+<form class="card filters" method="get">
+    <h2>Filtros</h2>
+    <div class="filters-grid">
+{% comment %}
+        A classe das datas existe para o celular: lá o grid vira duas colunas e
+        só estas duas caixas dividem a linha. No desktop ela não faz nada — os
+        campos já fluem sozinhos pelo auto-fit.
+        {% endcomment %}
+        <label class="filter-date">
+            Início
+            <input type="date" name="start" value="{{ filters.start }}">
+        </label>
+        <label class="filter-date">
+            Fim
+            <input type="date" name="end" value="{{ filters.end }}">
+        </label>
+
+        {% include 'app/multiselect.html' with name='account' legend='Conta' empty='Todas' gender='f' options=accounts selected=filters.account %}
+        {% include 'app/multiselect.html' with name='category' legend='Categoria' empty='Todas' gender='f' options=categories selected=filters.category %}
+
+        {% if types %}
+            {% include 'app/multiselect.html' with name='type' legend='Tipo' empty='Todos' choices=types selected=filters.type %}
+        {% endif %}
+        {% if method_choices %}
+            {% include 'app/multiselect.html' with name='method' legend='Método' empty='Todos' choices=method_choices selected=filters.method %}
+        {% endif %}
+
+        {% if search_enabled %}
+            <label>
+                Descrição
+                <input type="search" name="search" value="{{ filters.search }}" placeholder="Ex.: Almoço" autocomplete="off">
+            </label>
+        {% endif %}
+
+        <div class="filters-actions">
+            <button type="submit">Aplicar</button>
+            <a class="button" href="{{ request.path }}">Limpar</a>
+        </div>
+    </div>
+</form>

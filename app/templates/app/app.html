@@ -1,0 +1,19 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% comment %}
+Base das telas do app: o que a casca não conhece entra aqui.
+
+O ECharts fica no bloco `vendor`, preenchido só pelos painéis: são 1,9 MB que
+as telas sem gráfico não têm por que baixar. A ordem importa e é a natural —
+script de corpo roda na ordem do documento, e o DOMContentLoaded que o app.js
+espera só dispara depois que todos eles rodaram.
+{% endcomment %}
+
+{% block styles %}<link rel="stylesheet" href="{% static 'app/css/app.css' %}">{% endblock %}
+
+{% block scripts %}
+    {% block config %}{% endblock %}
+    {% block vendor %}{% endblock %}
+    <script src="{% static 'app/js/app.js' %}"></script>
+{% endblock %}

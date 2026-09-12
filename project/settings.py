@@ -158,6 +158,12 @@ MEDIA_ROOT = BASE_DIR / 'media_root'
 
 AUTH_USER_MODEL = 'app.User'
 
+LOGIN_URL = 'app:login'
+
+LOGIN_REDIRECT_URL = 'app:overview'
+
+LOGOUT_REDIRECT_URL = 'app:login'
+
 SESSION_COOKIE_AGE = 60 * 60 * 24
 
 SESSION_SAVE_EVERY_REQUEST = True

@@ -1,0 +1,27 @@
+{% if is_paginated %}
+    <nav class="pagination">
+        <span class="pagination-info">
+            {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}
+        </span>
+
+        <div class="pagination-controls">
+            {% if page_obj.has_previous %}
+                <a href="?{% if querystring %}{{ querystring }}&{% endif %}page=1" title="Primeira página">«</a>
+                <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+            {% else %}
+                <span class="disabled">«</span>
+                <span class="disabled">Anterior</span>
+            {% endif %}
+
+            <span class="pagination-current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+
+            {% if page_obj.has_next %}
+                <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Próxima</a>
+                <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}" title="Última página">»</a>
+            {% else %}
+                <span class="disabled">Próxima</span>
+                <span class="disabled">»</span>
+            {% endif %}
+        </div>
+    </nav>
+{% endif %}
