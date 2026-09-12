@@ -33,6 +33,8 @@ class Transaction(models.Model):
 
     def clean(self):
         super().clean()
+        if self.nature == Nature.INTERNAL and not self.transfer_id:
+            raise ValidationError({'nature': f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.'})
         if self.account_id and self.type and self.method:
             if not BusinessRule.objects.filter(account_id=self.account_id, type=self.type, method=self.method).exists():
                 raise ValidationError('Combinação de conta, tipo e método não permitida pelas regras de negócio.')

@@ -56,7 +56,14 @@ def test_parcela_fora_da_natureza_normal_e_recusada(make_installment, credit_rul
     parcela.nature = Nature.INTERNAL
     with pytest.raises(ValidationError) as erro:
         parcela.full_clean()
-    assert NON_FIELD_ERRORS in erro.value.error_dict
+    assert 'nature' in erro.value.error_dict
+
+
+def test_natureza_interna_sem_transferencia_e_recusada(make_transaction):
+    """O admin exclui transfer do formulário, então a constraint não é avaliada lá."""
+    with pytest.raises(ValidationError) as erro:
+        make_transaction(nature=Nature.INTERNAL).full_clean(exclude={'transfer'})
+    assert 'nature' in erro.value.error_dict
 
 
 def test_perna_de_transferencia_fora_da_natureza_interna_e_recusada(make_transfer):
