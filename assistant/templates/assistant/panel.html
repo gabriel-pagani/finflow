@@ -9,6 +9,8 @@ As rotas e o CSRF vão em data-*: a CSP recusa script inline.
      data-stream="{% url 'assistant:stream' %}"
      data-history="{% url 'assistant:history' %}"
      data-reset="{% url 'assistant:reset' %}"
+     data-confirm="{% url 'assistant:confirm' 0 %}"
+     data-cancel="{% url 'assistant:cancel' 0 %}"
      data-csrf="{{ csrf_token }}">
 
     {% if not embedded %}

@@ -74,13 +74,13 @@ def arguments_of(call):
 def execute(call, user, today, conversation):
     arguments, error = arguments_of(call)
     if error:
-        return {'ok': False, 'error': error}
+        return {'ok': False, 'error': error}, None
 
     try:
-        return run(call.get('name', ''), arguments, user=user, today=today)
+        return run(call.get('name', ''), arguments, user=user, today=today, conversation=conversation)
     except Exception:
         logger.exception('Ferramenta %r falhou na conversa %s.', call.get('name'), conversation.pk)
-        return {'ok': False, 'error': 'A ferramenta falhou. Avise que não foi possível concluir agora.'}
+        return {'ok': False, 'error': 'A ferramenta falhou. Avise que não foi possível concluir agora.'}, None
 
 
 def converse(conversation, user, text):
@@ -121,13 +121,17 @@ def converse(conversation, user, text):
         for call in calls:
             yield {'type': 'tool', 'name': call.get('name', '')}
 
-            result = json.dumps(execute(call, user, today, conversation), ensure_ascii=False, default=str)
+            payload, proposal = execute(call, user, today, conversation)
+            result = json.dumps(payload, ensure_ascii=False, default=str)
             Message.objects.create(
                 conversation=conversation,
                 role=Role.TOOL,
                 content=result,
                 items=[{'type': 'function_call_output', 'call_id': call['call_id'], 'output': result}],
             )
+
+            if proposal is not None:
+                yield {'type': 'proposal', 'id': proposal.pk, 'summary': proposal.summary, 'state': proposal.state}
 
     logger.warning('Conversa %s excedeu %s rodadas de ferramenta.', conversation.pk, MAX_ROUNDS)
     yield {'type': 'error', 'message': 'Não consegui fechar uma resposta para isso. Tente perguntar de outro jeito.'}

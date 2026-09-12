@@ -1,4 +1,5 @@
-from . import queries
+from . import proposals, queries
+from .models import Kind
 
 
 def ids(description):
@@ -27,13 +28,40 @@ FILTERS = {
 }
 
 
-def function(name, description, properties=None):
+def function(name, description, properties=None, required=()):
     return {
         'type': 'function',
         'name': name,
         'description': description,
-        'parameters': {'type': 'object', 'properties': properties or {}, 'additionalProperties': False},
+        'parameters': {'type': 'object', 'properties': properties or {}, 'required': list(required), 'additionalProperties': False},
     }
+
+
+def proposal(name, kind, description, fields):
+    actions = [action.value for action in proposals.SPECS[kind].actions]
+    return function(
+        name,
+        f'{description} NÃO grava: valida com as mesmas regras da tela e mostra ao usuário um card de confirmação '
+        f'com o que será feito. Só o clique dele em Confirmar grava.',
+        {
+            'action': {'type': 'string', 'enum': actions},
+            'id': {'type': 'integer', 'description': 'Id do registro, obrigatório para editar e apagar.'},
+            **fields,
+        },
+        required=['action'],
+    )
+
+
+def nullable(kind, description):
+    return {'type': [kind, 'null'], 'description': description}
+
+
+OCCURRED_AT = {'type': 'string', 'description': 'AAAA-MM-DD. No crédito é o dia da COMPRA; a data efetiva é calculada pelo ciclo do cartão. Ausente ao criar, vale hoje.'}
+VALUE = {'type': 'string', 'description': 'Sempre positivo, com ponto decimal: "25.90".'}
+DESCRIPTION = nullable('string', 'Descrição livre. null limpa.')
+CATEGORY = nullable('integer', 'Id da categoria. null deixa sem categoria.')
+
+EDIT_RULE = 'Ao editar, mande só os campos que mudam; os demais continuam como estão. Ao apagar, mande só action e id.'
 
 
 TOOLS = [
@@ -72,10 +100,53 @@ TOOLS = [
             'until': {'type': 'string', 'description': 'Saldo até esta data efetiva, AAAA-MM-DD. Ausente, sem limite.'},
         },
     ),
+    proposal('propor_cartao', Kind.CARD, f'Cria, edita ou apaga um cartão do usuário. {EDIT_RULE}', {
+        'account': {'type': 'integer', 'description': 'Id da conta do cartão; ela precisa aceitar saída em Crédito.'},
+        'last_digits': {'type': 'string', 'description': 'Os quatro últimos dígitos.'},
+        'closing_day': {'type': 'integer', 'description': 'Dia do fechamento da fatura, de 1 a 31.'},
+        'due_day': {'type': 'integer', 'description': 'Dia do vencimento da fatura, de 1 a 31.'},
+    }),
+    proposal('propor_transacao', Kind.TRANSACTION, f'Cria, edita ou apaga uma transação avulsa. Parcela e perna de transferência não passam por aqui. {EDIT_RULE}', {
+        'occurred_at': OCCURRED_AT,
+        'account': {'type': 'integer', 'description': 'Id da conta.'},
+        'type': {'type': 'string', 'enum': queries.Type.values, 'description': 'IN entrada, OUT saída.'},
+        'method': {'type': 'string', 'enum': queries.Method.values, 'description': 'Precisa ser uma combinação aceita pela conta. CREDIT exige card.'},
+        'card': nullable('integer', 'Id do cartão, só no crédito, da mesma conta.'),
+        'nature': {'type': 'string', 'enum': [queries.Nature.REGULAR.value, queries.Nature.ADJUSTMENT.value], 'description': 'REGULAR (padrão) ou ADJUSTMENT, só para corrigir divergência com o extrato; ajuste é sempre NOT_APPLICABLE e sem categoria.'},
+        'category': CATEGORY,
+        'description': DESCRIPTION,
+        'value': VALUE,
+    }),
+    proposal('propor_parcelamento', Kind.INSTALLMENT, 'Cria ou apaga uma compra parcelada no crédito. Apagar leva junto todas as parcelas.', {
+        'occurred_at': OCCURRED_AT,
+        'account': {'type': 'integer', 'description': 'Id da conta.'},
+        'card': {'type': 'integer', 'description': 'Id do cartão, da mesma conta.'},
+        'category': CATEGORY,
+        'description': DESCRIPTION,
+        'value': {'type': 'string', 'description': 'Valor TOTAL da compra, não o da parcela, com ponto decimal.'},
+        'installments': {'type': 'integer', 'description': 'Número de parcelas, de 2 a 360.'},
+    }),
+    proposal('propor_transferencia', Kind.TRANSFER, 'Cria ou apaga uma transferência entre duas contas do usuário. Apagar leva junto as duas transações.', {
+        'occurred_at': OCCURRED_AT,
+        'origin': {'type': 'integer', 'description': 'Id da conta de origem.'},
+        'destination': {'type': 'integer', 'description': 'Id da conta de destino, diferente da origem.'},
+        'description': DESCRIPTION,
+        'value': VALUE,
+    }),
 ]
 
+PROPOSERS = {
+    'propor_cartao': Kind.CARD,
+    'propor_transacao': Kind.TRANSACTION,
+    'propor_parcelamento': Kind.INSTALLMENT,
+    'propor_transferencia': Kind.TRANSFER,
+}
 
-def run(name, arguments, *, user, today):
+
+def run(name, arguments, *, user, today, conversation):
+    if name in PROPOSERS:
+        return proposals.propose(PROPOSERS[name], user, conversation, arguments)
+
     readers = {
         'consultar_cadastros': lambda: queries.registry(user, today),
         'analisar_transacoes': lambda: queries.analyze_transactions(user, arguments),
@@ -85,9 +156,9 @@ def run(name, arguments, *, user, today):
 
     reader = readers.get(name)
     if reader is None:
-        return {'ok': False, 'error': f'Não existe ferramenta {name!r}.'}
+        return {'ok': False, 'error': f'Não existe ferramenta {name!r}.'}, None
 
     try:
-        return reader()
+        return reader(), None
     except queries.QueryError as error:
-        return {'ok': False, 'error': str(error)}
+        return {'ok': False, 'error': str(error)}, None

@@ -22,6 +22,17 @@ function setupAssistant(root) {
         analisar_transacoes: 'Calculando...',
         listar_transacoes: 'Buscando transações...',
         consultar_saldo: 'Consultando o saldo...',
+        propor_cartao: 'Montando a proposta...',
+        propor_transacao: 'Montando a proposta...',
+        propor_parcelamento: 'Montando a proposta...',
+        propor_transferencia: 'Montando a proposta...',
+    };
+
+    const OUTCOMES = {
+        confirmed: (result) => `Feito: ${result}`,
+        cancelled: () => 'Descartado. Nada foi gravado.',
+        failed: (result) => `Não foi gravado: ${result}`,
+        expired: () => 'Expirou sem confirmação. Nada foi gravado.',
     };
 
     function post(url, body) {
@@ -108,6 +119,95 @@ function setupAssistant(root) {
         scroll();
     }
 
+    // Rotas com id saem do template com 0 no lugar, e o segmento é trocado aqui.
+    function proposalUrl(template, id) {
+        return template.replace(/\/0\//, `/${id}/`);
+    }
+
+    // O card é montado só com o que o servidor resolveu: o front não recalcula
+    // valor nem data, mostra o que será gravado.
+    function proposalCard(id, summary, state, result) {
+        const card = document.createElement('div');
+        card.className = `assistant-proposal action-${summary.action}`;
+
+        const title = document.createElement('h4');
+        title.textContent = summary.title;
+        card.appendChild(title);
+
+        const rows = document.createElement('dl');
+        summary.rows.forEach((entry) => {
+            const label = document.createElement('dt');
+            label.textContent = entry.label;
+            const value = document.createElement('dd');
+            if ('before' in entry) {
+                value.className = 'changed';
+                const before = document.createElement('s');
+                before.textContent = entry.before;
+                value.append(before, ` → ${entry.value}`);
+            } else {
+                value.textContent = entry.value;
+            }
+            rows.append(label, value);
+        });
+        card.appendChild(rows);
+
+        summary.notes.forEach((text) => {
+            const note = document.createElement('p');
+            note.className = 'note';
+            note.textContent = text;
+            card.appendChild(note);
+        });
+
+        function finish(finalState, finalResult) {
+            card.querySelectorAll('footer').forEach((node) => node.remove());
+            const outcome = document.createElement('p');
+            outcome.className = `outcome ${finalState}`;
+            outcome.textContent = OUTCOMES[finalState](finalResult);
+            card.appendChild(outcome);
+            scroll();
+        }
+
+        list.appendChild(card);
+
+        if (state !== 'open') {
+            finish(state, result);
+            return;
+        }
+
+        const footer = document.createElement('footer');
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.className = summary.action === 'delete' ? 'danger' : '';
+        confirm.textContent = 'Confirmar';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'secondary';
+        cancel.textContent = 'Descartar';
+        footer.append(confirm, cancel);
+        card.appendChild(footer);
+        scroll();
+
+        async function act(template) {
+            footer.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+            try {
+                const response = await post(proposalUrl(template, id));
+                const data = await response.json();
+                if (data.state && data.state !== 'open') {
+                    finish(data.state, data.result);
+                } else {
+                    footer.querySelectorAll('button').forEach((button) => { button.disabled = false; });
+                }
+                if (!response.ok) bubble('error', data.error);
+            } catch (error) {
+                footer.querySelectorAll('button').forEach((button) => { button.disabled = false; });
+                bubble('error', 'Não foi possível concluir agora. Tente de novo.');
+            }
+        }
+
+        confirm.addEventListener('click', () => act(urls.confirm));
+        cancel.addEventListener('click', () => act(urls.cancel));
+    }
+
     function status(text) {
         clearStatus();
         const node = document.createElement('div');
@@ -145,6 +245,10 @@ function setupAssistant(root) {
         } else if (event.type === 'tool') {
             state.reply = null;
             status(STATUS[event.name] || 'Trabalhando...');
+        } else if (event.type === 'proposal') {
+            clearStatus();
+            proposalCard(event.id, event.summary, event.state, '');
+            state.reply = null;
         } else if (event.type === 'error') {
             clearStatus();
             bubble('error', event.message);
@@ -200,7 +304,11 @@ function setupAssistant(root) {
     }
 
     function renderBlock(block) {
-        bubble(block.role, block.content);
+        if (block.kind === 'proposal') {
+            proposalCard(block.id, block.summary, block.state, block.result);
+        } else {
+            bubble(block.role, block.content);
+        }
     }
 
     // Rebuscada a cada abertura: a conversa mora no banco e pode ter andado em
@@ -222,7 +330,7 @@ function setupAssistant(root) {
         data.blocks.forEach(renderBlock);
 
         if (!data.blocks.length) {
-            bubble('empty', 'Pergunte sobre suas finanças: gastos, saldo, categorias, cartões e o que mais precisar.');
+            bubble('empty', 'Pergunte sobre suas finanças ou peça para lançar, editar ou apagar transações, parcelamentos, transferências e cartões.');
         }
     }
 

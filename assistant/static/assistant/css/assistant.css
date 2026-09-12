@@ -165,6 +165,92 @@
     padding: 0 4px;
 }
 
+/* Card de proposta: a única coisa do chat que grava, e por isso destoa do resto
+   da conversa. */
+.assistant-proposal {
+    align-self: stretch;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.assistant-proposal.action-delete {
+    border-color: var(--outcome);
+}
+
+.assistant-proposal h4 {
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    border-bottom: 1px solid var(--border);
+    padding: 8px 11px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.assistant-proposal.action-delete h4 {
+    background: color-mix(in srgb, var(--outcome) 10%, var(--surface));
+    color: var(--outcome);
+}
+
+.assistant-proposal dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    padding: 10px 11px;
+}
+
+.assistant-proposal dt {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.assistant-proposal dd {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.assistant-proposal dd.changed {
+    font-weight: 600;
+}
+
+.assistant-proposal dd.changed s {
+    color: var(--muted);
+    font-weight: normal;
+}
+
+.assistant-proposal .note {
+    padding: 0 11px 8px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.assistant-proposal footer {
+    display: flex;
+    gap: 8px;
+    padding: 2px 11px 11px;
+}
+
+.assistant-proposal footer button {
+    flex: 1;
+    height: 32px;
+}
+
+.assistant-proposal .outcome {
+    padding: 10px 11px;
+    font-size: 13px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+}
+
+.assistant-proposal .outcome.confirmed {
+    color: var(--income);
+}
+
+.assistant-proposal .outcome.failed {
+    color: var(--outcome);
+}
+
 .assistant-composer {
     display: flex;
     gap: 8px;

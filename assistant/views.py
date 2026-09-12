@@ -6,8 +6,9 @@ from django.http import JsonResponse, StreamingHttpResponse
 from django.views import View
 from django.views.generic import TemplateView
 
+from . import proposals
 from .client import GENERIC_ERROR, converse
-from .models import Conversation, Role
+from .models import Conversation, Proposal, Role
 
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,17 @@ class HistoryView(AssistantView):
 
         messages = conversation.messages.filter(visible=True).exclude(role=Role.TOOL).exclude(content='')
 
-        return JsonResponse({'blocks': [
-            {'kind': 'message', 'role': message.role, 'content': message.content}
+        # Uma lista só, em ordem de tempo: o card volta ao lado da frase que o
+        # pediu, e já resolvido volta sem botão, dizendo o que houve.
+        blocks = [
+            (message.created_at, {'kind': 'message', 'role': message.role, 'content': message.content})
             for message in messages
-        ]})
+        ] + [
+            (proposal.created_at, {'kind': 'proposal', 'id': proposal.pk, 'summary': proposal.summary, 'state': proposal.state, 'result': proposal.result})
+            for proposal in conversation.proposals.all()
+        ]
+
+        return JsonResponse({'blocks': [block for _, block in sorted(blocks, key=lambda item: item[0])]})
 
 
 class ResetView(AssistantView):
@@ -76,3 +84,31 @@ class ResetView(AssistantView):
     def post(self, request, *args, **kwargs):
         Conversation.objects.filter(user=request.user).delete()
         return JsonResponse({'status': 'reset'})
+
+
+class ProposalView(AssistantView):
+    http_method_names = ['post']
+
+    def post(self, request, pk, *args, **kwargs):
+        proposal = Proposal.objects.filter(pk=pk, user=request.user).first()
+        if proposal is None:
+            return JsonResponse({'error': 'Esta proposta não existe.'}, status=404)
+
+        try:
+            result = self.resolve(proposal)
+        except proposals.ProposalError as error:
+            proposal.refresh_from_db()
+            return JsonResponse({'error': str(error), 'state': proposal.state, 'result': proposal.result}, status=409)
+
+        return JsonResponse({'state': proposal.state, 'result': result})
+
+
+class ConfirmView(ProposalView):
+    def resolve(self, proposal):
+        return proposals.confirm(proposal)
+
+
+class CancelView(ProposalView):
+    def resolve(self, proposal):
+        proposals.cancel(proposal)
+        return ''
