@@ -167,6 +167,23 @@ def read_target(spec, kind, user, arguments):
     return instance
 
 
+def read_clear(spec, action, arguments, provided):
+    clear = arguments.get('clear') or []
+    if not clear:
+        return []
+    if action != Action.UPDATE:
+        raise ProposalError('"clear" só vale ao editar.')
+
+    optional = [name for name, field in spec.form.base_fields.items() if not field.required]
+    if not isinstance(clear, list) or any(name not in optional for name in clear):
+        raise ProposalError(f'"clear" aceita só campos opcionais: {", ".join(optional)}. Recebido: {clear!r}.')
+
+    conflict = sorted(set(clear) & set(provided))
+    if conflict:
+        raise ProposalError(f'Os campos {", ".join(conflict)} vieram com valor e em "clear" ao mesmo tempo.')
+    return clear
+
+
 def build(kind, user, arguments):
     spec = SPECS[kind]
     action = arguments.get('action')
@@ -174,7 +191,9 @@ def build(kind, user, arguments):
         raise ProposalError(f'Ação inválida para {Kind(kind).label.lower()}: {action!r}. Aceitas: {", ".join(spec.actions)}.')
 
     fields = spec.form.base_fields
-    provided = {name: value for name, value in arguments.items() if name not in ('action', 'id')}
+    # null e "" são o enchimento do modo estrito para o que não se aplica, e não
+    # dado: esvaziar um campo só pelo `clear`, de forma explícita.
+    provided = {name: value for name, value in arguments.items() if name not in ('action', 'id', 'clear') and value not in (None, '')}
     unknown = sorted(set(provided) - set(fields))
     if unknown:
         raise ProposalError(f'Campos que não existem aqui: {", ".join(unknown)}. Aceitos: {", ".join(fields)}.')
@@ -183,8 +202,6 @@ def build(kind, user, arguments):
     title = f'{Action(action).label} {Kind(kind).label.lower()}'
 
     if action == Action.DELETE:
-        if provided:
-            raise ProposalError('Para apagar, informe só o id.')
         check_delete(instance)
         return instance.pk, {}, snapshot(instance), delete_summary(spec, kind, instance, title)
 
@@ -200,11 +217,10 @@ def build(kind, user, arguments):
         blank = spec.form(user=user)
         data = {name: to_data(blank[name].initial) for name in fields if blank[name].initial not in (None, '')}
 
-    for name, value in provided.items():
-        if value in (None, ''):
-            data.pop(name, None)
-        else:
-            data[name] = value
+    clear = read_clear(spec, action, arguments, provided)
+    for name in clear:
+        data.pop(name, None)
+    data.update(provided)
 
     form = spec.form(data=data, instance=instance, user=user)
     if not form.is_valid():

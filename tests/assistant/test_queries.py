@@ -125,6 +125,17 @@ def test_parametro_invalido_vira_erro_em_vez_de_ser_ignorado(user, arguments):
         analyze_transactions(user, arguments)
 
 
+def test_enchimento_do_modo_estrito_nao_filtra(user, make_transaction):
+    make_transaction(value=Decimal('7.00')).save()
+    arguments = {name: None for name in ('date_field', 'start', 'end', 'account', 'category', 'uncategorized', 'card', 'type',
+                                         'method', 'nature', 'origin', 'min_value', 'max_value', 'search', 'group_by')}
+
+    payload = analyze_transactions(user, arguments)
+
+    assert payload['total']['outcome'] == '7.00'
+    assert list_transactions(user, {**arguments, 'order': None, 'limit': None, 'offset': None})['count'] == 1
+
+
 def test_cartao_de_outro_usuario_e_id_desconhecido(user, other_user_card):
     with pytest.raises(QueryError):
         analyze_transactions(user, {'card': [other_user_card.pk]})

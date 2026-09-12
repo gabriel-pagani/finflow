@@ -124,8 +124,10 @@ class Filters:
         self.categories = read_ids(arguments, 'category', Category.objects.all())
         self.cards = read_ids(arguments, 'card', Card.objects.filter(user=user).select_related('account'))
 
-        self.uncategorized = arguments.get('uncategorized', False)
-        if not isinstance(self.uncategorized, bool):
+        self.uncategorized = arguments.get('uncategorized')
+        if self.uncategorized is None:
+            self.uncategorized = False
+        elif not isinstance(self.uncategorized, bool):
             raise QueryError(f'"uncategorized" espera true ou false. Recebido: {self.uncategorized!r}.')
 
         self.types = read_codes(arguments, 'type', Type.values)

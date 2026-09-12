@@ -111,16 +111,51 @@ def test_edicao_mostra_o_antes_e_mantem_o_resto(user, account, category, make_tr
     assert (transaction.value, transaction.description, transaction.category) == (Decimal('35.50'), 'Almoço', category)
 
 
-def test_null_limpa_a_categoria(user, category, make_transaction, conversation):
+def test_null_na_edicao_mantem_o_campo(user, category, make_transaction, conversation):
+    transaction = make_transaction(category=category, description='Almoço')
+    transaction.save()
+
+    proposal = proposta('transaction', user, conversation, action='update', id=transaction.pk, value='12.00', category=None, description=None, card=None, clear=None)
+    confirm(proposal)
+
+    transaction.refresh_from_db()
+    assert (transaction.value, transaction.category, transaction.description) == (Decimal('12.00'), category, 'Almoço')
+
+
+def test_clear_esvazia_a_categoria(user, category, make_transaction, conversation):
     transaction = make_transaction(category=category)
     transaction.save()
 
-    proposal = proposta('transaction', user, conversation, action='update', id=transaction.pk, category=None)
+    proposal = proposta('transaction', user, conversation, action='update', id=transaction.pk, clear=['category'])
     assert rows(proposal.summary)['Categoria']['before'] == 'Mercado'
 
     confirm(proposal)
     transaction.refresh_from_db()
     assert transaction.category is None
+
+
+@pytest.mark.parametrize('clear, extra', [(['value'], {}), (['category'], {'category': 1}), (['account'], {})])
+def test_clear_invalido_e_recusado(user, make_transaction, conversation, clear, extra):
+    transaction = make_transaction()
+    transaction.save()
+    assert 'clear' in recusa('transaction', user, conversation, action='update', id=transaction.pk, clear=clear, **extra)['error']
+
+
+def test_criacao_com_o_enchimento_do_modo_estrito(user, account, card, conversation):
+    proposal = proposta('installment', user, conversation, action='create', id=None, occurred_at='2026-09-12', account=account.pk,
+                        card=card.pk, category=None, description=None, value='12000.00', installments=10)
+    assert rows(proposal.summary)['Parcelas']['value'] == '10x de 1.200,00'
+
+
+def test_remocao_ignora_os_campos_de_enchimento(user, make_installment, conversation):
+    installment = make_installment()
+    installment.save()
+
+    # A chamada exatamente como o modelo a mandou e o sistema recusou oito vezes.
+    proposal = proposta('installment', user, conversation, action='delete', id=installment.pk, occurred_at='', account=0,
+                        card=0, category=None, description=None, value='', installments=0)
+
+    assert proposal.target_id == installment.pk
 
 
 def test_edicao_sem_mudanca_e_recusada(user, make_transaction, conversation):
