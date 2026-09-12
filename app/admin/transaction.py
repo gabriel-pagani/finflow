@@ -13,13 +13,13 @@ class TransactionAdmin(VersionAdmin):
     list_select_related = ('account', 'card', 'category', 'installment', 'user')
     date_hierarchy = 'effective_at'
     ordering = ('-effective_at', '-id')
-    readonly_fields = ('installment', 'parcel', 'transfer', 'subscription', 'reference', 'effective_at', 'created_at', 'updated_at')
+    readonly_fields = ('installment', 'parcel', 'transfer', 'effective_at', 'created_at', 'updated_at')
     fieldsets = (
         (None, {
             'fields': ('user', 'account', 'card', 'type', 'method', 'nature', 'category', 'description', 'value', 'occurred_at', 'effective_at', 'created_at', 'updated_at',)
         }),
         ('Origens', {
-            'fields': ('installment', 'parcel', 'transfer', 'subscription', 'reference')
+            'fields': ('installment', 'parcel', 'transfer')
         }),
     )
 

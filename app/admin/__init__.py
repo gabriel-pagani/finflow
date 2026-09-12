@@ -1,4 +1,4 @@
-from . import account, business_rule, card, category, group, installment, subscription, transaction, transfer, user
+from . import account, business_rule, card, category, group, installment, transaction, transfer, user
 
 
 __all__ = [
@@ -8,7 +8,6 @@ __all__ = [
     'category',
     'group',
     'installment',
-    'subscription',
     'transaction',
     'transfer',
     'user',

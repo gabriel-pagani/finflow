@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 from django.contrib.auth import get_user_model
 
-from app.models import Account, BusinessRule, Card, Category, Installment, Method, Recurrence, Subscription, SubscriptionPeriod, Transaction, Transfer, Type
+from app.models import Account, BusinessRule, Card, Category, Installment, Method, Transaction, Transfer, Type
 
 
 @pytest.fixture
@@ -132,36 +132,4 @@ def make_transfer(user, account, other_account, transfer_out_rule, transfer_in_r
             'occurred_at': date(2026, 9, 4),
         }
         return Transfer(**{**defaults, **fields})
-    return build
-
-
-@pytest.fixture
-def make_subscription(user, account, card):
-    def build(**fields):
-        defaults = {
-            'user': user,
-            'account': account,
-            'card': card,
-            'description': 'Netflix',
-            'value': Decimal('55.90'),
-            'recurrence': Recurrence.MONTHLY,
-        }
-        return Subscription(**{**defaults, **fields})
-    return build
-
-
-@pytest.fixture
-def make_period():
-    def build(subscription, started_at=date(2026, 9, 10), cancelled_at=None):
-        return SubscriptionPeriod.objects.create(subscription=subscription, started_at=started_at, cancelled_at=cancelled_at)
-    return build
-
-
-@pytest.fixture
-def subscribe(make_subscription, make_period):
-    def build(started_at=date(2026, 9, 10), cancelled_at=None, **fields):
-        subscription = make_subscription(**fields)
-        subscription.save()
-        make_period(subscription, started_at, cancelled_at)
-        return subscription
     return build
