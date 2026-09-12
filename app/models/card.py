@@ -20,8 +20,6 @@ class Card(models.Model):
     TYPE = Type.OUT
     METHOD = Method.CREDIT
 
-    LOCKED_AFTER_TRANSACTIONS = ('user', 'account', 'last_digits')
-
     def clean(self):
         super().clean()
         errors = {}

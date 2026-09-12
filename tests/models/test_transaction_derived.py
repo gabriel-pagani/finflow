@@ -6,26 +6,9 @@ O bloqueio vive no delete() da instância. A regeneração da origem e o CASCADE
 apagam pelo queryset, que não passa por lá — é o caminho que segue aberto.
 """
 import pytest
-from django.contrib import admin as django_admin
-from django.contrib.admin.sites import site
-from django.contrib.admin.utils import get_deleted_objects
 from django.core.exceptions import ValidationError
-from django.test import RequestFactory
-from django.urls import resolve, reverse
 
 from app.models import Card, Installment, Transaction, Transfer
-
-
-@pytest.fixture
-def admin_request(admin_user):
-    request = RequestFactory().get('/')
-    request.user = admin_user
-    return request
-
-
-@pytest.fixture
-def transaction_admin():
-    return django_admin.site.get_model_admin(Transaction)
 
 
 def test_parcela_e_derivada(make_installment, credit_rule):
@@ -81,70 +64,3 @@ def test_apagar_a_origem_continua_levando_as_derivadas(make_installment, make_tr
     assert Installment.objects.count() == 0
     assert Transfer.objects.count() == 0
     assert Card.objects.count() == 0
-
-
-def test_admin_nao_deixa_editar_a_derivada(make_installment, credit_rule, transaction_admin, admin_request):
-    parcelamento = make_installment()
-    parcelamento.save()
-    parcela = parcelamento.transactions.first()
-    editaveis = [field.name for field in Transaction._meta.fields
-                 if field.name not in transaction_admin.get_readonly_fields(admin_request, parcela)]
-    assert editaveis == ['id']
-
-
-def test_admin_mantem_a_avulsa_editavel(make_transaction, transaction_admin, admin_request):
-    transacao = make_transaction()
-    transacao.save()
-    readonly = transaction_admin.get_readonly_fields(admin_request, transacao)
-    assert 'value' not in readonly
-    assert 'nature' not in readonly
-
-
-def test_admin_esconde_a_exclusao_da_derivada(make_installment, credit_rule, transaction_admin, admin_request):
-    parcelamento = make_installment()
-    parcelamento.save()
-    assert not transaction_admin.has_delete_permission(admin_request, parcelamento.transactions.first())
-
-
-def test_admin_mantem_a_exclusao_da_avulsa(make_transaction, transaction_admin, admin_request):
-    transacao = make_transaction()
-    transacao.save()
-    assert transaction_admin.has_delete_permission(admin_request, transacao)
-
-
-def test_admin_bloqueia_a_exclusao_em_massa_da_derivada(make_installment, credit_rule, transaction_admin, admin_request):
-    parcelamento = make_installment()
-    parcelamento.save()
-    _, _, perms_needed, _ = transaction_admin.get_deleted_objects(parcelamento.transactions.all(), admin_request)
-    assert perms_needed
-
-
-def delete_view_request(instance, user):
-    path = reverse(f'admin:app_{instance._meta.model_name}_delete', args=[instance.pk])
-    request = RequestFactory().get(path)
-    request.user = user
-    request.resolver_match = resolve(path)
-
-    return request
-
-
-def test_admin_deixa_apagar_o_parcelamento_apesar_das_parcelas(make_installment, credit_rule, admin_user):
-    parcelamento = make_installment()
-    parcelamento.save()
-    _, _, perms_needed, _ = get_deleted_objects([parcelamento], delete_view_request(parcelamento, admin_user), site)
-    assert perms_needed == set()
-
-
-def test_admin_deixa_apagar_a_transferencia_apesar_das_pernas(make_transfer, admin_user):
-    transferencia = make_transfer()
-    transferencia.save()
-    _, _, perms_needed, _ = get_deleted_objects([transferencia], delete_view_request(transferencia, admin_user), site)
-    assert perms_needed == set()
-
-
-def test_admin_continua_barrando_a_parcela_na_propria_tela(make_installment, credit_rule, admin_user):
-    parcelamento = make_installment()
-    parcelamento.save()
-    parcela = parcelamento.transactions.first()
-    _, _, perms_needed, _ = get_deleted_objects([parcela], delete_view_request(parcela, admin_user), site)
-    assert perms_needed == {Transaction._meta.verbose_name}

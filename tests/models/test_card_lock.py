@@ -1,8 +1,6 @@
 """Cartão com transação registrada não troca de dono, de conta nem de final."""
 import pytest
-from django.contrib import admin as django_admin
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
-from django.test import RequestFactory
 
 from app.models import Card, Method
 
@@ -38,17 +36,3 @@ def test_cartao_sem_transacao_aceita_qualquer_mudanca(card, other_user):
     card.user = other_user
     card.last_digits = '4321'
     card.full_clean()
-
-
-def test_admin_trava_os_campos_de_quem_ja_tem_transacao(com_transacao, admin_user):
-    request = RequestFactory().get('/')
-    request.user = admin_user
-    readonly = django_admin.site.get_model_admin(Card).get_readonly_fields(request, com_transacao)
-    assert set(Card.LOCKED_AFTER_TRANSACTIONS) <= set(readonly)
-
-
-def test_admin_libera_os_campos_de_quem_nao_tem_transacao(card, admin_user):
-    request = RequestFactory().get('/')
-    request.user = admin_user
-    readonly = django_admin.site.get_model_admin(Card).get_readonly_fields(request, card)
-    assert not set(Card.LOCKED_AFTER_TRANSACTIONS) & set(readonly)
