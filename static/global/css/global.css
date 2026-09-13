@@ -328,12 +328,11 @@ td a {
     }
 
     .topbar nav a {
-        /* Um terço da linha descontados os dois vãos: três abas por linha em
-           qualquer largura de celular, em vez de a conta mudar com o aparelho.
-           O flex-grow só entra na última linha incompleta, que estica para
-           fechar a faixa. */
-        flex: 1 1 calc((100% - 12px) / 3);
-        padding: 8px 4px;
+        /* Um quarto da linha descontados os três vãos: as quatro páginas do
+           sistema numa linha, e o Assistente, quando existe, sozinho na de
+           baixo, esticado pelo flex-grow para fechar a faixa. */
+        flex: 1 1 calc((100% - 18px) / 4);
+        padding: 8px 2px;
         border: 1px solid var(--border);
         border-radius: 8px;
         text-align: center;
