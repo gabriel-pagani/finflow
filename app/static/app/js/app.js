@@ -182,12 +182,17 @@ function linkFields(form, options) {
 
     // O que cabe no campo com o que está escolhido em todos os outros. Devolver
     // null é dizer "sem restrição", o caso da categoria em natureza Normal.
+    //
+    // A categoria recebe o recorte, mas não o impõe: uma categoria marcada não
+    // esconde as outras naturezas, e escolher uma delas é que limpa a categoria.
+    // Do contrário, a transação que já tem categoria não chegaria a Investimento
+    // sem o usuário adivinhar que precisa apagá-la antes.
     function allowedFor(name) {
         if (name === 'account' && locked()) return [account.value];
 
         const values = new Set(
             combinations
-                .filter((combination) => names.every((other) => other === name || fits(combination, other)))
+                .filter((combination) => names.every((other) => other === name || other === 'category' || fits(combination, other)))
                 .map((combination) => combination[name]),
         );
         return values.has(ANY_CATEGORY) ? null : Array.from(values);
