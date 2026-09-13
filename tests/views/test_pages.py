@@ -26,20 +26,20 @@ def test_filtro_com_valor_invalido_e_descartado(logged, debit_rule):
     assert logged.get(reverse('app:transactions_list'), {'account': 'lixo', 'category': 'x', 'type': 'ZZ', 'nature': 'ZZ'}).status_code == 200
 
 
-def test_filtro_por_natureza(logged, account, adjustment_rule, make_transaction):
+def test_filtro_por_natureza(logged, account, debit_rule, make_transaction):
     normal = make_transaction()
     normal.save()
-    ajuste = make_transaction(nature='ADJUSTMENT', method='NOT_APPLICABLE')
-    ajuste.save()
+    interna = make_transaction(nature='INTERNAL')
+    interna.save()
 
-    response = logged.get(reverse('app:transactions_list'), {'nature': 'ADJUSTMENT', 'start': '2026-01-01', 'end': '2026-12-31'})
-    assert list(response.context['object_list']) == [ajuste]
-    assert 'Ajuste de Saldo' in response.content.decode()
+    response = logged.get(reverse('app:transactions_list'), {'nature': 'INTERNAL', 'start': '2026-01-01', 'end': '2026-12-31'})
+    assert list(response.context['object_list']) == [interna]
+    assert '<td>Interna</td>' in response.content.decode()
 
 
-def test_investimento_entra_no_saldo_e_fica_fora_dos_graficos(logged, account, category, debit_rule, make_transaction):
+def test_interna_entra_no_saldo_e_fica_fora_dos_graficos_e_kpis(logged, account, category, debit_rule, make_transaction):
     make_transaction(category=category, value='10.00').save()
-    make_transaction(nature='INVESTMENT', value='500.00').save()
+    make_transaction(nature='INTERNAL', value='500.00').save()
 
     response = logged.get(reverse('app:overview'), {'start': '2026-01-01', 'end': '2026-12-31'})
     saida = next(item for item in response.context['chart_months']['series'] if item['name'] == 'Saída')

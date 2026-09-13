@@ -35,9 +35,6 @@ class Transaction(models.Model):
         super().clean()
         errors = {}
 
-        if self.nature == Nature.INTERNAL and not self.transfer_id:
-            errors['nature'] = f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.'
-
         if self.account_id and self.type and self.method:
             if not BusinessRule.objects.filter(account_id=self.account_id, type=self.type, method=self.method).exists():
                 errors[NON_FIELD_ERRORS] = f'A conta {self.account} não permite {self.get_type_display().lower()} em {self.get_method_display()}.'
@@ -116,14 +113,9 @@ class Transaction(models.Model):
                 violation_error_message=f'Apenas transações com natureza {Nature.REGULAR.label} recebem categoria.',
             ),
             models.CheckConstraint(
-                condition=~models.Q(nature=Nature.ADJUSTMENT) | models.Q(method=Method.NOT_APPLICABLE),
-                name='transaction_adjustment_without_method',
-                violation_error_message=f'Um ajuste de saldo não tem método, use {Method.NOT_APPLICABLE.label}.',
-            ),
-            models.CheckConstraint(
-                condition=~models.Q(nature=Nature.INVESTMENT) | models.Q(method__in=[Method.DEBIT, Method.NOT_APPLICABLE]),
-                name='transaction_investment_without_credit',
-                violation_error_message=f'Um investimento é sempre em {Method.DEBIT.label} ou {Method.NOT_APPLICABLE.label}.',
+                condition=~models.Q(nature=Nature.INTERNAL, method=Method.CREDIT),
+                name='transaction_internal_without_credit',
+                violation_error_message=f'A natureza {Nature.INTERNAL.label} só mexe no saldo e nunca é em {Method.CREDIT.label}.',
             ),
             models.CheckConstraint(
                 condition=(
@@ -174,12 +166,9 @@ class Transaction(models.Model):
                 violation_error_message=f'A parcela de um parcelamento é sempre {Type.OUT.label.lower()} em {Method.CREDIT.label}.',
             ),
             models.CheckConstraint(
-                condition=(
-                    models.Q(transfer__isnull=False, nature=Nature.INTERNAL)
-                    | (models.Q(transfer__isnull=True) & ~models.Q(nature=Nature.INTERNAL))
-                ),
-                name='transaction_internal_only_within_transfer',
-                violation_error_message=f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.',
+                condition=models.Q(transfer__isnull=True) | models.Q(nature=Nature.INTERNAL),
+                name='transaction_transfer_leg_is_internal',
+                violation_error_message=f'As pernas de uma transferência são sempre de natureza {Nature.INTERNAL.label}.',
             ),
             models.CheckConstraint(
                 condition=(

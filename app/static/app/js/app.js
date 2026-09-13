@@ -185,8 +185,8 @@ function linkFields(form, options) {
     //
     // A categoria recebe o recorte, mas não o impõe: uma categoria marcada não
     // esconde as outras naturezas, e escolher uma delas é que limpa a categoria.
-    // Do contrário, a transação que já tem categoria não chegaria a Investimento
-    // sem o usuário adivinhar que precisa apagá-la antes.
+    // Do contrário, a transação que já tem categoria não chegaria a Interna sem
+    // o usuário adivinhar que precisa apagá-la antes.
     function allowedFor(name) {
         if (name === 'account' && locked()) return [account.value];
 
@@ -252,8 +252,8 @@ function linkFields(form, options) {
     // Os campos que o recorte marcou sozinho. Esse valor não foi escolha do
     // usuário, então não pode seguir recortando os outros: a cada mudança ele
     // volta a vazio e só é marcado de novo se ainda for a única opção. Sem isso,
-    // trocar Ajuste de Saldo por Normal deixaria presos a entrada e o Não Se
-    // Aplica que o ajuste tinha imposto.
+    // voltar a um campo mais aberto deixaria presos o tipo e o método que a
+    // escolha anterior tinha imposto.
     const automatic = new Set();
 
     // Recortar um campo pode marcar sozinho a única opção que sobrou nele, e

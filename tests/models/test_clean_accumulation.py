@@ -23,12 +23,18 @@ def test_transferencia_junta_origem_e_destino(user, account, other_account):
     assert set(erro.value.error_dict) == {'origin', 'destination'}
 
 
-def test_transacao_junta_natureza_e_regra_de_negocio(make_transaction, account):
-    with pytest.raises(ValidationError) as erro:
-        make_transaction(nature=Nature.INTERNAL, method=Method.NOT_APPLICABLE).full_clean(exclude={'transfer'})
+def test_transacao_junta_natureza_e_regra_de_negocio(make_transaction, user, account):
+    # Cartão criado direto, sem a regra de crédito que o clean dele exigiria:
+    # é o que deixa a conta recusar a saída em crédito.
+    cartao = Card.objects.create(user=user, account=account, last_digits='1234', closing_day=5, due_day=12)
 
-    assert erro.value.message_dict['nature'] == [f'A natureza {Nature.INTERNAL.label} é exclusiva das pernas de uma transferência.']
-    assert erro.value.message_dict[NON_FIELD_ERRORS] == [f'A conta {account} não permite saída em {Method.NOT_APPLICABLE.label}.']
+    with pytest.raises(ValidationError) as erro:
+        make_transaction(nature=Nature.INTERNAL, method=Method.CREDIT, card=cartao).full_clean()
+
+    assert sorted(erro.value.message_dict[NON_FIELD_ERRORS]) == sorted([
+        f'A conta {account} não permite saída em {Method.CREDIT.label}.',
+        f'A natureza {Nature.INTERNAL.label} só mexe no saldo e nunca é em {Method.CREDIT.label}.',
+    ])
 
 
 def test_transacao_junta_as_duas_broncas_do_mesmo_cartao(make_transaction, other_user, other_account, credit_rule):

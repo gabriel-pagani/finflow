@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction as db
 from django.utils import timezone
 
-from .models import AccessRequest, Card, Installment, Method, Nature, Transaction, Transfer, User
+from .models import AccessRequest, Card, Installment, Method, Transaction, Transfer, User
 
 
 CARD_REQUIRED_ERROR = 'Escolha o cartão usado na compra. Se você ainda não tem nenhum, cadastre um em Cartões.'
@@ -144,7 +144,6 @@ class TransactionForm(OwnedForm):
         super().__init__(*args, **kwargs)
 
         self.fields['card'].required = False
-        self.fields['nature'].choices = [choice for choice in Nature.choices if choice[0] != Nature.INTERNAL]
 
     def clean(self):
         cleaned = super().clean()

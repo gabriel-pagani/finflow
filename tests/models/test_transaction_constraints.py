@@ -30,7 +30,7 @@ def test_cartao_fora_do_credito_e_recusado(make_transaction, card):
 
 def test_categoria_fora_da_natureza_normal_e_recusada(make_transaction, category):
     with pytest.raises(IntegrityError):
-        make_transaction(nature=Nature.ADJUSTMENT, method=Method.NOT_APPLICABLE, category=category).save()
+        make_transaction(nature=Nature.INTERNAL, category=category).save()
 
 
 @pytest.mark.parametrize('campo, valor', [
@@ -58,25 +58,14 @@ def test_data_efetiva_antes_da_transacao_e_recusada(make_transaction):
         Transaction.objects.filter(pk=transacao.pk).update(effective_at=transacao.occurred_at - timedelta(days=1))
 
 
-def test_ajuste_com_metodo_e_recusado(make_transaction):
+def test_interna_no_credito_e_recusada(make_transaction, card):
     with pytest.raises(IntegrityError):
-        make_transaction(nature=Nature.ADJUSTMENT).save()
-
-
-def test_ajuste_sem_metodo_e_aceito(make_transaction):
-    transacao = make_transaction(nature=Nature.ADJUSTMENT, method=Method.NOT_APPLICABLE)
-    transacao.save()
-    assert transacao.pk
-
-
-def test_investimento_no_credito_e_recusado(make_transaction, card):
-    with pytest.raises(IntegrityError):
-        make_transaction(nature=Nature.INVESTMENT, method=Method.CREDIT, card=card).save()
+        make_transaction(nature=Nature.INTERNAL, method=Method.CREDIT, card=card).save()
 
 
 @pytest.mark.parametrize('method', [Method.DEBIT, Method.NOT_APPLICABLE])
-def test_investimento_em_debito_ou_sem_metodo_e_aceito(make_transaction, method):
-    transacao = make_transaction(nature=Nature.INVESTMENT, method=method)
+def test_interna_avulsa_fora_do_credito_e_aceita(make_transaction, method):
+    transacao = make_transaction(nature=Nature.INTERNAL, method=method)
     transacao.save()
     assert transacao.pk
 

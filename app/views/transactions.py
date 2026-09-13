@@ -24,12 +24,12 @@ def form_options(user):
         'cards': {str(pk): str(account_id) for pk, account_id in Card.objects.filter(user=user).values_list('pk', 'account_id')},
         # Cartão com lançamentos não troca de conta nem de final na edição.
         'locked_cards': [str(pk) for pk in Card.objects.filter(user=user, transactions__isnull=False).distinct().values_list('pk', flat=True)],
-        # As naturezas que cada método admite: o ajuste de saldo só existe em
-        # Não Se Aplica e o investimento nunca passa pelo crédito.
+        # As naturezas que cada método admite: a Interna só mexe no saldo, e o
+        # crédito não entra nele.
         'natures': {
             Method.CREDIT: [Nature.REGULAR],
-            Method.DEBIT: [Nature.REGULAR, Nature.INVESTMENT],
-            Method.NOT_APPLICABLE: [Nature.REGULAR, Nature.ADJUSTMENT, Nature.INVESTMENT],
+            Method.DEBIT: [Nature.REGULAR, Nature.INTERNAL],
+            Method.NOT_APPLICABLE: [Nature.REGULAR, Nature.INTERNAL],
         },
         # Os formulários que não perguntam tipo nem método, por modal e por
         # campo de conta: só servem as contas que aceitam a combinação fixa.

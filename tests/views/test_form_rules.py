@@ -36,54 +36,25 @@ def test_valor_nao_positivo(logged, account, debit_rule, value, expected):
     assert expected in messages(response)
 
 
-def test_ajuste_de_saldo_exige_metodo_nao_se_aplica(logged, account, debit_rule):
-    response = post(logged, 'app:transaction_create', **transaction_payload(account, nature='ADJUSTMENT'))
+def test_interna_no_credito_e_recusada(logged, account, card, credit_rule):
+    response = post(logged, 'app:transaction_create', **transaction_payload(
+        account, nature='INTERNAL', method='CREDIT', card=card.pk))
 
     assert not Transaction.objects.exists()
-    assert 'Um ajuste de saldo não tem método, use Não Se Aplica.' in messages(response)
+    assert 'A natureza Interna só mexe no saldo e nunca é em Crédito.' in messages(response)
 
 
-def test_ajuste_de_saldo_nao_recebe_categoria(logged, account, category, adjustment_rule):
-    response = post(logged, 'app:transaction_create', **transaction_payload(
-        account, nature='ADJUSTMENT', method='NOT_APPLICABLE', category=category.pk))
+def test_interna_nao_recebe_categoria(logged, account, category, debit_rule):
+    response = post(logged, 'app:transaction_create', **transaction_payload(account, nature='INTERNAL', category=category.pk))
 
     assert not Transaction.objects.exists()
     assert 'Apenas transações com natureza Normal recebem categoria.' in messages(response)
 
 
-def test_ajuste_de_saldo_valido_passa(logged, account, adjustment_rule):
-    post(logged, 'app:transaction_create', **transaction_payload(
-        account, nature='ADJUSTMENT', method='NOT_APPLICABLE'))
+def test_interna_avulsa_valida_passa(logged, account, debit_rule):
+    post(logged, 'app:transaction_create', **transaction_payload(account, nature='INTERNAL'))
 
-    assert Transaction.objects.count() == 1
-
-
-def test_investimento_nao_recebe_categoria(logged, account, category, debit_rule):
-    response = post(logged, 'app:transaction_create', **transaction_payload(account, nature='INVESTMENT', category=category.pk))
-
-    assert not Transaction.objects.exists()
-    assert 'Apenas transações com natureza Normal recebem categoria.' in messages(response)
-
-
-def test_investimento_no_credito_e_recusado(logged, account, card, credit_rule):
-    response = post(logged, 'app:transaction_create', **transaction_payload(
-        account, nature='INVESTMENT', method='CREDIT', card=card.pk))
-
-    assert not Transaction.objects.exists()
-    assert 'Um investimento é sempre em Débito ou Não Se Aplica.' in messages(response)
-
-
-def test_investimento_valido_passa(logged, account, debit_rule):
-    post(logged, 'app:transaction_create', **transaction_payload(account, nature='INVESTMENT'))
-
-    assert Transaction.objects.count() == 1
-
-
-def test_movimentacao_interna_nao_e_oferecida(logged, account, debit_rule):
-    response = post(logged, 'app:transaction_create', **transaction_payload(account, nature='INTERNAL'))
-
-    assert not Transaction.objects.exists()
-    assert any('escolha válida' in message for message in messages(response))
+    assert Transaction.objects.get().nature == 'INTERNAL'
 
 
 def test_cartao_fora_do_credito_e_descartado(logged, account, card, credit_rule, debit_rule):
@@ -225,7 +196,7 @@ def test_parcelamento_mostra_conta_e_cartao_errados_de_uma_vez(logged, other_acc
 
 def test_transacao_mostra_natureza_e_regra_erradas_de_uma_vez(logged, account, card, credit_rule):
     response = post(logged, 'app:transaction_create', **transaction_payload(
-        account, type='IN', method='DEBIT', nature='INTERNAL'))
+        account, type='IN', method='CREDIT', card=card.pk, nature='INTERNAL'))
 
     assert not Transaction.objects.exists()
     assert len(messages(response)) == 2

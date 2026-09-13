@@ -48,11 +48,6 @@ def test_perna_fora_da_natureza_interna_e_recusada(make_transfer):
         Transaction.objects.filter(pk=saida.pk).update(nature=Nature.REGULAR)
 
 
-def test_natureza_interna_sem_transferencia_e_recusada(make_transaction):
-    with pytest.raises(IntegrityError):
-        make_transaction(nature=Nature.INTERNAL).save()
-
-
 def test_perna_com_metodo_trocado_e_recusada(make_transfer):
     transferencia = make_transfer()
     transferencia.save()

@@ -1,14 +1,5 @@
 import pytest
 
-from app.models import BusinessRule, Method, Type
-
-
-@pytest.fixture
-def adjustment_rule(account):
-    """Saída em não se aplica, que é o que o ajuste de saldo exige."""
-    return BusinessRule.objects.create(account=account, type=Type.OUT, method=Method.NOT_APPLICABLE)
-
-
 @pytest.fixture(autouse=True)
 def serving(settings):
     # DEBUG=0 no ambiente de teste liga o SECURE_SSL_REDIRECT, e todo GET viraria 301.

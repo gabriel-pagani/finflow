@@ -38,11 +38,11 @@ def test_cartao_de_outro_usuario_fica_de_fora(logged, card, other_user_card):
 
 
 def test_natureza_sai_recortada_pelo_metodo(logged):
-    """Investimento nunca no crédito, ajuste de saldo só em Não Se Aplica."""
+    """A Interna só mexe no saldo, e o crédito não entra nele."""
     assert options(logged)['natures'] == {
         'CREDIT': ['REGULAR'],
-        'DEBIT': ['REGULAR', 'INVESTMENT'],
-        'NOT_APPLICABLE': ['REGULAR', 'ADJUSTMENT', 'INVESTMENT'],
+        'DEBIT': ['REGULAR', 'INTERNAL'],
+        'NOT_APPLICABLE': ['REGULAR', 'INTERNAL'],
     }
 
 

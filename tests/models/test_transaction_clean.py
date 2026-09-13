@@ -42,7 +42,7 @@ def test_cartao_de_outro_usuario_e_recusado(make_transaction, credit_rule, other
 def test_categoria_fora_da_natureza_normal_e_recusada(make_transaction, account, category):
     BusinessRule.objects.create(account=account, type=Type.OUT, method=Method.NOT_APPLICABLE)
     with pytest.raises(ValidationError) as erro:
-        make_transaction(nature=Nature.ADJUSTMENT, method=Method.NOT_APPLICABLE, category=category).full_clean()
+        make_transaction(nature=Nature.INTERNAL, method=Method.NOT_APPLICABLE, category=category).full_clean()
     assert NON_FIELD_ERRORS in erro.value.error_dict
 
 
@@ -57,14 +57,17 @@ def test_parcela_fora_da_natureza_normal_e_recusada(make_installment, credit_rul
     parcela.nature = Nature.INTERNAL
     with pytest.raises(ValidationError) as erro:
         parcela.full_clean()
-    assert 'nature' in erro.value.error_dict
+    assert f'A parcela de um parcelamento é sempre de natureza {Nature.REGULAR.label}.' in erro.value.message_dict[NON_FIELD_ERRORS]
 
 
-def test_natureza_interna_sem_transferencia_e_recusada(make_transaction):
-    """O admin exclui transfer do formulário, então a constraint não é avaliada lá."""
+def test_interna_no_credito_e_recusada(make_transaction, card):
     with pytest.raises(ValidationError) as erro:
-        make_transaction(nature=Nature.INTERNAL).full_clean(exclude={'transfer'})
-    assert 'nature' in erro.value.error_dict
+        make_transaction(nature=Nature.INTERNAL, method=Method.CREDIT, card=card).full_clean()
+    assert NON_FIELD_ERRORS in erro.value.error_dict
+
+
+def test_interna_avulsa_e_aceita(make_transaction):
+    make_transaction(nature=Nature.INTERNAL).full_clean()
 
 
 def test_perna_de_transferencia_fora_da_natureza_interna_e_recusada(make_transfer):
