@@ -1,0 +1,41 @@
+{% extends 'app/app.html' %}
+{% load static %}
+
+{% block title %}Solicitar conta - FinFlow{% endblock %}
+
+{% block body_class %}page-login{% endblock %}
+
+{% block content %}
+    <section class="card login-card">
+        <h1>
+            <img src="{% static 'global/images/dark-blue-logo.png' %}">
+            FinFlow
+        </h1>
+
+        <p class="login-aside">
+            Preencha para solicitar uma conta. Ela ficará desativada até algum administrador aprovar a solicitação.
+        </p>
+
+        <form method="post" action="{% url 'app:access_request' %}">
+            {% csrf_token %}
+
+            {% for error in form.non_field_errors %}
+                <p class="login-error">{{ error }}</p>
+            {% endfor %}
+
+            {% for field in form %}
+                <div class="login-field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}<span class="login-error">{{ error }}</span>{% endfor %}
+                </div>
+            {% endfor %}
+
+            <button type="submit">Solicitar</button>
+        </form>
+
+        <p class="login-aside">
+            <a href="{% url 'app:login' %}">Voltar para o início</a>
+        </p>
+    </section>
+{% endblock %}

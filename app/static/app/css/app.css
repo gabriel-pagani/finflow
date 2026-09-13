@@ -449,7 +449,10 @@
     align-items: center;
 }
 
-.login-card {
+.login-card,
+/* O aviso de pedido enviado acompanha a largura do card; solto, ele esticaria
+   pela tela inteira, já que aqui não há conteúdo ao lado para contê-lo. */
+.page-login .messages {
     width: 100%;
     max-width: 400px;
 }
@@ -500,6 +503,24 @@
     color: var(--outcome);
     padding: 8px 12px;
     margin-bottom: 14px;
+}
+
+/* Dentro do campo o erro é uma linha solta: a moldura do aviso geral brigaria
+   com a borda do próprio input, logo acima dela. */
+.login-field .login-error {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 13px;
+}
+
+/* Recado fora do formulário: o convite a pedir conta, na entrada, e o aviso de
+   que a conta nasce desligada, no pedido. */
+.login-aside {
+    color: var(--muted);
+    text-align: center;
+    margin: 16px 0;
 }
 
 /* ==========================================================================

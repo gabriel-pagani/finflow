@@ -1,10 +1,66 @@
 from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.core.exceptions import ValidationError
+from django.db import transaction as db
 from django.utils import timezone
 
-from .models import Card, Installment, Method, Nature, Transaction, Transfer
+from .models import AccessRequest, Card, Installment, Method, Nature, Transaction, Transfer, User
 
 
 CARD_REQUIRED_ERROR = 'Escolha o cartão usado na compra. Se você ainda não tem nenhum, cadastre um em Cartões.'
+
+ACCESS_REQUEST_NOTE = 'Acesso solicitado pela tela de login em {date:%d/%m/%Y}.'
+
+ACCESS_REQUEST_THROTTLED = (
+    'Você já solicitou a criação de uma conta nos últimos sete dias. Aguarde algum administrador aprová-la.'
+)
+
+
+class AccessRequestForm(UserCreationForm):
+    """
+    Cadastro pedido por quem ainda não tem conta.
+
+    O usuário nasce desligado: quem liga é o administrador, no portal, depois de
+    saber de quem é o pedido. Até lá o cadastro existe, mas não entra — a
+    autenticação recusa usuário inativo.
+    """
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ('first_name', 'last_name', 'username', 'email',)
+
+    def __init__(self, *args, ip=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ip = ip
+
+        self.fields['first_name'].required = True
+        self.fields['email'].required = True
+
+        for field in self.fields.values():
+            field.help_text = ''
+
+    def clean(self):
+        if self.ip and AccessRequest.recent(self.ip):
+            raise ValidationError(ACCESS_REQUEST_THROTTLED)
+
+        return super().clean()
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.is_active = False
+        user.observations = ACCESS_REQUEST_NOTE.format(date=timezone.localdate())
+
+        if commit:
+            # O pedido é o que segura o IP: gravar o usuário sem ele abriria a
+            # janela de novo no erro seguinte.
+            with db.atomic():
+                user.save()
+                # Sem IP não há o que segurar, e o pedido guardaria um campo
+                # vazio; é caso de borda, mas de 500 se passar batido.
+                if self.ip:
+                    AccessRequest.objects.create(user=user, ip=self.ip)
+
+        return user
 
 
 class DateInput(forms.DateInput):
