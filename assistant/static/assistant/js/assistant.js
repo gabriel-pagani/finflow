@@ -46,7 +46,7 @@ function setupAssistant(root) {
     };
 
     const OUTCOMES = {
-        confirmed: (result) => `Feito: ${result}`,
+        confirmed: (result, action) => `${action === 'delete' ? 'Apagado' : 'Feito'}: ${result}`,
         cancelled: () => 'Descartado. Nada foi gravado.',
         failed: (result) => `Não foi gravado: ${result}`,
         expired: () => 'Expirou sem confirmação. Nada foi gravado.',
@@ -214,7 +214,7 @@ function setupAssistant(root) {
             card.querySelectorAll('footer').forEach((node) => node.remove());
             const outcome = document.createElement('p');
             outcome.className = `outcome ${finalState}`;
-            outcome.textContent = OUTCOMES[finalState](finalResult);
+            outcome.textContent = OUTCOMES[finalState](finalResult, summary.action);
             card.appendChild(outcome);
             scroll();
         }
