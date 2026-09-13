@@ -5,6 +5,7 @@ A filtragem em si acontece no navegador; aqui se garante que ele receba os
 dados certos para fazê-la. O que escapar dela continua esbarrando na validação
 do model, testada em test_form_rules.py.
 """
+import pytest
 from django.urls import reverse
 
 
@@ -45,13 +46,28 @@ def test_natureza_sai_recortada_pelo_metodo(logged):
     }
 
 
-def test_parcelamento_fixa_saida_no_credito(logged):
+def test_formularios_sem_tipo_e_metodo_fixam_a_combinacao_de_cada_conta(logged):
     """Sem tipo e método no formulário, é o que recorta as contas oferecidas."""
-    assert options(logged)['fixed'] == {'installment': {'type': 'OUT', 'method': 'CREDIT'}}
+    assert options(logged)['fixed'] == {
+        'installment': {'account': {'type': 'OUT', 'method': 'CREDIT'}},
+        'card': {'account': {'type': 'OUT', 'method': 'CREDIT'}},
+        'transfer': {
+            'origin': {'type': 'OUT', 'method': 'DEBIT'},
+            'destination': {'type': 'IN', 'method': 'NOT_APPLICABLE'},
+        },
+    }
 
 
-def test_pagina_entrega_as_opcoes_ao_navegador(logged, card, debit_rule):
-    page = logged.get(reverse('app:transactions_list')).content.decode()
+def test_so_cartao_com_lancamento_sai_travado(logged, card, other_account_card, make_transaction, credit_rule):
+    make_transaction(method='CREDIT', card=card).save()
+    make_transaction(method='CREDIT', card=card, value='20.00').save()
+
+    assert options(logged)['locked_cards'] == [str(card.pk)]
+
+
+@pytest.mark.parametrize('route', ['app:transactions_list', 'app:cards_list'])
+def test_pagina_entrega_as_opcoes_ao_navegador(logged, route, card, debit_rule):
+    page = logged.get(reverse(route)).content.decode()
 
     assert 'id="data-form-options"' in page
     # json_script escapa o conteúdo; sem isso a descrição de uma conta poderia

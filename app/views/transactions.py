@@ -22,6 +22,8 @@ def form_options(user):
     return {
         'rules': rules,
         'cards': {str(pk): str(account_id) for pk, account_id in Card.objects.filter(user=user).values_list('pk', 'account_id')},
+        # Cartão com lançamentos não troca de conta nem de final na edição.
+        'locked_cards': [str(pk) for pk in Card.objects.filter(user=user, transactions__isnull=False).distinct().values_list('pk', flat=True)],
         # As naturezas que cada método admite: o ajuste de saldo só existe em
         # Não Se Aplica e o investimento nunca passa pelo crédito.
         'natures': {
@@ -29,9 +31,16 @@ def form_options(user):
             Method.DEBIT: [Nature.REGULAR, Nature.INVESTMENT],
             Method.NOT_APPLICABLE: [Nature.REGULAR, Nature.ADJUSTMENT, Nature.INVESTMENT],
         },
-        # O parcelamento não pergunta tipo nem método: é sempre saída no
-        # crédito, e só as contas que aceitam essa combinação servem.
-        'fixed': {'installment': {'type': Installment.TYPE, 'method': Installment.METHOD}},
+        # Os formulários que não perguntam tipo nem método, por modal e por
+        # campo de conta: só servem as contas que aceitam a combinação fixa.
+        'fixed': {
+            'installment': {'account': {'type': Installment.TYPE, 'method': Installment.METHOD}},
+            'card': {'account': {'type': Card.TYPE, 'method': Card.METHOD}},
+            'transfer': {
+                'origin': {'type': Transfer.ORIGIN_TYPE, 'method': Transfer.ORIGIN_METHOD},
+                'destination': {'type': Transfer.DESTINATION_TYPE, 'method': Transfer.DESTINATION_METHOD},
+            },
+        },
     }
 
 

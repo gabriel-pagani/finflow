@@ -66,6 +66,12 @@
     preenche os campos a partir dos data-attributes da linha, sem ida extra ao
     servidor — mesmo desenho da tela de transações.
     {% endcomment %}
+    {% comment %}
+    As contas que aceitam o crédito, para o modal só oferecer as que o servidor
+    aceitaria. Mesmo json_script da tela de transações.
+    {% endcomment %}
+    {{ form_options|json_script:"data-form-options" }}
+
     {% url 'app:card_create' as card_url %}
     {% include 'app/form_modal.html' with kind='card' title='Novo Cartão' action=card_url form=form deletable=True %}
 

@@ -74,13 +74,21 @@ function setupDialogDismiss(dialog) {
 /* Combinações válidas nos formulários ------------------------------------- */
 
 // O modal oferece só o que o servidor aceitaria: quais tipos e métodos cada
-// conta aceita vem das regras de negócio dela, e um cartão pertence a uma conta
-// só. Isso poupa o usuário de montar um lançamento impossível e só descobrir no
-// envio; quem valida de verdade continua sendo o model.
+// conta aceita vem das regras de negócio dela, cada método admite só algumas
+// naturezas, só a natureza Normal recebe categoria e um cartão pertence a uma
+// conta só. Isso poupa o usuário de montar um lançamento impossível e só
+// descobrir no envio; quem valida de verdade continua sendo o model.
 const SYNC_OPTIONS = 'finflow:sync-options';
 
 // Único método que tem cartão; nos outros o campo nem aparece.
 const CREDIT = 'CREDIT';
+
+// Única natureza que recebe categoria.
+const REGULAR = 'REGULAR';
+
+// A categoria entra na combinação só como "aceita qualquer uma" ou "nenhuma":
+// as categorias são as mesmas para toda conta, e o que decide é a natureza.
+const ANY_CATEGORY = '*';
 
 function setupLinkedFields() {
     const options = readJsonScript('data-form-options');
@@ -89,51 +97,105 @@ function setupLinkedFields() {
     document.querySelectorAll('[data-modal-form]').forEach((form) => linkFields(form, options));
 }
 
+function accountsAccepting(options, { type, method }) {
+    return Object.keys(options.rules).filter((id) => (options.rules[id][type] || []).includes(method));
+}
+
+// Todas as combinações que o servidor aceitaria no formulário, cada uma com um
+// valor por campo recortável. Em vez de encadear um campo no outro, o que só
+// funciona numa ordem de preenchimento, cada campo passa a oferecer o que ainda
+// cabe em alguma combinação junto do que já foi escolhido nos demais.
+//
+// O cartão fica fora das combinações: sem opção vazia, sempre haveria um
+// marcado, e ele prenderia a conta à dele. O cartão segue a conta.
+function combinationsFor(fields, card, fixed, options) {
+    // Na transferência as duas pernas já nascem com tipo e método fixos: resta
+    // escolher contas que aceitem cada lado, e que não sejam a mesma.
+    if (fields.origin && fields.destination) {
+        const combinations = [];
+        accountsAccepting(options, fixed.origin).forEach((origin) => {
+            accountsAccepting(options, fixed.destination).forEach((destination) => {
+                if (origin !== destination) combinations.push({ origin, destination });
+            });
+        });
+        return { names: ['origin', 'destination'], combinations };
+    }
+
+    if (!fields.account) return null;
+
+    // Onde o formulário pede cartão, o crédito só serve em conta que tenha um.
+    const owners = new Set(Object.values(options.cards));
+    const lacksCard = (account, method) => Boolean(card) && method === CREDIT && !owners.has(account);
+
+    // Parcelamento e cartão não perguntam tipo nem método: servem as contas que
+    // aceitam a combinação que eles fixam.
+    if (fixed.account) {
+        const combinations = accountsAccepting(options, fixed.account)
+            .filter((account) => !lacksCard(account, fixed.account.method))
+            .map((account) => ({ account }));
+        return { names: ['account'], combinations };
+    }
+
+    const combinations = [];
+    Object.entries(options.rules).forEach(([account, types]) => {
+        Object.entries(types).forEach(([type, methods]) => {
+            methods.forEach((method) => {
+                if (lacksCard(account, method)) return;
+                options.natures[method].forEach((nature) => {
+                    const category = nature === REGULAR ? ANY_CATEGORY : '';
+                    combinations.push({ account, type, method, nature, category });
+                });
+            });
+        });
+    });
+    const names = ['account', 'type', 'method', 'nature', 'category'].filter((name) => fields[name]);
+    return { names, combinations };
+}
+
 function linkFields(form, options) {
     const modal = form.closest('[data-modal]');
     const fixed = (modal && options.fixed[modal.dataset.modal]) || {};
 
-    const account = form.querySelector('[name="account"]');
-    const type = form.querySelector('[name="type"]');
-    const method = form.querySelector('[name="method"]');
-    const card = form.querySelector('[name="card"]');
-    const nature = form.querySelector('[name="nature"]');
+    const fields = {};
+    ['account', 'origin', 'destination', 'type', 'method', 'nature', 'category'].forEach((name) => {
+        const select = form.querySelector(`select[name="${name}"]`);
+        if (select) fields[name] = select;
+    });
+    const account = fields.account;
+    const method = fields.method;
+    const card = form.querySelector('select[name="card"]');
 
-    // A conta é o começo de tudo o que se recorta aqui. A transferência não
-    // tem uma: as duas pernas dela já nascem com tipo e método fixos, e não há
-    // o que escolher.
-    if (!account) return;
+    const linked = combinationsFor(fields, card, fixed, options);
+    if (!linked) return;
+    const { names, combinations } = linked;
 
-    // Devolver null é dizer "sem restrição": ou a conta ainda não foi
-    // escolhida, ou o formulário não fixa combinação nenhuma.
-    function accountsFor() {
-        if (!fixed.type) return null;
-        return Object.keys(options.rules).filter((id) => (options.rules[id][fixed.type] || []).includes(fixed.method));
+    // Cartão com lançamentos não troca de conta nem de final: na edição dele a
+    // conta fica só com a que ele já tem. O id em edição vem do CRUD da tela.
+    const lastDigits = form.querySelector('[name="last_digits"]');
+    const locked = () => Boolean(modal) && modal.dataset.modal === 'card' && options.locked_cards.includes(form.dataset.editing);
+
+    // Valor vazio não recorta nada: é o campo que ainda não foi escolhido.
+    function fits(combination, name) {
+        const value = fields[name].value;
+        return value === '' || combination[name] === ANY_CATEGORY || combination[name] === value;
     }
 
-    function typesFor() {
-        const accepted = options.rules[account.value];
-        return accepted ? Object.keys(accepted) : null;
-    }
+    // O que cabe no campo com o que está escolhido em todos os outros. Devolver
+    // null é dizer "sem restrição", o caso da categoria em natureza Normal.
+    function allowedFor(name) {
+        if (name === 'account' && locked()) return [account.value];
 
-    function methodsFor() {
-        const accepted = options.rules[account.value];
-        // Sem tipo escolhido vale o que a conta aceita em qualquer um deles.
-        const byAccount = accepted ? (type.value ? (accepted[type.value] || []) : Object.values(accepted).flat()) : null;
-        // A natureza também recorta o método, para quem a escolhe antes dele.
-        const byNature = nature ? Object.keys(options.natures).filter((code) => options.natures[code].includes(nature.value)) : null;
-
-        if (byAccount === null) return byNature;
-        if (byNature === null) return byAccount;
-        return byAccount.filter((code) => byNature.includes(code));
-    }
-
-    function naturesFor() {
-        return method && method.value ? (options.natures[method.value] || []) : null;
+        const values = new Set(
+            combinations
+                .filter((combination) => names.every((other) => other === name || fits(combination, other)))
+                .map((combination) => combination[name]),
+        );
+        return values.has(ANY_CATEGORY) ? null : Array.from(values);
     }
 
     function cardsFor() {
-        return account.value ? Object.keys(options.cards).filter((id) => options.cards[id] === account.value) : null;
+        const accounts = account.value ? [account.value] : allowedFor('account');
+        return Object.keys(options.cards).filter((id) => accounts.includes(options.cards[id]));
     }
 
     // Esconde e desabilita de uma vez: escondida, a opção sai da lista;
@@ -160,8 +222,8 @@ function linkFields(form, options) {
         if (chosen && chosen.value !== '' && !chosen.disabled) return;
 
         // Uma opção só não é escolha, é constatação — e onde não existe opção
-        // vazia, como no cartão, alguma precisa ficar marcada. Nos demais casos
-        // a decisão volta para o usuário em vez de ser adivinhada.
+        // vazia, como no cartão e na natureza, alguma precisa ficar marcada. Nos
+        // demais casos a decisão volta para o usuário em vez de ser adivinhada.
         select.value = usable.length && (!blank || usable.length === 1) ? usable[0].value : '';
     }
 
@@ -180,20 +242,24 @@ function linkFields(form, options) {
         card.disabled = !credit;
     }
 
-    // De cima para baixo: cada campo é recortado pelo que ficou acima dele, e
-    // por isso o de baixo só é calculado depois que o de cima já se acertou.
+    // Recortar um campo pode marcar sozinho a única opção que sobrou nele, e
+    // isso muda o que cabe nos outros. Repete até nenhum valor mudar; como cada
+    // marcação só estreita o que já estava escolhido, isso acaba em poucas voltas.
     function sync() {
-        if (account) restrict(account, accountsFor());
-        if (type) restrict(type, typesFor());
-        if (method) restrict(method, methodsFor());
-        if (nature) restrict(nature, naturesFor());
+        const snapshot = () => names.map((name) => fields[name].value).join('|');
+
+        for (let round = 0; round <= names.length; round += 1) {
+            const before = snapshot();
+            names.forEach((name) => restrict(fields[name], allowedFor(name)));
+            if (snapshot() === before) break;
+        }
+
         if (card) restrict(card, cardsFor());
+        if (lastDigits) lastDigits.readOnly = locked();
         showCard();
     }
 
-    [account, type, method, nature].forEach((select) => {
-        if (select) select.addEventListener('change', sync);
-    });
+    names.forEach((name) => fields[name].addEventListener('change', sync));
 
     // O caminho inverso: o cartão pertence a uma conta só, então escolhê-lo já
     // responde qual é a conta. Perguntar de novo seria pedir duas vezes a mesma
@@ -258,6 +324,7 @@ function setupRecordCrud(root) {
         form.action = createUrl;
         title.textContent = createTitle;
         form.reset();
+        delete form.dataset.editing;
         editingRow = null;
         if (modalDelete) modalDelete.hidden = true;
         form.dispatchEvent(new Event(SYNC_OPTIONS));
@@ -268,6 +335,7 @@ function setupRecordCrud(root) {
         form.action = urlFor(updateUrl, row.dataset.id);
         title.textContent = updateTitle;
         editingRow = row;
+        form.dataset.editing = row.dataset.id;
         if (modalDelete) modalDelete.hidden = false;
         fill(row.dataset);
         form.dispatchEvent(new Event(SYNC_OPTIONS));

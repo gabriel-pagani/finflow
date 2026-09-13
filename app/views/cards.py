@@ -3,6 +3,7 @@ from django.views.generic.edit import CreateView, UpdateView
 from ..forms import CardForm
 from ..models import Card
 from .mixins import ModalDeleteView, ModalWriteMixin, OwnedListView
+from .transactions import form_options
 
 
 class CardsListView(OwnedListView):
@@ -15,6 +16,7 @@ class CardsListView(OwnedListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['form'] = CardForm(user=self.request.user)
+        context['form_options'] = form_options(self.request.user)
         return context
 
 
