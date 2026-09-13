@@ -156,6 +156,12 @@
     z-index: 20;
 }
 
+/* Fica fora da área que rola, para continuar à mão numa lista longa. */
+.multiselect-all {
+    padding: 4px;
+    border-bottom: 1px solid var(--border);
+}
+
 .multiselect-options {
     max-height: 240px;
     overflow-y: auto;

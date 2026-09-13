@@ -21,12 +21,19 @@ function setupMultiselect(root) {
     const details = root.querySelector('details');
     const label = root.querySelector('[data-multiselect-label]');
     const empty = root.dataset.empty || 'Todos';
-    const boxes = Array.from(root.querySelectorAll('input[type="checkbox"]'));
+    const boxes = Array.from(root.querySelectorAll('input[type="checkbox"][name]'));
+    const all = addSelectAll(root, boxes, empty);
 
     function updateLabel() {
         const checked = boxes.filter((box) => box.checked);
+        const everything = checked.length === boxes.length;
 
-        if (checked.length === 0) {
+        all.checked = checked.length > 0 && everything;
+        all.indeterminate = checked.length > 0 && !everything;
+
+        // Tudo marcado recorta o mesmo que nada marcado: as opções são só as
+        // que estão em uso, então o rótulo e o destaque também são os mesmos.
+        if (checked.length === 0 || everything) {
             label.textContent = empty;
         } else if (checked.length === 1) {
             label.textContent = checked[0].nextElementSibling.textContent.trim();
@@ -36,10 +43,16 @@ function setupMultiselect(root) {
             label.textContent = `${checked.length} selecionad${suffix}`;
         }
 
-        root.classList.toggle('has-selection', checked.length > 0);
+        root.classList.toggle('has-selection', checked.length > 0 && !everything);
     }
 
     boxes.forEach((box) => box.addEventListener('change', updateLabel));
+    all.addEventListener('change', () => {
+        boxes.forEach((box) => {
+            box.checked = all.checked;
+        });
+        updateLabel();
+    });
 
     // Clicar fora fecha o painel; sem isso vários ficariam abertos ao mesmo tempo.
     document.addEventListener('click', (event) => {
@@ -56,6 +69,31 @@ function setupMultiselect(root) {
     });
 
     updateLabel();
+}
+
+// Tirar uma opção só de uma lista longa pedia marcar todas as outras à mão.
+// Esta caixa marca ou desmarca tudo de uma vez. Ela nasce pelo JS e sem name:
+// não vai no envio, e sem script o filtro segue funcionando sem ela.
+function addSelectAll(root, boxes, empty) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'multiselect-all';
+    // Com uma opção só, marcar todas é marcar ela.
+    wrapper.hidden = boxes.length < 2;
+
+    const option = document.createElement('label');
+    option.className = 'multiselect-option';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+
+    const text = document.createElement('span');
+    text.textContent = `Selecionar ${empty.toLowerCase()}`;
+
+    option.append(input, text);
+    wrapper.append(option);
+    root.querySelector('.multiselect-panel').prepend(wrapper);
+
+    return input;
 }
 
 /* Modais ------------------------------------------------------------------ */
