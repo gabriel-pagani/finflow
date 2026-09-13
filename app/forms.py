@@ -68,7 +68,7 @@ class InstallmentForm(OwnedForm):
 class TransferForm(OwnedForm):
     class Meta:
         model = Transfer
-        fields = ('occurred_at', 'origin', 'destination', 'description', 'value',)
+        fields = ('origin', 'destination', 'description', 'value', 'occurred_at',)
         widgets = {
             'occurred_at': DateInput(),
             'value': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
