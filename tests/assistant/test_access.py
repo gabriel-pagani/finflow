@@ -1,7 +1,8 @@
 import pytest
 from django.urls import reverse
 
-from assistant.models import Conversation
+from assistant.models import Conversation, Message
+from assistant.views import MAX_MESSAGE
 
 
 ROUTES = [('get', 'assistant:history'), ('post', 'assistant:stream'), ('post', 'assistant:reset')]
@@ -46,6 +47,23 @@ def test_pagina_traz_o_chat_embutido_sem_o_atalho(allowed):
 
 def test_mensagem_vazia_e_recusada(allowed):
     assert allowed.post(reverse('assistant:stream'), {'message': '  '}).status_code == 400
+
+
+def test_mensagem_longa_demais_e_recusada_antes_do_modelo(allowed):
+    response = allowed.post(reverse('assistant:stream'), {'message': 'a' * (MAX_MESSAGE + 1)})
+
+    assert response.status_code == 400
+    assert str(MAX_MESSAGE) in response.json()['error']
+    assert not Conversation.objects.exists()
+
+
+def test_byte_nulo_e_removido_antes_de_gravar(allowed, user, fake_openai):
+    fake_openai.turns.append(fake_openai.text_turn('Ok.'))
+
+    response = allowed.post(reverse('assistant:stream'), {'message': 'gastei 30\x00 no mercado'})
+    b''.join(response.streaming_content)
+
+    assert Message.objects.filter(role='user').get().content == 'gastei 30 no mercado'
 
 
 def test_historico_vazio(allowed):

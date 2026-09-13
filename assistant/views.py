@@ -19,6 +19,17 @@ logger = logging.getLogger(__name__)
 # Área interna do nginx: aparece só no cabeçalho, e ele a troca pelo arquivo.
 ACCEL_PREFIX = '/protected-media/'
 
+# O texto do chat é o único campo livre que não passa por um Form, e o que ele
+# custa não é espaço no banco: a mensagem inteira vira prompt a cada rodada.
+# Folgado para uma pergunta, estreito para um arquivo colado.
+MAX_MESSAGE = 2000
+
+
+# O byte nulo derruba a gravação no Postgres, e aqui não há Form para barrá-lo
+# antes: o texto vai direto para o TextField da mensagem.
+def clean(raw):
+    return (raw or '').replace('\x00', '').strip()
+
 
 class AssistantView(LoginRequiredMixin, PermissionRequiredMixin, View):
     permission_required = 'assistant.use_assistant'
@@ -41,11 +52,14 @@ class StreamView(AssistantView):
     http_method_names = ['post']
 
     def post(self, request, *args, **kwargs):
-        text = (request.POST.get('message') or '').strip()
+        text = clean(request.POST.get('message'))
         upload = request.FILES.get('file')
 
         # Conferido antes do primeiro byte: depois dele não há mais status para
         # devolver a recusa.
+        if len(text) > MAX_MESSAGE:
+            return JsonResponse({'error': f'Mensagem longa demais. Escreva até {MAX_MESSAGE} caracteres.'}, status=400)
+
         try:
             media = attachments.inspect(upload) if upload else None
         except attachments.UploadError as error:
