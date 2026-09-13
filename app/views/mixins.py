@@ -53,8 +53,8 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filters'] = self.get_filters()
-        context['accounts'] = Account.objects.all()
-        context['categories'] = Category.objects.all()
+        context['accounts'] = Account.objects.filter(transactions__user=self.request.user).distinct()
+        context['categories'] = Category.objects.filter(transactions__user=self.request.user).distinct()
         return context
 
 
