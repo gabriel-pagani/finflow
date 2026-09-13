@@ -1,7 +1,9 @@
+MAKEFLAGS += --no-print-directory
+
 backup ?= yes
 
 build-system:
-	@make maybe-backup-system && docker compose -f deploy/docker-compose.yml up -d --build
+	@$(MAKE) maybe-backup-system && docker compose -f deploy/docker-compose.yml up -d --build
 
 start-system:
 	@docker compose -f deploy/docker-compose.yml up -d
@@ -25,11 +27,11 @@ backup-media:
 		&& mv "$$FILE.tmp" "$$FILE" || { rm -f "$$FILE.tmp"; exit 1; }
 
 backup-system:
-	@make backup-database && make backup-media
+	@$(MAKE) backup-database && $(MAKE) backup-media
 
 maybe-backup-system:
 	@case "$(backup)" in \
-		yes|true|on|1) make backup-system ;; \
+		yes|true|on|1) $(MAKE) backup-system ;; \
 		no|false|off|0) echo "backup=$(backup): pulando o backup" ;; \
 		*) echo "backup=$(backup): use yes ou no" >&2; exit 1 ;; \
 	esac
