@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -10,6 +11,11 @@ from django.views.generic import ListView
 from django.views.generic.edit import DeleteView
 
 from ..models import Account, Category, Nature, Transaction
+
+
+# Valor do filtro para as transações sem categoria. Não é um pk, então não
+# colide com categoria nenhuma, e sai na URL legível.
+UNCATEGORIZED = 'none'
 
 
 class FilteredTransactionsMixin(LoginRequiredMixin):
@@ -23,7 +29,7 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
             'start': get.get('start') or today.replace(month=1, day=1).isoformat(),
             'end': get.get('end') or today.replace(month=12, day=31).isoformat(),
             'account': [value for value in get.getlist('account') if value.isdigit()],
-            'category': [value for value in get.getlist('category') if value.isdigit()],
+            'category': [value for value in get.getlist('category') if value.isdigit() or value == UNCATEGORIZED],
         }
 
     def get_base_transactions(self, filters):
@@ -43,7 +49,10 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
         )
 
         if filters['category']:
-            queryset = queryset.filter(category_id__in=filters['category'])
+            chosen = Q(category_id__in=[value for value in filters['category'] if value != UNCATEGORIZED])
+            if UNCATEGORIZED in filters['category']:
+                chosen |= Q(category__isnull=True)
+            queryset = queryset.filter(chosen)
 
         return queryset
 
@@ -55,6 +64,10 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
         context['filters'] = self.get_filters()
         context['accounts'] = Account.objects.filter(transactions__user=self.request.user).distinct()
         context['categories'] = Category.objects.filter(transactions__user=self.request.user).distinct()
+        # Sem categoria também é uma escolha: sem esta opção, marcar categorias
+        # deixaria de fora, sempre, o que não tem nenhuma.
+        uncategorized = Transaction.objects.filter(user=self.request.user, category__isnull=True).exists()
+        context['uncategorized_choices'] = [(UNCATEGORIZED, 'Categoria Não Identificada')] if uncategorized else []
         return context
 
 

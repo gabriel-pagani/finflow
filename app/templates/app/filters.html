@@ -16,7 +16,7 @@
         </label>
 
         {% include 'app/multiselect.html' with name='account' legend='Conta' empty='Todas' gender='f' options=accounts selected=filters.account %}
-        {% include 'app/multiselect.html' with name='category' legend='Categoria' empty='Todas' gender='f' options=categories selected=filters.category %}
+        {% include 'app/multiselect.html' with name='category' legend='Categoria' empty='Todas' gender='f' options=categories choices=uncategorized_choices selected=filters.category %}
 
         {% if types %}
             {% include 'app/multiselect.html' with name='type' legend='Tipo' empty='Todos' choices=types selected=filters.type %}

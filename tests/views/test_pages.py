@@ -60,3 +60,41 @@ def test_filtro_oferece_so_contas_e_categorias_em_uso(logged, route, account, ot
 
     assert list(response.context['accounts']) == [account]
     assert list(response.context['categories']) == [category]
+
+
+@pytest.mark.parametrize('route', ['app:overview', 'app:forecast', 'app:transactions_list'])
+def test_filtro_so_oferece_nao_identificada_com_transacao_sem_categoria(logged, route, category, other_user, other_account, make_transaction):
+    make_transaction(category=category).save()
+    # A de outro usuário não conta: a opção segue o que é meu.
+    make_transaction(user=other_user, account=other_account).save()
+    assert logged.get(reverse(route)).context['uncategorized_choices'] == []
+
+    make_transaction().save()
+    assert logged.get(reverse(route)).context['uncategorized_choices'] == [('none', 'Categoria Não Identificada')]
+
+
+def test_filtro_junta_categoria_e_nao_identificada(logged, category, debit_rule, make_transaction):
+    lazer = Category.objects.create(description='Lazer')
+    make_transaction(category=category).save()
+    no_lazer = make_transaction(category=lazer)
+    no_lazer.save()
+    sem_categoria = make_transaction()
+    sem_categoria.save()
+
+    url = reverse('app:transactions_list')
+    periodo = {'start': '2026-01-01', 'end': '2026-12-31'}
+
+    response = logged.get(url, {**periodo, 'category': [lazer.pk, 'none']})
+    assert set(response.context['object_list']) == {no_lazer, sem_categoria}
+
+    response = logged.get(url, {**periodo, 'category': 'none'})
+    assert list(response.context['object_list']) == [sem_categoria]
+
+
+def test_grafico_de_categorias_respeita_a_nao_identificada(logged, category, debit_rule, make_transaction):
+    make_transaction(category=category).save()
+    make_transaction(value='30.00').save()
+
+    response = logged.get(reverse('app:overview'), {'start': '2026-01-01', 'end': '2026-12-31', 'category': 'none'})
+
+    assert response.context['chart_categories'] == [{'name': 'Categoria Não Identificada', 'value': 30.0}]
