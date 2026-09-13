@@ -201,6 +201,7 @@ function linkFields(form, options) {
     // Esconde e desabilita de uma vez: escondida, a opção sai da lista;
     // desabilitada, ela também deixa de ser alcançável pelo teclado e por
     // navegador que ignore o hidden.
+    // Devolve se marcou sozinho a única opção de um campo que tinha a vazia.
     function restrict(select, allowed) {
         const usable = [];
         let blank = null;
@@ -219,12 +220,13 @@ function linkFields(form, options) {
         });
 
         const chosen = select.selectedOptions[0];
-        if (chosen && chosen.value !== '' && !chosen.disabled) return;
+        if (chosen && chosen.value !== '' && !chosen.disabled) return false;
 
         // Uma opção só não é escolha, é constatação — e onde não existe opção
         // vazia, como no cartão e na natureza, alguma precisa ficar marcada. Nos
         // demais casos a decisão volta para o usuário em vez de ser adivinhada.
         select.value = usable.length && (!blank || usable.length === 1) ? usable[0].value : '';
+        return Boolean(blank) && select.value !== '';
     }
 
     // Cartão só existe no crédito: nos demais métodos o campo nem aparece.
@@ -242,15 +244,29 @@ function linkFields(form, options) {
         card.disabled = !credit;
     }
 
+    // Os campos que o recorte marcou sozinho. Esse valor não foi escolha do
+    // usuário, então não pode seguir recortando os outros: a cada mudança ele
+    // volta a vazio e só é marcado de novo se ainda for a única opção. Sem isso,
+    // trocar Ajuste de Saldo por Normal deixaria presos a entrada e o Não Se
+    // Aplica que o ajuste tinha imposto.
+    const automatic = new Set();
+
     // Recortar um campo pode marcar sozinho a única opção que sobrou nele, e
     // isso muda o que cabe nos outros. Repete até nenhum valor mudar; como cada
     // marcação só estreita o que já estava escolhido, isso acaba em poucas voltas.
     function sync() {
+        automatic.forEach((name) => {
+            fields[name].value = '';
+        });
+        automatic.clear();
+
         const snapshot = () => names.map((name) => fields[name].value).join('|');
 
         for (let round = 0; round <= names.length; round += 1) {
             const before = snapshot();
-            names.forEach((name) => restrict(fields[name], allowedFor(name)));
+            names.forEach((name) => {
+                if (restrict(fields[name], allowedFor(name))) automatic.add(name);
+            });
             if (snapshot() === before) break;
         }
 
@@ -259,7 +275,11 @@ function linkFields(form, options) {
         showCard();
     }
 
-    names.forEach((name) => fields[name].addEventListener('change', sync));
+    // O que o usuário escolhe à mão deixa de ser marcação automática.
+    names.forEach((name) => fields[name].addEventListener('change', () => {
+        automatic.delete(name);
+        sync();
+    }));
 
     // O caminho inverso: o cartão pertence a uma conta só, então escolhê-lo já
     // responde qual é a conta. Perguntar de novo seria pedir duas vezes a mesma
@@ -268,7 +288,10 @@ function linkFields(form, options) {
     if (card) {
         card.addEventListener('change', () => {
             const owner = options.cards[card.value];
-            if (owner && account) account.value = owner;
+            if (owner && account) {
+                account.value = owner;
+                automatic.delete('account');
+            }
             sync();
         });
     }
@@ -276,7 +299,11 @@ function linkFields(form, options) {
     // A edição preenche os campos de fora e a criação usa o reset; nos dois
     // casos o modal avisa por este evento, para as opções se refazerem a partir
     // dos valores novos.
-    form.addEventListener(SYNC_OPTIONS, sync);
+    // Os valores que chegam por aqui são do registro, não do recorte.
+    form.addEventListener(SYNC_OPTIONS, () => {
+        automatic.clear();
+        sync();
+    });
 
     sync();
 }
