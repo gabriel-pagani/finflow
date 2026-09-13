@@ -52,7 +52,7 @@ def history(conversation):
     with_image = [message.pk for message in window if attachments.has_image(message.items)]
     live = set(with_image[-IMAGE_MEMORY:])
 
-    return [item for message in window for item in attachments.resolve(message.items, inline=message.pk in live)]
+    return [item for message in window for item in attachments.resolve(message.items, conversation.user, inline=message.pk in live)]
 
 
 def transcribe(upload):

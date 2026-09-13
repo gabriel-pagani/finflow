@@ -96,8 +96,14 @@ def has_image(items):
     )
 
 
-def embed(part):
-    attachment = Attachment.objects.filter(pk=part['image_url'][len(REFERENCE):]).first()
+# O dono entra na busca junto do id: a referência é escrita pelo servidor, mas
+# quem lê o turno guardado não tem como saber disso, e anexo é documento
+# financeiro.
+def embed(part, user):
+    attachment = Attachment.objects.filter(
+        pk=part['image_url'][len(REFERENCE):],
+        message__conversation__user=user,
+    ).first()
     if attachment is None:
         return FORGOTTEN
 
@@ -110,13 +116,13 @@ def embed(part):
     return {**part, 'image_url': f'data:{attachment.mime};base64,{base64.b64encode(data).decode("ascii")}'}
 
 
-def resolve(items, inline):
+def resolve(items, user, inline):
     resolved = []
     for item in items:
         content = item.get('content') if isinstance(item, dict) else None
         if not isinstance(content, list):
             resolved.append(item)
             continue
-        parts = [(embed(part) if inline else FORGOTTEN) if is_reference(part) else part for part in content]
+        parts = [(embed(part, user) if inline else FORGOTTEN) if is_reference(part) else part for part in content]
         resolved.append({**item, 'content': parts})
     return resolved

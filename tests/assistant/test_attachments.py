@@ -76,6 +76,15 @@ def test_so_as_fotos_recentes_voltam_para_o_modelo(conversation):
     assert parts.count(attachments.FORGOTTEN) == 2
 
 
+def test_foto_de_outro_dono_nao_volta_para_o_modelo(conversation, other_user):
+    alheia = photo(Conversation.objects.create(user=other_user))
+    message = Message.objects.create(conversation=conversation, role=Role.USER, content='e esta?')
+    message.items = [{'role': 'user', 'content': [{'type': 'input_image', 'image_url': f'attachment:{alheia.pk}', 'detail': 'high'}]}]
+    message.save(update_fields=['items'])
+
+    assert history(conversation)[0]['content'] == [attachments.FORGOTTEN]
+
+
 def test_foto_cujo_arquivo_sumiu_vira_marcador(conversation):
     attachment = photo(conversation)
     Path(attachment.file.path).unlink()
