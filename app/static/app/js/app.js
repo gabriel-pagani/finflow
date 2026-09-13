@@ -97,6 +97,7 @@ function linkFields(form, options) {
     const type = form.querySelector('[name="type"]');
     const method = form.querySelector('[name="method"]');
     const card = form.querySelector('[name="card"]');
+    const nature = form.querySelector('[name="nature"]');
 
     // A conta é o começo de tudo o que se recorta aqui. A transferência não
     // tem uma: as duas pernas dela já nascem com tipo e método fixos, e não há
@@ -117,9 +118,18 @@ function linkFields(form, options) {
 
     function methodsFor() {
         const accepted = options.rules[account.value];
-        if (!accepted) return null;
         // Sem tipo escolhido vale o que a conta aceita em qualquer um deles.
-        return type.value ? (accepted[type.value] || []) : Object.values(accepted).flat();
+        const byAccount = accepted ? (type.value ? (accepted[type.value] || []) : Object.values(accepted).flat()) : null;
+        // A natureza também recorta o método, para quem a escolhe antes dele.
+        const byNature = nature ? Object.keys(options.natures).filter((code) => options.natures[code].includes(nature.value)) : null;
+
+        if (byAccount === null) return byNature;
+        if (byNature === null) return byAccount;
+        return byAccount.filter((code) => byNature.includes(code));
+    }
+
+    function naturesFor() {
+        return method && method.value ? (options.natures[method.value] || []) : null;
     }
 
     function cardsFor() {
@@ -176,11 +186,12 @@ function linkFields(form, options) {
         if (account) restrict(account, accountsFor());
         if (type) restrict(type, typesFor());
         if (method) restrict(method, methodsFor());
+        if (nature) restrict(nature, naturesFor());
         if (card) restrict(card, cardsFor());
         showCard();
     }
 
-    [account, type, method].forEach((select) => {
+    [account, type, method, nature].forEach((select) => {
         if (select) select.addEventListener('change', sync);
     });
 

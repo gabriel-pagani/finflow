@@ -22,6 +22,13 @@ def form_options(user):
     return {
         'rules': rules,
         'cards': {str(pk): str(account_id) for pk, account_id in Card.objects.filter(user=user).values_list('pk', 'account_id')},
+        # As naturezas que cada método admite: o ajuste de saldo só existe em
+        # Não Se Aplica e o investimento nunca passa pelo crédito.
+        'natures': {
+            Method.CREDIT: [Nature.REGULAR],
+            Method.DEBIT: [Nature.REGULAR, Nature.INVESTMENT],
+            Method.NOT_APPLICABLE: [Nature.REGULAR, Nature.ADJUSTMENT, Nature.INVESTMENT],
+        },
         # O parcelamento não pergunta tipo nem método: é sempre saída no
         # crédito, e só as contas que aceitam essa combinação servem.
         'fixed': {'installment': {'type': Installment.TYPE, 'method': Installment.METHOD}},

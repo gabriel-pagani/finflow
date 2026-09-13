@@ -69,6 +69,18 @@ def test_ajuste_sem_metodo_e_aceito(make_transaction):
     assert transacao.pk
 
 
+def test_investimento_no_credito_e_recusado(make_transaction, card):
+    with pytest.raises(IntegrityError):
+        make_transaction(nature=Nature.INVESTMENT, method=Method.CREDIT, card=card).save()
+
+
+@pytest.mark.parametrize('method', [Method.DEBIT, Method.NOT_APPLICABLE])
+def test_investimento_em_debito_ou_sem_metodo_e_aceito(make_transaction, method):
+    transacao = make_transaction(nature=Nature.INVESTMENT, method=method)
+    transacao.save()
+    assert transacao.pk
+
+
 def test_data_efetiva_adiada_fora_do_credito_e_recusada(make_transaction):
     transacao = make_transaction()
     transacao.save()

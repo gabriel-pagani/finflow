@@ -254,7 +254,8 @@ bate com a tela que o usuário está olhando.
   para ver e achar ids. Somar uma lista paginada dá número errado, e o payload da
   listagem chega a avisar isso ([`queries.py:375`](../queries.py#L375)).
 - **35–37** — o aviso de que **as consultas não aplicam filtro que não foi pedido**:
-  sem `nature`, transferências e ajustes entram; sem `method`, o crédito entra.
+  sem `nature`, transferências, ajustes e investimentos entram; sem `method`, o
+  crédito entra.
 - **38–40** — manda conferir `filters` antes de afirmar um número e explicar o
   recorte ao usuário quando ele mudar o sentido da resposta.
 
@@ -377,7 +378,7 @@ explicação ([`queries.py:91`](../queries.py#L91)).
 
 Detalhes que valem o olho:
 
-- **126** — `nature` na transação oferece só `REGULAR` e `ADJUSTMENT`. `INTERNAL`
+- **126** — `nature` na transação oferece `REGULAR`, `ADJUSTMENT` e `INVESTMENT`. `INTERNAL`
   não está no enum da ferramenta porque perna de transferência não se cria à mão —
   e o `TransactionForm` remove a mesma opção da tela ([`app/forms.py`](../../app/forms.py)).
 - **131 e 140** — a descrição repete que o id para apagar é o do **parcelamento**

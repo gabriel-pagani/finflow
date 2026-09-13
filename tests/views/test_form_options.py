@@ -36,6 +36,15 @@ def test_cartao_de_outro_usuario_fica_de_fora(logged, card, other_user_card):
     assert str(other_user_card.pk) not in options(logged)['cards']
 
 
+def test_natureza_sai_recortada_pelo_metodo(logged):
+    """Investimento nunca no crédito, ajuste de saldo só em Não Se Aplica."""
+    assert options(logged)['natures'] == {
+        'CREDIT': ['REGULAR'],
+        'DEBIT': ['REGULAR', 'INVESTMENT'],
+        'NOT_APPLICABLE': ['REGULAR', 'ADJUSTMENT', 'INVESTMENT'],
+    }
+
+
 def test_parcelamento_fixa_saida_no_credito(logged):
     """Sem tipo e método no formulário, é o que recorta as contas oferecidas."""
     assert options(logged)['fixed'] == {'installment': {'type': 'OUT', 'method': 'CREDIT'}}

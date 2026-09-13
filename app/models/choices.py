@@ -16,3 +16,4 @@ class Nature(models.TextChoices):
     REGULAR = 'REGULAR', 'Normal'
     INTERNAL = 'INTERNAL', 'Movimentação Interna'
     ADJUSTMENT = 'ADJUSTMENT', 'Ajuste de Saldo'
+    INVESTMENT = 'INVESTMENT', 'Investimento'

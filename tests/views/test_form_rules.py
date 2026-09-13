@@ -58,6 +58,27 @@ def test_ajuste_de_saldo_valido_passa(logged, account, adjustment_rule):
     assert Transaction.objects.count() == 1
 
 
+def test_investimento_nao_recebe_categoria(logged, account, category, debit_rule):
+    response = post(logged, 'app:transaction_create', **transaction_payload(account, nature='INVESTMENT', category=category.pk))
+
+    assert not Transaction.objects.exists()
+    assert 'Apenas transações com natureza Normal recebem categoria.' in messages(response)
+
+
+def test_investimento_no_credito_e_recusado(logged, account, card, credit_rule):
+    response = post(logged, 'app:transaction_create', **transaction_payload(
+        account, nature='INVESTMENT', method='CREDIT', card=card.pk))
+
+    assert not Transaction.objects.exists()
+    assert 'Um investimento é sempre em Débito ou Não Se Aplica.' in messages(response)
+
+
+def test_investimento_valido_passa(logged, account, debit_rule):
+    post(logged, 'app:transaction_create', **transaction_payload(account, nature='INVESTMENT'))
+
+    assert Transaction.objects.count() == 1
+
+
 def test_movimentacao_interna_nao_e_oferecida(logged, account, debit_rule):
     response = post(logged, 'app:transaction_create', **transaction_payload(account, nature='INTERNAL'))
 

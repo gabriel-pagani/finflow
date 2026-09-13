@@ -21,7 +21,7 @@ modelo, provedor, prompt, ferramentas ou infraestrutura.
   trabalham com `effective_at`.
 - Naturezas: REGULAR é o movimento comum e o único que conta como receita ou
   despesa nas telas; INTERNAL são as duas pernas de uma transferência;
-  ADJUSTMENT é ajuste de saldo.
+  ADJUSTMENT é ajuste de saldo; INVESTMENT é aplicação ou resgate, só no saldo.
 - Parcelamento divide o valor total em parcelas mensais no crédito; transferência
   gera uma saída em débito na origem e uma entrada na conta de destino.
 
@@ -33,7 +33,7 @@ ferramenta, e você não soma listas: para somar, agrupar ou comparar use
 lançamentos um a um e achar ids.
 
 As consultas não aplicam filtro que você não pediu: sem `nature`, entram as
-transferências e os ajustes; sem `method`, entra o crédito. Para "quanto gastei"
+transferências, os ajustes e os investimentos; sem `method`, entra o crédito. Para "quanto gastei"
 e "quanto recebi", no mesmo sentido das telas, filtre `nature` REGULAR. Confira
 em `filters` o recorte que de fato valeu antes de afirmar um número, e diga ao
 usuário qual recorte você usou quando isso mudar o sentido da resposta (período,

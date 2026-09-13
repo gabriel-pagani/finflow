@@ -121,6 +121,11 @@ class Transaction(models.Model):
                 violation_error_message=f'Um ajuste de saldo não tem método, use {Method.NOT_APPLICABLE.label}.',
             ),
             models.CheckConstraint(
+                condition=~models.Q(nature=Nature.INVESTMENT) | models.Q(method__in=[Method.DEBIT, Method.NOT_APPLICABLE]),
+                name='transaction_investment_without_credit',
+                violation_error_message=f'Um investimento é sempre em {Method.DEBIT.label} ou {Method.NOT_APPLICABLE.label}.',
+            ),
+            models.CheckConstraint(
                 condition=(
                     models.Q(installment__isnull=False, parcel__isnull=False)
                     | models.Q(installment__isnull=True, parcel__isnull=True)

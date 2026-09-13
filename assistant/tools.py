@@ -123,7 +123,7 @@ TOOLS = [
         'type': {'type': 'string', 'enum': queries.Type.values, 'description': 'IN entrada, OUT saída.'},
         'method': {'type': 'string', 'enum': queries.Method.values, 'description': 'Precisa ser uma combinação aceita pela conta. CREDIT exige card.'},
         'card': {'type': 'integer', 'description': 'Id do cartão, só no crédito, da mesma conta.'},
-        'nature': {'type': 'string', 'enum': [queries.Nature.REGULAR.value, queries.Nature.ADJUSTMENT.value], 'description': 'REGULAR (padrão) ou ADJUSTMENT, só para corrigir divergência com o extrato; ajuste é sempre NOT_APPLICABLE e sem categoria.'},
+        'nature': {'type': 'string', 'enum': [queries.Nature.REGULAR.value, queries.Nature.ADJUSTMENT.value, queries.Nature.INVESTMENT.value], 'description': 'REGULAR (padrão); ADJUSTMENT, só para corrigir divergência com o extrato, sempre NOT_APPLICABLE; ou INVESTMENT, aplicação (OUT) ou resgate (IN), nunca CREDIT. Ajuste e investimento vão sem categoria.'},
         'category': CATEGORY,
         'description': DESCRIPTION,
         'value': VALUE,

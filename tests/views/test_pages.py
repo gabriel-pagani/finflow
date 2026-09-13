@@ -37,6 +37,19 @@ def test_filtro_por_natureza(logged, account, adjustment_rule, make_transaction)
     assert 'Ajuste de Saldo' in response.content.decode()
 
 
+def test_investimento_entra_no_saldo_e_fica_fora_dos_graficos(logged, account, category, debit_rule, make_transaction):
+    make_transaction(category=category, value='10.00').save()
+    make_transaction(nature='INVESTMENT', value='500.00').save()
+
+    response = logged.get(reverse('app:overview'), {'start': '2026-01-01', 'end': '2026-12-31'})
+    saida = next(item for item in response.context['chart_months']['series'] if item['name'] == 'Saída')
+
+    assert response.context['cards']['outcome'] == 10.0
+    assert response.context['cards']['balance'] == -510.0
+    assert sum(saida['data']) == 10.0
+    assert response.context['chart_categories'] == [{'name': str(category), 'value': 10.0}]
+
+
 @pytest.mark.parametrize('route', ['app:overview', 'app:forecast', 'app:transactions_list'])
 def test_filtro_oferece_so_contas_e_categorias_em_uso(logged, route, account, other_account, category, other_user, make_transaction):
     lazer = Category.objects.create(description='Lazer')
