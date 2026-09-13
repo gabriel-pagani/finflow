@@ -57,7 +57,7 @@ class CardForm(OwnedForm):
 class InstallmentForm(OwnedForm):
     class Meta:
         model = Installment
-        fields = ('account', 'card', 'category', 'occurred_at', 'value', 'installments', 'description',)
+        fields = ('account', 'card', 'value', 'installments', 'category', 'occurred_at', 'description',)
         widgets = {
             'occurred_at': DateInput(),
             'value': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
@@ -78,7 +78,7 @@ class TransferForm(OwnedForm):
 class TransactionForm(OwnedForm):
     class Meta:
         model = Transaction
-        fields = ('account', 'card', 'nature', 'type', 'method', 'category', 'description', 'value', 'occurred_at',)
+        fields = ('account', 'card', 'type', 'method', 'nature', 'category', 'value', 'occurred_at', 'description',)
         widgets = {
             'occurred_at': DateInput(),
             'value': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
