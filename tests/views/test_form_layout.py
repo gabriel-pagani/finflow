@@ -6,4 +6,4 @@ from app.forms import TransferForm
 
 
 def test_transferencia_junta_as_contas_e_poe_a_data_ao_lado_do_valor(user):
-    assert list(TransferForm(user=user).fields) == ['origin', 'destination', 'description', 'value', 'occurred_at']
+    assert list(TransferForm(user=user).fields) == ['origin', 'destination', 'value', 'occurred_at', 'description']
