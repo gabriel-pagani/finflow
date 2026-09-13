@@ -139,6 +139,13 @@
     transferência só criam — editá-los exigiria regerar as transações filhas,
     o que segue sendo assunto do admin.
     {% endcomment %}
+    {% comment %}
+    As combinações que cada conta aceita e o dono de cada cartão, para o JS
+    oferecer nos modais só o que o servidor aceitaria. Sai por json_script, que
+    escapa o conteúdo e dispensa script inline, recusado pela CSP.
+    {% endcomment %}
+    {{ form_options|json_script:"data-form-options" }}
+
     {% url 'app:transaction_create' as transaction_url %}
     {% url 'app:installment_create' as installment_url %}
     {% url 'app:transfer_create' as transfer_url %}

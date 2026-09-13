@@ -4,8 +4,28 @@ from django.db.models import Value
 from django.views.generic.edit import CreateView, UpdateView
 
 from ..forms import InstallmentForm, TransactionForm, TransferForm
-from ..models import Installment, Method, Nature, Transaction, Transfer, Type
+from ..models import BusinessRule, Card, Installment, Method, Nature, Transaction, Transfer, Type
 from .mixins import FilteredTransactionsMixin, ModalDeleteView, ModalWriteMixin, OwnedListView
+
+
+# As combinações que cada conta aceita, para o modal só oferecer o que o
+# servidor aprovaria. Quem valida continua sendo o model: isto poupa o usuário
+# de montar um lançamento impossível, não substitui a checagem.
+#
+# Os ids saem como texto porque o value de um <option> é texto, e comparar com
+# número exigiria converter dos dois lados no navegador.
+def form_options(user):
+    rules = {}
+    for account_id, type, method in BusinessRule.objects.values_list('account_id', 'type', 'method'):
+        rules.setdefault(str(account_id), {}).setdefault(type, []).append(method)
+
+    return {
+        'rules': rules,
+        'cards': {str(pk): str(account_id) for pk, account_id in Card.objects.filter(user=user).values_list('pk', 'account_id')},
+        # O parcelamento não pergunta tipo nem método: é sempre saída no
+        # crédito, e só as contas que aceitam essa combinação servem.
+        'fixed': {'installment': {'type': Installment.TYPE, 'method': Installment.METHOD}},
+    }
 
 
 class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
@@ -51,6 +71,7 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
         context['form'] = TransactionForm(user=self.request.user)
         context['installment_form'] = InstallmentForm(user=self.request.user)
         context['transfer_form'] = TransferForm(user=self.request.user)
+        context['form_options'] = form_options(self.request.user)
         return context
 
 

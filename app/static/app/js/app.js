@@ -4,6 +4,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-multiselect]').forEach(setupMultiselect);
     document.querySelectorAll('dialog.modal').forEach(setupDialogDismiss);
+    setupLinkedFields();
     document.querySelectorAll('[data-record-urls]').forEach(setupRecordCrud);
     document.querySelectorAll('[data-bar-chart]').forEach(setupBarChart);
     document.querySelectorAll('[data-donut-chart]').forEach(setupDonutChart);
@@ -70,6 +71,139 @@ function setupDialogDismiss(dialog) {
     });
 }
 
+/* Combinações válidas nos formulários ------------------------------------- */
+
+// O modal oferece só o que o servidor aceitaria: quais tipos e métodos cada
+// conta aceita vem das regras de negócio dela, e um cartão pertence a uma conta
+// só. Isso poupa o usuário de montar um lançamento impossível e só descobrir no
+// envio; quem valida de verdade continua sendo o model.
+const SYNC_OPTIONS = 'finflow:sync-options';
+
+// Único método que tem cartão; nos outros o campo nem aparece.
+const CREDIT = 'CREDIT';
+
+function setupLinkedFields() {
+    const options = readJsonScript('data-form-options');
+    if (!options) return;
+
+    document.querySelectorAll('[data-modal-form]').forEach((form) => linkFields(form, options));
+}
+
+function linkFields(form, options) {
+    const modal = form.closest('[data-modal]');
+    const fixed = (modal && options.fixed[modal.dataset.modal]) || {};
+
+    const account = form.querySelector('[name="account"]');
+    const type = form.querySelector('[name="type"]');
+    const method = form.querySelector('[name="method"]');
+    const card = form.querySelector('[name="card"]');
+
+    // A conta é o começo de tudo o que se recorta aqui. A transferência não
+    // tem uma: as duas pernas dela já nascem com tipo e método fixos, e não há
+    // o que escolher.
+    if (!account) return;
+
+    // Devolver null é dizer "sem restrição": ou a conta ainda não foi
+    // escolhida, ou o formulário não fixa combinação nenhuma.
+    function accountsFor() {
+        if (!fixed.type) return null;
+        return Object.keys(options.rules).filter((id) => (options.rules[id][fixed.type] || []).includes(fixed.method));
+    }
+
+    function typesFor() {
+        const accepted = options.rules[account.value];
+        return accepted ? Object.keys(accepted) : null;
+    }
+
+    function methodsFor() {
+        const accepted = options.rules[account.value];
+        if (!accepted) return null;
+        // Sem tipo escolhido vale o que a conta aceita em qualquer um deles.
+        return type.value ? (accepted[type.value] || []) : Object.values(accepted).flat();
+    }
+
+    function cardsFor() {
+        return account.value ? Object.keys(options.cards).filter((id) => options.cards[id] === account.value) : null;
+    }
+
+    // Esconde e desabilita de uma vez: escondida, a opção sai da lista;
+    // desabilitada, ela também deixa de ser alcançável pelo teclado e por
+    // navegador que ignore o hidden.
+    function restrict(select, allowed) {
+        const usable = [];
+        let blank = null;
+
+        Array.from(select.options).forEach((option) => {
+            // A opção vazia nunca é cortada: é por ela que se desfaz a escolha.
+            if (option.value === '') {
+                blank = option;
+                return;
+            }
+
+            const fits = allowed === null || allowed.includes(option.value);
+            option.hidden = !fits;
+            option.disabled = !fits;
+            if (fits) usable.push(option);
+        });
+
+        const chosen = select.selectedOptions[0];
+        if (chosen && chosen.value !== '' && !chosen.disabled) return;
+
+        // Uma opção só não é escolha, é constatação — e onde não existe opção
+        // vazia, como no cartão, alguma precisa ficar marcada. Nos demais casos
+        // a decisão volta para o usuário em vez de ser adivinhada.
+        select.value = usable.length && (!blank || usable.length === 1) ? usable[0].value : '';
+    }
+
+    // Cartão só existe no crédito: nos demais métodos o campo nem aparece.
+    // Escondê-lo não basta — o select continuaria enviando a primeira opção, e
+    // o servidor recusa cartão fora do crédito. O disabled é o que o tira do
+    // POST; o navegador não envia campo desabilitado. Sem select de método, no
+    // parcelamento, o cartão é sempre exigido.
+    function showCard() {
+        if (!card) return;
+
+        const wrapper = card.closest('[data-field]');
+        const credit = !method || method.value === CREDIT;
+
+        if (wrapper) wrapper.hidden = !credit;
+        card.disabled = !credit;
+    }
+
+    // De cima para baixo: cada campo é recortado pelo que ficou acima dele, e
+    // por isso o de baixo só é calculado depois que o de cima já se acertou.
+    function sync() {
+        if (account) restrict(account, accountsFor());
+        if (type) restrict(type, typesFor());
+        if (method) restrict(method, methodsFor());
+        if (card) restrict(card, cardsFor());
+        showCard();
+    }
+
+    [account, type, method].forEach((select) => {
+        if (select) select.addEventListener('change', sync);
+    });
+
+    // O caminho inverso: o cartão pertence a uma conta só, então escolhê-lo já
+    // responde qual é a conta. Perguntar de novo seria pedir duas vezes a mesma
+    // informação, e a conta segue livre para ser trocada depois — o que troca,
+    // aí, é o cartão.
+    if (card) {
+        card.addEventListener('change', () => {
+            const owner = options.cards[card.value];
+            if (owner && account) account.value = owner;
+            sync();
+        });
+    }
+
+    // A edição preenche os campos de fora e a criação usa o reset; nos dois
+    // casos o modal avisa por este evento, para as opções se refazerem a partir
+    // dos valores novos.
+    form.addEventListener(SYNC_OPTIONS, sync);
+
+    sync();
+}
+
 /* CRUD das listagens ------------------------------------------------------ */
 
 // Transação e cartão são a mesma tela com nomes diferentes: uma lista, um modal
@@ -109,27 +243,13 @@ function setupRecordCrud(root) {
         });
     }
 
-    // Cartão só existe no crédito: nos demais métodos o campo nem aparece.
-    // Escondê-lo não basta — o select continuaria enviando a primeira opção, e
-    // o servidor recusa cartão fora do crédito. O disabled é o que o tira do
-    // POST; o navegador não envia campo desabilitado.
-    function syncCardField() {
-        const wrapper = form.querySelector('[data-field="card"]');
-        const method = form.querySelector('[name="method"]');
-        if (!wrapper || !method) return;
-
-        const credit = method.value === 'CREDIT';
-        wrapper.hidden = !credit;
-        wrapper.querySelector('[name="card"]').disabled = !credit;
-    }
-
     function openCreate() {
         form.action = createUrl;
         title.textContent = createTitle;
         form.reset();
         editingRow = null;
         if (modalDelete) modalDelete.hidden = true;
-        syncCardField();
+        form.dispatchEvent(new Event(SYNC_OPTIONS));
         modal.showModal();
     }
 
@@ -139,7 +259,7 @@ function setupRecordCrud(root) {
         editingRow = row;
         if (modalDelete) modalDelete.hidden = false;
         fill(row.dataset);
-        syncCardField();
+        form.dispatchEvent(new Event(SYNC_OPTIONS));
         modal.showModal();
     }
 
@@ -165,11 +285,6 @@ function setupRecordCrud(root) {
     deleteModal.addEventListener('close', () => {
         editingRow = null;
     });
-
-    // Trocar o método durante o preenchimento mostra ou esconde o cartão, sem
-    // esperar o envio para o usuário descobrir que ele era exigido.
-    const method = form.querySelector('[name="method"]');
-    if (method) method.addEventListener('change', syncCardField);
 
     // Excluir de dentro da edição: fecha este modal antes de abrir a
     // confirmação, porque dois <dialog> modais empilhados prendem o foco no
@@ -244,7 +359,9 @@ function setupNewButton(kind, openCreate) {
 
             const modal = document.querySelector(`[data-modal="${chosen}"]`);
             if (!modal) return;
-            modal.querySelector('[data-modal-form]').reset();
+            const chosenForm = modal.querySelector('[data-modal-form]');
+            chosenForm.reset();
+            chosenForm.dispatchEvent(new Event(SYNC_OPTIONS));
             modal.showModal();
         });
     });
