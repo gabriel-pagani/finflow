@@ -66,6 +66,16 @@
     font-size: 12px;
 }
 
+.assistant-actions .assistant-commands-open {
+    padding: 0 6px;
+}
+
+.assistant-actions .icon {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
 .assistant-messages {
     flex: 1;
     overflow-y: auto;
@@ -291,6 +301,46 @@
     background: var(--bg);
 }
 
+/* Sugestões de comando: acima da linha de digitar, como o anexo em espera, e
+   rolando quando há muitos para não empurrar a conversa para fora da tela. */
+.assistant-suggestions {
+    flex: 1 0 100%;
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.assistant-suggestions li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+}
+
+.assistant-suggestions li[aria-selected="true"] {
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+/* A prévia das instruções numa linha só: serve para reconhecer, não para ler. */
+.assistant-suggestions span,
+.assistant-command-item span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.assistant-suggestions strong,
+.assistant-command-item strong {
+    flex: none;
+    font-weight: 600;
+}
+
 .assistant-attachment .assistant-photo {
     width: 56px;
     height: 56px;
@@ -383,6 +433,130 @@
     pointer-events: none;
 }
 
+/* Modal de comandos -------------------------------------------------------- */
+
+/* A página do assistente não carrega o app.css, onde mora o .modal das outras
+   telas; o desenho é o mesmo. */
+.assistant-commands {
+    width: min(560px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    /* O reset zera a margem, e é o margin:auto que centraliza o <dialog>. */
+    margin: auto;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+}
+
+.assistant-commands::backdrop {
+    background: rgb(0 0 0 / 45%);
+}
+
+.assistant-commands h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.assistant-commands-text {
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.assistant-commands code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.92em;
+}
+
+.assistant-command-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 16px;
+}
+
+.assistant-command-items .empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 12px;
+}
+
+.assistant-command-item {
+    width: 100%;
+    height: auto;
+    padding: 9px 11px;
+    justify-content: flex-start;
+    gap: 10px;
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+    text-align: left;
+}
+
+.assistant-command-item:hover {
+    border-color: var(--accent);
+}
+
+.assistant-command-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+    color: var(--muted);
+}
+
+.assistant-command-field input,
+.assistant-command-field textarea {
+    width: 100%;
+}
+
+.assistant-command-field textarea {
+    font: inherit;
+    line-height: 1.45;
+    padding: 8px 10px;
+    min-height: 140px;
+    resize: vertical;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    box-sizing: border-box;
+}
+
+.assistant-command-error {
+    padding: 10px 12px;
+    border: 1px solid var(--outcome);
+    border-radius: 6px;
+    color: var(--outcome);
+}
+
+.assistant-commands-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+/* Excluir no canto oposto: ação destrutiva não fica encostada em Salvar. A
+   contagem ocupa o mesmo canto na lista. */
+.assistant-command-delete,
+.assistant-commands-count {
+    margin-right: auto;
+}
+
+.assistant-commands-count {
+    align-self: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.assistant-commands-footer button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
 /* Página do assistente ---------------------------------------------------- */
 
 .assistant-embedded {
@@ -427,5 +601,14 @@ body.page-assistant {
     .assistant-actions button {
         height: 36px;
         padding: 0 12px;
+    }
+
+    .assistant-actions .assistant-commands-open {
+        padding: 0 9px;
+    }
+
+    /* 16px evita o zoom automático do iOS ao focar as instruções. */
+    .assistant-command-field textarea {
+        font-size: 16px;
     }
 }

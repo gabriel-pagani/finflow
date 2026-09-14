@@ -13,4 +13,8 @@ urlpatterns = [
     path('attachment/<int:pk>/', views.AttachmentView.as_view(), name='attachment'),
     path('proposal/<int:pk>/confirm/', views.ConfirmView.as_view(), name='confirm'),
     path('proposal/<int:pk>/cancel/', views.CancelView.as_view(), name='cancel'),
+    path('commands/', views.CommandsView.as_view(), name='commands'),
+    path('command/add/', views.CommandWriteView.as_view(), name='command_create'),
+    path('command/<int:pk>/change/', views.CommandWriteView.as_view(), name='command_update'),
+    path('command/<int:pk>/delete/', views.CommandDeleteView.as_view(), name='command_delete'),
 ]

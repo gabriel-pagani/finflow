@@ -11,6 +11,10 @@ As rotas e o CSRF vão em data-*: a CSP recusa script inline.
      data-reset="{% url 'assistant:reset' %}"
      data-confirm="{% url 'assistant:confirm' 0 %}"
      data-cancel="{% url 'assistant:cancel' 0 %}"
+     data-commands="{% url 'assistant:commands' %}"
+     data-command-create="{% url 'assistant:command_create' %}"
+     data-command-update="{% url 'assistant:command_update' 0 %}"
+     data-command-delete="{% url 'assistant:command_delete' 0 %}"
      data-csrf="{{ csrf_token }}">
 
     {% if not embedded %}
@@ -24,6 +28,18 @@ As rotas e o CSRF vão em data-*: a CSP recusa script inline.
         <header>
             <strong>Assistente</strong>
             <div class="assistant-actions">
+                {% comment %}
+                Gerenciar só na página: o atalho flutuante chama os comandos,
+                mas é pequeno demais para escrever instruções.
+                {% endcomment %}
+                {% if embedded %}
+                    <button type="button" class="assistant-commands-open secondary" aria-label="Gerenciar comandos" title="Gerenciar comandos">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <line x1="14.5" y1="7" x2="9.5" y2="17"/>
+                        </svg>
+                    </button>
+                {% endif %}
                 <button type="button" class="assistant-reset secondary" title="Limpar a conversa">Limpar</button>
                 {% if not embedded %}<button type="button" class="assistant-close secondary" title="Fechar">✕</button>{% endif %}
             </div>
@@ -38,6 +54,7 @@ As rotas e o CSRF vão em data-*: a CSP recusa script inline.
             `capture` abre a câmera direto no celular; no computador é ignorado.
             {% endcomment %}
             <div class="assistant-attachment" hidden></div>
+            <ul class="assistant-suggestions" role="listbox" aria-label="Comandos salvos" hidden></ul>
             <input type="file" class="assistant-file" accept="image/*" capture="environment" hidden>
 
             <button type="button" class="assistant-attach secondary" aria-label="Tirar uma foto" title="Tirar uma foto">
@@ -62,4 +79,41 @@ As rotas e o CSRF vão em data-*: a CSP recusa script inline.
             <button type="submit" title="Enviar">Enviar</button>
         </form>
     </section>
+
+    {% if embedded %}
+        {% comment %}
+        Um modal com duas vistas, a lista e o formulário, trocadas pelo JS: abrir
+        um segundo <dialog> por cima do primeiro empilharia dois fundos escuros.
+        {% endcomment %}
+        <dialog class="assistant-commands" aria-labelledby="assistant-commands-title">
+            <div class="assistant-commands-list">
+                <h2 id="assistant-commands-title">Comandos</h2>
+                <p class="assistant-commands-text">Salve instruções com um nome e chame-as no chat digitando <code>/nome</code>. O que vier depois do nome complementa o pedido, como em <code>/saldo-investido em 2026</code>.</p>
+                <ul class="assistant-command-items"></ul>
+                <div class="assistant-commands-footer">
+                    <span class="assistant-commands-count"></span>
+                    <button type="button" class="secondary" data-commands-close>Fechar</button>
+                    <button type="button" class="assistant-command-new">Novo Comando</button>
+                </div>
+            </div>
+
+            <form class="assistant-command-form" hidden>
+                <h2 class="assistant-command-title">Novo Comando</h2>
+                <div class="assistant-command-field">
+                    <label for="{{ command_form.name.id_for_label }}">{{ command_form.name.label }}</label>
+                    {{ command_form.name }}
+                </div>
+                <div class="assistant-command-field">
+                    <label for="{{ command_form.instructions.id_for_label }}">{{ command_form.instructions.label }}</label>
+                    {{ command_form.instructions }}
+                </div>
+                <p class="assistant-command-error" role="alert" hidden></p>
+                <div class="assistant-commands-footer">
+                    <button type="button" class="danger assistant-command-delete" hidden>Excluir</button>
+                    <button type="button" class="secondary assistant-command-back">Cancelar</button>
+                    <button type="submit">Salvar</button>
+                </div>
+            </form>
+        </dialog>
+    {% endif %}
 </div>

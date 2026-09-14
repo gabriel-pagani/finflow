@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 from openai import OpenAI, OpenAIError
 
-from . import attachments
+from . import attachments, commands
 from .models import AttachmentKind, Message, Role
 from .prompt import system_prompt
 from .tools import TOOLS, run
@@ -111,7 +111,7 @@ def execute(call, user, today, conversation):
         return {'ok': False, 'error': 'A ferramenta falhou. Avise que não foi possível concluir agora.'}, None
 
 
-def converse(conversation, user, text, upload=None):
+def converse(conversation, user, text, upload=None, command=None):
     today = timezone.localdate()
 
     if upload is not None and upload.kind == AttachmentKind.AUDIO:
@@ -126,9 +126,11 @@ def converse(conversation, user, text, upload=None):
         text = '\n'.join(part for part in (text, spoken) if part)
         yield {'type': 'transcript', 'text': text}
 
+    # O chat mostra o /comando que foi digitado; só o modelo lê as instruções.
     message = Message.objects.create(conversation=conversation, role=Role.USER, content=text)
     attachment = attachments.attach(message, upload) if upload is not None else None
-    message.items = [attachments.user_item(text, attachment)]
+    prompt = commands.expand(command, text) if command is not None else text
+    message.items = [attachments.user_item(prompt, attachment)]
     message.save(update_fields=['items'])
 
     # Chamada idêntica a uma que já falhou nesta mensagem daria o mesmo erro, e

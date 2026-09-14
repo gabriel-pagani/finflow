@@ -9,20 +9,16 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
-from . import attachments, proposals
+from . import attachments, commands, proposals
 from .client import GENERIC_ERROR, converse
-from .models import Attachment, Conversation, Proposal, Role
+from .forms import CommandForm
+from .models import MAX_MESSAGE, Attachment, Command, Conversation, Proposal, Role
 
 
 logger = logging.getLogger(__name__)
 
 # Área interna do nginx: aparece só no cabeçalho, e ele a troca pelo arquivo.
 ACCEL_PREFIX = '/protected-media/'
-
-# O texto do chat é o único campo livre que não passa por um Form, e o que ele
-# custa não é espaço no banco: a mensagem inteira vira prompt a cada rodada.
-# Folgado para uma pergunta, estreito para um arquivo colado.
-MAX_MESSAGE = 2000
 
 
 # O byte nulo derruba a gravação no Postgres, e aqui não há Form para barrá-lo
@@ -42,6 +38,11 @@ class PageView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
     template_name = 'assistant/page.html'
     permission_required = 'assistant.use_assistant'
     extra_context = {'assistant_page': True}
+
+    # O formulário só dá os campos do modal de comandos, com os limites do
+    # model; quem salva é o fetch.
+    def get_context_data(self, **kwargs):
+        return super().get_context_data(command_form=CommandForm(auto_id='command_%s'), **kwargs)
 
     def handle_no_permission(self):
         self.raise_exception = self.request.user.is_authenticated
@@ -68,16 +69,21 @@ class StreamView(AssistantView):
         if not text and media is None:
             return JsonResponse({'error': 'Escreva uma mensagem.'}, status=400)
 
+        try:
+            command = commands.find(request.user, text)
+        except commands.CommandError as error:
+            return JsonResponse({'error': str(error)}, status=400)
+
         conversation, _ = Conversation.objects.get_or_create(user=request.user)
 
-        response = StreamingHttpResponse(self.events(conversation, request.user, text, media), content_type='text/event-stream; charset=utf-8')
+        response = StreamingHttpResponse(self.events(conversation, request.user, text, media, command), content_type='text/event-stream; charset=utf-8')
         response['X-Accel-Buffering'] = 'no'
         response['Cache-Control'] = 'no-cache'
         return response
 
-    def events(self, conversation, user, text, media):
+    def events(self, conversation, user, text, media, command):
         try:
-            for event in converse(conversation, user, text, media):
+            for event in converse(conversation, user, text, media, command):
                 yield f'data: {json.dumps(event, ensure_ascii=False)}\n\n'
         except Exception:
             logger.exception('Stream da conversa %s morreu.', conversation.pk)
@@ -171,3 +177,57 @@ class CancelView(ProposalView):
     def resolve(self, proposal):
         proposals.cancel(proposal)
         return ''
+
+
+def serialize(command):
+    return {'id': command.pk, 'name': command.name, 'instructions': command.instructions}
+
+
+class CommandsView(AssistantView):
+    http_method_names = ['get']
+
+    # O teto vai junto para o modal travar o Novo Comando antes de o servidor
+    # recusar; quem recusa de fato é o Form.
+    def get(self, request, *args, **kwargs):
+        return JsonResponse({
+            'commands': [serialize(command) for command in Command.objects.filter(user=request.user)],
+            'limit': Command.limit_for(request.user),
+        })
+
+
+class CommandWriteView(AssistantView):
+    http_method_names = ['post']
+
+    # Sem pk cria, com pk edita; o dono entra na busca, e comando de outro
+    # usuário é o mesmo 404 de comando que não existe.
+    def post(self, request, pk=None, *args, **kwargs):
+        command = None
+        if pk is not None:
+            command = Command.objects.filter(pk=pk, user=request.user).first()
+            if command is None:
+                return JsonResponse({'error': 'Este comando não existe.'}, status=404)
+
+        form = CommandForm(request.POST, instance=command, user=request.user)
+        if not form.is_valid():
+            return JsonResponse({'error': self.errors(form)}, status=400)
+
+        return JsonResponse({'command': serialize(form.save())})
+
+    # Numa frase só, com o rótulo na frente: o modal não tem onde pendurar o
+    # erro de cada campo, e "Este campo é obrigatório" sozinho não diz qual.
+    def errors(self, form):
+        return ' '.join(
+            f'{form.fields[field].label}: {message}' if field in form.fields else message
+            for field, messages in form.errors.items()
+            for message in messages
+        )
+
+
+class CommandDeleteView(AssistantView):
+    http_method_names = ['post']
+
+    def post(self, request, pk, *args, **kwargs):
+        deleted, _ = Command.objects.filter(pk=pk, user=request.user).delete()
+        if not deleted:
+            return JsonResponse({'error': 'Este comando não existe.'}, status=404)
+        return JsonResponse({'status': 'deleted'})

@@ -15,12 +15,21 @@ function setupAssistant(root) {
     const fileInput = form.querySelector('.assistant-file');
     const attachButton = form.querySelector('.assistant-attach');
     const recordButton = form.querySelector('.assistant-record');
+    const suggestions = form.querySelector('.assistant-suggestions');
+    const commandsDialog = root.querySelector('.assistant-commands');
     const urls = root.dataset;
 
     // O anexo escolhido ou gravado e ainda não enviado; um por mensagem.
     let attachment = null;
     // O gravador em curso; nulo é parado.
     let recorder = null;
+    // Os comandos salvos, só para sugerir: quem resolve o nome no envio é o
+    // servidor, então o comando digitado inteiro funciona sem a lista.
+    let commands = [];
+    // Quantos comandos o usuário pode ter; nulo é sem teto.
+    let commandLimit = null;
+    // A posição da sugestão destacada.
+    let highlighted = 0;
 
     // Um cupom fotografado de perto é legível bem antes disso; o resto é tempo
     // de upload no 4G.
@@ -172,7 +181,7 @@ function setupAssistant(root) {
     }
 
     // Rotas com id saem do template com 0 no lugar, e o segmento é trocado aqui.
-    function proposalUrl(template, id) {
+    function withId(template, id) {
         return template.replace(/\/0\//, `/${id}/`);
     }
 
@@ -242,7 +251,7 @@ function setupAssistant(root) {
         async function act(template) {
             footer.querySelectorAll('button').forEach((button) => { button.disabled = true; });
             try {
-                const response = await post(proposalUrl(template, id));
+                const response = await post(withId(template, id));
                 const data = await response.json();
                 if (data.state && data.state !== 'open') {
                     finish(data.state, data.result);
@@ -497,14 +506,208 @@ function setupAssistant(root) {
         data.blocks.forEach(renderBlock);
 
         if (!data.blocks.length) {
-            bubble('empty', 'Pergunte sobre suas finanças ou peça para lançar, editar ou apagar transações, parcelamentos, transferências e cartões. Dá para mandar foto do comprovante ou um áudio.');
+            bubble('empty', 'Pergunte sobre suas finanças ou peça para lançar, editar ou apagar transações, parcelamentos, transferências e cartões. Dá para mandar foto do comprovante ou um áudio, e digitar / para chamar um comando salvo.');
         }
+    }
+
+    async function loadCommands() {
+        try {
+            const response = await fetch(urls.commands);
+            if (!response.ok) return;
+            const data = await response.json();
+            commands = data.commands;
+            commandLimit = data.limit;
+        } catch (error) {
+            // Sem a lista só faltam as sugestões.
+        }
+    }
+
+    // Só enquanto a mensagem é a barra e o começo de um nome: depois do espaço
+    // já é o complemento, e a lista atrapalharia o Enter.
+    function matchingCommands() {
+        const typed = input.value.match(/^\/([\w-]*)$/);
+        if (!typed) return [];
+        const prefix = typed[1].toLowerCase();
+        return commands.filter((command) => command.name.startsWith(prefix));
+    }
+
+    function commandLabel(command) {
+        const name = document.createElement('strong');
+        name.textContent = `/${command.name}`;
+        const preview = document.createElement('span');
+        preview.textContent = command.instructions;
+        return [name, preview];
+    }
+
+    function renderSuggestions() {
+        const found = matchingCommands();
+        if (!found.length) {
+            hideSuggestions();
+            return;
+        }
+
+        highlighted = Math.min(highlighted, found.length - 1);
+        suggestions.replaceChildren(...found.map((command, index) => {
+            const item = document.createElement('li');
+            item.setAttribute('role', 'option');
+            item.setAttribute('aria-selected', index === highlighted ? 'true' : 'false');
+            item.append(...commandLabel(command));
+            // mousedown, e não click: com o preventDefault o campo não perde o
+            // foco, e o blur não fecha a lista antes da escolha.
+            item.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                useCommand(command);
+            });
+            return item;
+        }));
+        suggestions.hidden = false;
+    }
+
+    function hideSuggestions() {
+        highlighted = 0;
+        suggestions.replaceChildren();
+        suggestions.hidden = true;
+    }
+
+    // Escolher o comando já o envia: é um atalho. Quem quer complementar digita
+    // o nome e segue com um espaço, ou completa com Tab.
+    function useCommand(command) {
+        input.value = `/${command.name}`;
+        hideSuggestions();
+        form.requestSubmit();
+    }
+
+    // O modal tem duas vistas, a lista e o formulário, e só existe na página.
+    function setupCommands(dialog) {
+        const listView = dialog.querySelector('.assistant-commands-list');
+        const items = dialog.querySelector('.assistant-command-items');
+        const editor = dialog.querySelector('.assistant-command-form');
+        const title = editor.querySelector('.assistant-command-title');
+        const problem = editor.querySelector('.assistant-command-error');
+        const deleteButton = editor.querySelector('.assistant-command-delete');
+        const newButton = dialog.querySelector('.assistant-command-new');
+        const count = dialog.querySelector('.assistant-commands-count');
+        // namedItem, e não elements.name: `name` de um form é o atributo dele.
+        const nameInput = editor.elements.namedItem('name');
+        const instructionsInput = editor.elements.namedItem('instructions');
+
+        // O comando aberto no formulário; nulo é um novo.
+        let editing = null;
+
+        function showList() {
+            editor.hidden = true;
+            listView.hidden = false;
+
+            // No teto o botão trava antes do clique, em vez de abrir um
+            // formulário que o servidor vai recusar.
+            const full = commandLimit !== null && commands.length >= commandLimit;
+            newButton.disabled = full;
+            newButton.title = full ? 'Apague um comando para criar outro' : '';
+            count.textContent = commandLimit === null ? '' : `${commands.length} de ${commandLimit}`;
+
+            if (!commands.length) {
+                const empty = document.createElement('li');
+                empty.className = 'empty';
+                empty.textContent = 'Nenhum comando salvo ainda.';
+                items.replaceChildren(empty);
+                return;
+            }
+
+            items.replaceChildren(...commands.map((command) => {
+                const item = document.createElement('li');
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'assistant-command-item';
+                button.title = 'Editar';
+                button.append(...commandLabel(command));
+                button.addEventListener('click', () => showEditor(command));
+                item.appendChild(button);
+                return item;
+            }));
+        }
+
+        function showEditor(command) {
+            editing = command;
+            nameInput.value = command ? command.name : '';
+            instructionsInput.value = command ? command.instructions : '';
+            title.textContent = command ? `Editar /${command.name}` : 'Novo Comando';
+            deleteButton.hidden = !command;
+            disarmDelete();
+            problem.hidden = true;
+            listView.hidden = true;
+            editor.hidden = false;
+            nameInput.focus();
+        }
+
+        // Dois cliques para excluir: o primeiro só troca o rótulo pelo que o
+        // segundo vai fazer. Um segundo <dialog> de confirmação empilharia fundos.
+        function disarmDelete() {
+            deleteButton.dataset.armed = 'false';
+            deleteButton.textContent = 'Excluir';
+        }
+
+        async function write(url, body) {
+            const buttons = editor.querySelectorAll('button');
+            buttons.forEach((button) => { button.disabled = true; });
+            problem.hidden = true;
+
+            try {
+                const response = await post(url, body);
+                if (!response.ok) {
+                    problem.textContent = await failure(response);
+                    problem.hidden = false;
+                    disarmDelete();
+                    return;
+                }
+                await loadCommands();
+                showList();
+            } catch (error) {
+                problem.textContent = 'Não foi possível salvar agora. Tente de novo.';
+                problem.hidden = false;
+            } finally {
+                buttons.forEach((button) => { button.disabled = false; });
+            }
+        }
+
+        // A lista abre com o que já se tem e é trocada quando a busca volta: os
+        // comandos podem ter mudado em outro aparelho.
+        root.querySelector('.assistant-commands-open').addEventListener('click', () => {
+            showList();
+            dialog.showModal();
+            loadCommands().then(() => {
+                if (!listView.hidden) showList();
+            });
+        });
+
+        newButton.addEventListener('click', () => showEditor(null));
+        editor.querySelector('.assistant-command-back').addEventListener('click', showList);
+        dialog.querySelector('[data-commands-close]').addEventListener('click', () => dialog.close());
+
+        // Clicar no fundo escuro fecha, o que o <dialog> não faz sozinho.
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) dialog.close();
+        });
+
+        deleteButton.addEventListener('click', () => {
+            if (deleteButton.dataset.armed !== 'true') {
+                deleteButton.dataset.armed = 'true';
+                deleteButton.textContent = 'Confirmar exclusão';
+                return;
+            }
+            write(withId(urls.commandDelete, editing.id));
+        });
+
+        editor.addEventListener('submit', (event) => {
+            event.preventDefault();
+            write(editing ? withId(urls.commandUpdate, editing.id) : urls.commandCreate, new FormData(editor));
+        });
     }
 
     function open() {
         panel.hidden = false;
         toggle.setAttribute('aria-expanded', 'true');
         load();
+        loadCommands();
         if (!MOBILE.matches) input.focus();
     }
 
@@ -527,7 +730,11 @@ function setupAssistant(root) {
 
     if (toggle) toggle.addEventListener('click', () => (panel.hidden ? open() : close()));
     if (closeButton) closeButton.addEventListener('click', close);
-    if (embedded) load();
+    if (embedded) {
+        load();
+        loadCommands();
+    }
+    if (commandsDialog) setupCommands(commandsDialog);
 
     root.querySelector('.assistant-reset').addEventListener('click', async () => {
         if (recorder) recorder.stop();
@@ -546,6 +753,7 @@ function setupAssistant(root) {
         const media = attachment;
         input.value = '';
         input.style.height = 'auto';
+        hideSuggestions();
         dropAttachment(true);
         send(text, media);
     });
@@ -562,8 +770,32 @@ function setupAssistant(root) {
         else startRecording();
     });
 
+    // Com a lista de comandos aberta, as setas andam por ela, Enter envia o
+    // destacado, Tab só completa o nome e Esc fecha a lista sem fechar o painel.
+    function suggestionKey(event) {
+        const found = matchingCommands();
+        if (!found.length) return false;
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            highlighted = (highlighted + (event.key === 'ArrowDown' ? 1 : found.length - 1)) % found.length;
+            renderSuggestions();
+        } else if (event.key === 'Enter' && !event.shiftKey) {
+            useCommand(found[highlighted]);
+        } else if (event.key === 'Tab') {
+            input.value = `/${found[highlighted].name} `;
+            hideSuggestions();
+        } else if (event.key === 'Escape') {
+            event.stopPropagation();
+            hideSuggestions();
+        } else {
+            return false;
+        }
+        event.preventDefault();
+        return true;
+    }
+
     // Enter envia, Shift+Enter quebra a linha.
     input.addEventListener('keydown', (event) => {
+        if (!suggestions.hidden && suggestionKey(event)) return;
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             form.requestSubmit();
@@ -573,7 +805,11 @@ function setupAssistant(root) {
     input.addEventListener('input', () => {
         input.style.height = 'auto';
         input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+        highlighted = 0;
+        renderSuggestions();
     });
+
+    input.addEventListener('blur', hideSuggestions);
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && !embedded && !panel.hidden) close();

@@ -184,3 +184,65 @@ class Proposal(models.Model):
         ]
         verbose_name = 'Proposta'
         verbose_name_plural = 'Propostas'
+
+
+# O que o usuário escreve custa prompt, e não espaço no banco: a mensagem vai
+# inteira a cada rodada, e as instruções de um comando a cada chamada, somadas
+# ao que vier depois do nome. Folgado para uma pergunta, estreito para um
+# arquivo colado.
+MAX_MESSAGE = 2000
+
+
+class Command(models.Model):
+    # Quantos comandos cabem para quem usa o assistente sem permissão de faixa.
+    LIMIT = 5
+
+    # Da maior para a menor: quem tem mais de uma fica com a maior. None é sem
+    # teto, e o superusuário cai nele porque tem todas as permissões.
+    TIERS = [
+        ('assistant.unlimited_commands', None),
+        ('assistant.command_limit_20', 20),
+        ('assistant.command_limit_10', 10),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assistant_commands', verbose_name='Usuário')
+    name = models.CharField(max_length=40, verbose_name='Nome')
+    instructions = models.TextField(max_length=MAX_MESSAGE, verbose_name='Instruções')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data e Hora da Criação')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Data e Hora da Atualização')
+
+    # Perder a faixa não apaga nada: quem fica acima do teto segue chamando e
+    # editando o que tem, e só não cria outro.
+    @classmethod
+    def limit_for(cls, user):
+        for permission, limit in cls.TIERS:
+            if user.has_perm(permission):
+                return limit
+        return cls.LIMIT
+
+    def __str__(self):
+        return f'/{self.name}'
+
+    class Meta:
+        ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'name'],
+                name='command_unique_user_name',
+                violation_error_message='Você já tem um comando com esse nome.',
+            ),
+            # O nome é o que se digita depois da barra, então só leva o que
+            # cabe numa palavra sem espaço nem acento: /saldo-investido.
+            models.CheckConstraint(
+                condition=models.Q(name__regex=r'^[a-z0-9]+(-[a-z0-9]+)*$'),
+                name='command_name_is_slug',
+                violation_error_message='O nome precisa ter letras ou números, separados só por hífen.',
+            ),
+        ]
+        permissions = [
+            ('command_limit_10', 'Can have up to 10 commands'),
+            ('command_limit_20', 'Can have up to 20 commands'),
+            ('unlimited_commands', 'Can have unlimited commands'),
+        ]
+        verbose_name = 'Comando'
+        verbose_name_plural = 'Comandos'
