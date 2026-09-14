@@ -23,7 +23,7 @@ FILTERS = {
     'end': {'type': 'string', 'description': 'Fim do período, inclusivo, AAAA-MM-DD. null, sem limite.'},
     'account': ids('Ids de conta.'),
     'category': ids('Ids de categoria.'),
-    'uncategorized': {'type': 'boolean', 'description': 'Inclui as transações sem categoria. Combinado com category, soma as duas coisas.'},
+    'uncategorized': {'type': 'boolean', 'description': 'true restringe às transações sem categoria; com category, soma as duas coisas. Para todas as categorias, deixe este campo e category null, e para quebrar por categoria use group_by.'},
     'card': ids('Ids de cartão.'),
     'type': codes(queries.Type.values, 'IN (entrada) e/ou OUT (saída). null, os dois.'),
     'method': codes(queries.Method.values, 'null, todos os métodos, inclusive o crédito.'),
