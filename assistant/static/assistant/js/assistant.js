@@ -88,6 +88,27 @@ function setupAssistant(root) {
             .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
     }
 
+    function cells(line) {
+        return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+    }
+
+    const TABLE_ROW = /^\s*\|.*\|\s*$/;
+    const TABLE_DIVIDER = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+
+    // A tabela vai numa caixa que rola na horizontal: no celular, colunas
+    // demais não cabem no balão e não podem empurrar a conversa para o lado.
+    function renderTable(rows) {
+        const aligns = cells(rows[1]).map((cell) => (
+            cell.endsWith(':') ? (cell.startsWith(':') ? 'center' : 'right') : 'left'
+        ));
+        const row = (line, tag) => `<tr>${cells(line).map((cell, index) => (
+            `<${tag} style="text-align: ${aligns[index] || 'left'}">${inline(cell)}</${tag}>`
+        )).join('')}</tr>`;
+
+        return `<div class="assistant-table"><table><thead>${row(rows[0], 'th')}</thead>`
+            + `<tbody>${rows.slice(2).map((line) => row(line, 'td')).join('')}</tbody></table></div>`;
+    }
+
     function renderMarkdown(text) {
         const html = [];
         let open = null;
@@ -99,7 +120,33 @@ function setupAssistant(root) {
             }
         }
 
-        escapeHtml(text).split('\n').forEach((line) => {
+        const lines = escapeHtml(text).split('\n');
+        for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
+
+            // Enquanto o stream não trouxe a linha divisória, o cabeçalho
+            // aparece como texto e vira tabela no delta seguinte.
+            if (TABLE_ROW.test(line) && TABLE_DIVIDER.test(lines[index + 1] || '')) {
+                closeList();
+                const rows = [line, lines[index + 1]];
+                index += 2;
+                while (index < lines.length && TABLE_ROW.test(lines[index])) {
+                    rows.push(lines[index]);
+                    index++;
+                }
+                index--;
+                html.push(renderTable(rows));
+                continue;
+            }
+
+            // O prompt pede negrito para seção, mas o modelo às vezes escreve ##.
+            const heading = line.match(/^\s*#{1,6}\s+(.*)$/);
+            if (heading) {
+                closeList();
+                html.push(`<p><strong>${inline(heading[1])}</strong></p>`);
+                continue;
+            }
+
             const bullet = line.match(/^\s*[-*]\s+(.*)$/);
             const numbered = line.match(/^\s*\d+\.\s+(.*)$/);
             const tag = bullet ? 'ul' : (numbered ? 'ol' : null);
@@ -110,12 +157,12 @@ function setupAssistant(root) {
                     open = {tag: tag, items: []};
                 }
                 open.items.push(`<li>${inline((bullet || numbered)[1])}</li>`);
-                return;
+                continue;
             }
 
             closeList();
             if (line.trim()) html.push(`<p>${inline(line)}</p>`);
-        });
+        }
 
         closeList();
         return html.join('');

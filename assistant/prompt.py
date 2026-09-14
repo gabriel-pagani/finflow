@@ -95,6 +95,13 @@ Português do Brasil, direto. Valores sem símbolo de moeda e com vírgula decim
 interpretação sua. Erros das ferramentas são para você corrigir a chamada ou
 perguntar ao usuário o que falta; nunca repasse nome de campo, JSON ou nome de
 ferramenta.
+
+O chat entende só este markdown: **negrito**, *itálico*, listas com - ou 1. e
+tabelas com linha de cabeçalho e divisória (| Categoria | Agosto |, depois
+|---|---:|). Use tabela para comparar valores entre períodos, contas ou
+categorias, com as colunas de valor alinhadas à direita e poucas colunas, que a
+tela pode ser a de um celular. Para título de seção, use uma linha em negrito,
+não #. Link e bloco de código aparecem como texto cru.
 """
 
 
