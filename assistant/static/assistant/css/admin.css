@@ -1,0 +1,26 @@
+/* Linha do tempo das mensagens no admin: toda linha com a mesma altura. */
+
+.field-moment {
+    white-space: nowrap;
+}
+
+.assistant-timeline > summary {
+    cursor: pointer;
+    max-width: 70vw;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.assistant-timeline[open] > summary .assistant-timeline-preview {
+    display: none;
+}
+
+.assistant-timeline[open] > summary::after {
+    content: 'Recolher';
+    color: var(--body-quiet-color);
+}
+
+.assistant-timeline-full {
+    margin-top: 6px;
+}
