@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
-from .models import Attachment, Command, Conversation, Message, Proposal, Role
+from .models import Attachment, Command, Conversation, DailyUsage, Message, Proposal, Role
 
 
 def pretty(value):
@@ -287,3 +287,20 @@ class CommandAdmin(ReadOnlyAdmin):
     list_select_related = ('user',)
     fields = ('user', 'name', 'instructions', 'created_at', 'updated_at',)
     readonly_fields = fields
+
+
+# Apagar a linha de hoje devolve o dia inteiro ao usuário.
+@admin.register(DailyUsage)
+class DailyUsageAdmin(ReadOnlyAdmin):
+    list_display = ('day', 'user', 'messages', 'limit',)
+    list_filter = ('day', 'user',)
+    search_fields = ('user__username',)
+    list_select_related = ('user',)
+    fields = ('user', 'day', 'messages', 'limit',)
+    readonly_fields = fields
+
+    # Pelas permissões de agora: num dia passado o teto pode ter sido outro.
+    @admin.display(description='Limite Atual')
+    def limit(self, obj):
+        limit = DailyUsage.limit_for(obj.user)
+        return 'Ilimitado' if limit is None else limit

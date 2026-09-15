@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import models
+from django.db.models import F, Q
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -193,12 +194,19 @@ class Proposal(models.Model):
 MAX_MESSAGE = 2000
 
 
+# As faixas vão da maior para a menor: quem tem mais de uma fica com a maior.
+# None é sem teto, e o superusuário cai nele porque tem todas as permissões.
+def tier_limit(user, tiers, default):
+    for permission, limit in tiers:
+        if user.has_perm(permission):
+            return limit
+    return default
+
+
 class Command(models.Model):
     # Quantos comandos cabem para quem usa o assistente sem permissão de faixa.
     LIMIT = 5
 
-    # Da maior para a menor: quem tem mais de uma fica com a maior. None é sem
-    # teto, e o superusuário cai nele porque tem todas as permissões.
     TIERS = [
         ('assistant.unlimited_commands', None),
         ('assistant.command_limit_20', 20),
@@ -215,10 +223,7 @@ class Command(models.Model):
     # editando o que tem, e só não cria outro.
     @classmethod
     def limit_for(cls, user):
-        for permission, limit in cls.TIERS:
-            if user.has_perm(permission):
-                return limit
-        return cls.LIMIT
+        return tier_limit(user, cls.TIERS, cls.LIMIT)
 
     def __str__(self):
         return f'/{self.name}'
@@ -246,3 +251,54 @@ class Command(models.Model):
         ]
         verbose_name = 'Comando'
         verbose_name_plural = 'Comandos'
+
+
+# A conta mora fora da conversa: contada pelas mensagens, o Limpar zeraria o dia.
+class DailyUsage(models.Model):
+    # Quantas mensagens por dia cabem para quem usa o assistente sem permissão de faixa.
+    LIMIT = 20
+
+    TIERS = [
+        ('assistant.unlimited_messages', None),
+        ('assistant.message_limit_100', 100),
+        ('assistant.message_limit_50', 50),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assistant_usage', verbose_name='Usuário')
+    day = models.DateField(verbose_name='Dia')
+    messages = models.PositiveIntegerField(default=0, verbose_name='Mensagens Enviadas')
+
+    @classmethod
+    def limit_for(cls, user):
+        return tier_limit(user, cls.TIERS, cls.LIMIT)
+
+    # Soma o envio ao dia de hoje e diz se ele coube. A conferência e a soma vão
+    # no mesmo UPDATE: duas abas enviando juntas não passam as duas pela última vaga.
+    # Quem não tem teto também soma, para o admin mostrar o uso de todos.
+    @classmethod
+    def consume(cls, user):
+        today = timezone.localdate()
+        limit = cls.limit_for(user)
+        cls.objects.get_or_create(user=user, day=today)
+        fits = Q() if limit is None else Q(messages__lt=limit)
+        return cls.objects.filter(fits, user=user, day=today).update(messages=F('messages') + 1) == 1
+
+    def __str__(self):
+        return f'{self.user} em {self.day:%d/%m/%Y}'
+
+    class Meta:
+        ordering = ['-day', 'user']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'day'],
+                name='daily_usage_unique_user_day',
+                violation_error_message='Este usuário já tem a contagem deste dia.',
+            ),
+        ]
+        permissions = [
+            ('message_limit_50', 'Can send up to 50 messages a day'),
+            ('message_limit_100', 'Can send up to 100 messages a day'),
+            ('unlimited_messages', 'Can send unlimited messages a day'),
+        ]
+        verbose_name = 'Uso Diário'
+        verbose_name_plural = 'Usos Diários'

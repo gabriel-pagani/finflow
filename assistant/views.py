@@ -12,7 +12,7 @@ from django.views.generic import TemplateView
 from . import attachments, commands, proposals
 from .client import GENERIC_ERROR, converse
 from .forms import CommandForm
-from .models import MAX_MESSAGE, Attachment, Command, Conversation, Proposal, Role
+from .models import MAX_MESSAGE, Attachment, Command, Conversation, DailyUsage, Proposal, Role
 
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,13 @@ class StreamView(AssistantView):
             command = commands.find(request.user, text)
         except commands.CommandError as error:
             return JsonResponse({'error': str(error)}, status=400)
+
+        # Depois de toda recusa, que não gasta a cota. Texto, foto, áudio e
+        # comando contam igual, e o envio aceito conta mesmo que o modelo falhe
+        # depois: a chamada já foi paga.
+        if not DailyUsage.consume(request.user):
+            limit = DailyUsage.limit_for(request.user)
+            return JsonResponse({'error': f'Você já mandou as {limit} mensagens de hoje. O limite volta à meia-noite.'}, status=429)
 
         conversation, _ = Conversation.objects.get_or_create(user=request.user)
 

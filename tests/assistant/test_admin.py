@@ -5,16 +5,17 @@ Os models ficam na seção Assistente, e nada ali se cria nem se edita: mudar um
 mensagem reescreveria o histórico que volta ao modelo.
 """
 import json
+from datetime import date
 
 import pytest
 from django.contrib.admin.sites import site
 from django.test import RequestFactory
 
 from assistant.admin import MessageAdmin
-from assistant.models import Action, Attachment, Command, Conversation, Kind, Message, Proposal, Role, Status
+from assistant.models import Action, Attachment, Command, Conversation, DailyUsage, Kind, Message, Proposal, Role, Status
 
 
-MODELS = [Conversation, Message, Proposal, Attachment, Command]
+MODELS = [Conversation, Message, Proposal, Attachment, Command, DailyUsage]
 
 
 @pytest.fixture
@@ -40,6 +41,13 @@ def test_admin_do_assistente_so_le_e_apaga(model, request_de_admin):
     assert not model_admin.has_change_permission(request_de_admin)
     assert model_admin.has_view_permission(request_de_admin)
     assert model_admin.has_delete_permission(request_de_admin)
+
+
+def test_uso_diario_mostra_o_limite_de_agora(user, request_de_admin):
+    model_admin = site._registry[DailyUsage]
+
+    assert model_admin.limit(DailyUsage(user=user, day=date(2026, 9, 15))) == DailyUsage.LIMIT
+    assert model_admin.limit(DailyUsage(user=request_de_admin.user, day=date(2026, 9, 15))) == 'Ilimitado'
 
 
 @pytest.fixture
