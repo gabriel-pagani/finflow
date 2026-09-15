@@ -3,6 +3,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.core.cache import cache
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.urls import reverse
@@ -19,6 +20,16 @@ logger = logging.getLogger(__name__)
 
 # Área interna do nginx: aparece só no cabeçalho, e ele a troca pelo arquivo.
 ACCEL_PREFIX = '/protected-media/'
+
+# Uma resposta por vez para cada usuário. Enquanto o modelo responde, o stream
+# segura uma thread do servidor do começo ao fim, e um punhado de envios
+# simultâneos — a mesma cota gasta de uma vez, em várias abas — tomaria as
+# threads de todo mundo, derrubando até a tela de login.
+STREAM_LOCK = 'assistant:stream:{}'
+
+# A chave se solta sozinha no tempo que o proxy espera pelo stream: o normal é o
+# próprio gerador devolvê-la no fim, e isto só cobre o processo que morre no meio.
+STREAM_LOCK_TIMEOUT = 300
 
 
 # O byte nulo derruba a gravação no Postgres, e aqui não há Form para barrá-lo
@@ -74,27 +85,38 @@ class StreamView(AssistantView):
         except commands.CommandError as error:
             return JsonResponse({'error': str(error)}, status=400)
 
+        # Antes da cota: quem mandou duas de uma vez não perde uma mensagem do dia
+        # por causa disso.
+        lock = STREAM_LOCK.format(request.user.pk)
+        if not cache.add(lock, True, STREAM_LOCK_TIMEOUT):
+            return JsonResponse({'error': 'Ainda estou respondendo à sua mensagem anterior. Espere ela terminar.'}, status=429)
+
         # Depois de toda recusa, que não gasta a cota. Texto, foto, áudio e
         # comando contam igual, e o envio aceito conta mesmo que o modelo falhe
         # depois: a chamada já foi paga.
         if not DailyUsage.consume(request.user):
+            cache.delete(lock)
             limit = DailyUsage.limit_for(request.user)
             return JsonResponse({'error': f'Você já mandou as {limit} mensagens de hoje. O limite volta à meia-noite.'}, status=429)
 
         conversation, _ = Conversation.objects.get_or_create(user=request.user)
 
-        response = StreamingHttpResponse(self.events(conversation, request.user, text, media, command), content_type='text/event-stream; charset=utf-8')
+        response = StreamingHttpResponse(self.events(conversation, request.user, text, media, command, lock), content_type='text/event-stream; charset=utf-8')
         response['X-Accel-Buffering'] = 'no'
         response['Cache-Control'] = 'no-cache'
         return response
 
-    def events(self, conversation, user, text, media, command):
+    # O `finally` devolve a vez tanto no fim normal quanto na desistência de quem
+    # fechou a aba, que chega aqui como o fechamento do gerador.
+    def events(self, conversation, user, text, media, command, lock):
         try:
             for event in converse(conversation, user, text, media, command):
                 yield f'data: {json.dumps(event, ensure_ascii=False)}\n\n'
         except Exception:
             logger.exception('Stream da conversa %s morreu.', conversation.pk)
             yield f'data: {json.dumps({"type": "error", "message": GENERIC_ERROR}, ensure_ascii=False)}\n\n'
+        finally:
+            cache.delete(lock)
 
 
 class HistoryView(AssistantView):
