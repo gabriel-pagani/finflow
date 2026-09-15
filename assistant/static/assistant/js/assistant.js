@@ -259,6 +259,21 @@ function setupAssistant(root) {
         });
         card.appendChild(rows);
 
+        if (summary.similar) {
+            const warning = document.createElement('div');
+            warning.className = 'similar';
+            const intro = document.createElement('p');
+            intro.textContent = 'Já existe transações parecidas:';
+            const items = document.createElement('ul');
+            summary.similar.forEach((text) => {
+                const item = document.createElement('li');
+                item.textContent = text;
+                items.appendChild(item);
+            });
+            warning.append(intro, items);
+            card.appendChild(warning);
+        }
+
         summary.notes.forEach((text) => {
             const note = document.createElement('p');
             note.className = 'note';

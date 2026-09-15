@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -21,16 +21,24 @@ class Spec:
     model: type
     form: type
     actions: tuple
+    # Campos que, somados ao mesmo valor e a uma data próxima, fazem um registro
+    # já gravado parecer o mesmo que se quer criar. Vazio, não se procura.
+    matching: tuple = ()
 
 
 # Parcelamento e transferência não se editam, como na tela: alterá-los exigiria
 # regerar as transações filhas.
 SPECS = {
     Kind.CARD: Spec(Card, CardForm, (Action.CREATE, Action.UPDATE, Action.DELETE)),
-    Kind.TRANSACTION: Spec(Transaction, TransactionForm, (Action.CREATE, Action.UPDATE, Action.DELETE)),
-    Kind.INSTALLMENT: Spec(Installment, InstallmentForm, (Action.CREATE, Action.DELETE)),
-    Kind.TRANSFER: Spec(Transfer, TransferForm, (Action.CREATE, Action.DELETE)),
+    Kind.TRANSACTION: Spec(Transaction, TransactionForm, (Action.CREATE, Action.UPDATE, Action.DELETE), ('account', 'type')),
+    Kind.INSTALLMENT: Spec(Installment, InstallmentForm, (Action.CREATE, Action.DELETE), ('card', 'installments')),
+    Kind.TRANSFER: Spec(Transfer, TransferForm, (Action.CREATE, Action.DELETE), ('origin', 'destination')),
 }
+
+# Folga em torno da data pedida: o comprovante lançado de novo dias depois, ou
+# com a data da compra de um lado e a do pagamento do outro, ainda é o mesmo.
+SIMILAR_WINDOW = timedelta(days=3)
+MAX_SIMILAR = 5
 
 EMPTY = '—'
 
@@ -132,6 +140,27 @@ def parcel_rows(form):
         row('Parcelas', split),
         row('1ª Parcela em', first.strftime('%d/%m/%Y')),
         row('Última Parcela em', last.strftime('%d/%m/%Y')),
+    ]
+
+
+def similar(spec, form):
+    # Avisa, não barra: duas compras iguais no mesmo dia existem, e quem sabe se
+    # é repetição é o usuário, diante do card.
+    if not spec.matching:
+        return []
+
+    data = form.cleaned_data
+    occurred_at = data['occurred_at']
+    records = spec.model.objects.filter(
+        user=form.instance.user,
+        value=data['value'],
+        occurred_at__range=(occurred_at - SIMILAR_WINDOW, occurred_at + SIMILAR_WINDOW),
+        **{name: data[name] for name in spec.matching},
+    ).order_by('-occurred_at', '-id')[:MAX_SIMILAR]
+
+    return [
+        ' · '.join(part for part in (record.occurred_at.strftime('%d/%m/%Y'), record.description, str(record)) if part)
+        for record in records
     ]
 
 
@@ -244,6 +273,10 @@ def build(kind, user, arguments):
         notes.append('Um ciclo novo vale só para as próximas compras; as transações já feitas mantêm a data que tinham.')
 
     summary = {'title': title, 'action': action, 'rows': rows, 'notes': notes}
+    if action == Action.CREATE:
+        found = similar(spec, form)
+        if found:
+            summary['similar'] = found
     return instance.pk if instance else None, data, state, summary
 
 
@@ -277,16 +310,23 @@ def propose(kind, user, conversation, arguments):
         summary=summary,
     )
 
+    message = (
+        'NADA foi gravado. O usuário está vendo este resumo num card com os botões Confirmar e Descartar, '
+        'e só o clique dele grava. Escreva uma frase curta pedindo a confirmação no card, sem repetir os '
+        'dados e sem dizer que foi feito.'
+    )
+    if 'similar' in summary:
+        message += (
+            ' ATENÇÃO: já existe transação parecida, listada em summary.similar e destacada no card. Diga que '
+            'pode ser repetida e peça que ele confira antes de confirmar.'
+        )
+
     return {
         'ok': True,
         'status': 'aguardando_confirmacao',
         'proposal_id': proposal.pk,
         'summary': summary,
-        'message': (
-            'NADA foi gravado. O usuário está vendo este resumo num card com os botões Confirmar e Descartar, '
-            'e só o clique dele grava. Escreva uma frase curta pedindo a confirmação no card, sem repetir os '
-            'dados e sem dizer que foi feito.'
-        ),
+        'message': message,
     }, proposal
 
 

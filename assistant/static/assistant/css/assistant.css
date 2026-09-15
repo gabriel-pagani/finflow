@@ -281,6 +281,23 @@
     font-weight: normal;
 }
 
+/* Possível duplicado: destacado como o aviso de remoção dos modais, porque é a
+   informação que muda a decisão de confirmar. */
+.assistant-proposal .similar {
+    margin: 0 11px 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--outcome);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.assistant-proposal .similar ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    list-style: revert;
+}
+
 .assistant-proposal .note {
     padding: 0 11px 8px;
     color: var(--muted);

@@ -94,6 +94,84 @@ def test_data_omitida_vale_hoje(user, account, debit_rule, conversation):
     assert proposal.payload['occurred_at'] == timezone.localdate().isoformat()
 
 
+# Possível duplicado -------------------------------------------------------------
+
+def test_transacao_parecida_avisa_no_card_sem_barrar(user, account, category, make_transaction, conversation):
+    make_transaction(category=category, description='Almoço', value=Decimal('87.40'), occurred_at=date(2026, 9, 1)).save()
+
+    response, proposal = propose('transaction', user, conversation, {
+        'action': 'create', 'account': account.pk, 'type': 'OUT', 'method': 'DEBIT', 'value': '87.40', 'occurred_at': '2026-09-04',
+    })
+
+    assert proposal.summary['similar'] == ['01/09/2026 · Almoço · Mercado (87,40)']
+    assert 'parecida' in response['message']
+
+    confirm(proposal)
+    assert Transaction.objects.count() == 2
+
+
+@pytest.mark.parametrize('fields', [
+    {'value': Decimal('87.41')},
+    {'occurred_at': date(2026, 8, 31)},
+    {'type': Type.IN, 'method': Method.NOT_APPLICABLE},
+], ids=['outro valor', 'longe demais', 'outro tipo'])
+def test_transacao_diferente_nao_avisa(user, account, make_transaction, conversation, fields):
+    make_transaction(**{'value': Decimal('87.40'), **fields}).save()
+
+    response, proposal = propose('transaction', user, conversation, {
+        'action': 'create', 'account': account.pk, 'type': 'OUT', 'method': 'DEBIT', 'value': '87.40', 'occurred_at': '2026-09-04',
+    })
+
+    assert 'similar' not in proposal.summary
+    assert 'parecida' not in response['message']
+
+
+def test_transacao_de_outro_usuario_ou_conta_nao_avisa(user, other_user, account, other_account, make_transaction, conversation):
+    make_transaction(user=other_user, value=Decimal('87.40')).save()
+    make_transaction(account=other_account, value=Decimal('87.40')).save()
+
+    proposal = proposta('transaction', user, conversation, action='create', account=account.pk, type='OUT', method='DEBIT', value='87.40', occurred_at='2026-09-04')
+
+    assert 'similar' not in proposal.summary
+
+
+def test_parcelamento_parecido_avisa(user, account, card, make_installment, conversation):
+    make_installment(description='Geladeira').save()
+
+    proposal = proposta('installment', user, conversation, action='create', account=account.pk, card=card.pk,
+                        value='1000.00', installments=3, occurred_at='2026-09-05')
+
+    assert proposal.summary['similar'] == ['04/09/2026 · Geladeira · 1.000,00 (3x)']
+
+
+def test_parcelamento_com_outro_numero_de_parcelas_nao_avisa(user, account, card, make_installment, conversation):
+    make_installment().save()
+
+    proposal = proposta('installment', user, conversation, action='create', account=account.pk, card=card.pk,
+                        value='1000.00', installments=4, occurred_at='2026-09-04')
+
+    assert 'similar' not in proposal.summary
+
+
+def test_transferencia_parecida_avisa_so_no_mesmo_sentido(user, account, other_account, make_transfer, conversation):
+    make_transfer().save()
+    make_transfer(origin=other_account, destination=account, occurred_at=date(2026, 9, 5)).save()
+
+    proposal = proposta('transfer', user, conversation, action='create', origin=account.pk, destination=other_account.pk, value='250.00', occurred_at='2026-09-07')
+
+    assert proposal.summary['similar'] == ['04/09/2026 · 250,00 (Nubank → Itaú)']
+
+
+def test_edicao_nao_procura_parecida(user, make_transaction, conversation):
+    make_transaction(value=Decimal('20.00')).save()
+    transaction = make_transaction(value=Decimal('10.00'))
+    transaction.save()
+
+    proposal = proposta('transaction', user, conversation, action='update', id=transaction.pk, value='20.00')
+
+    assert 'similar' not in proposal.summary
+
+
 # Edição -----------------------------------------------------------------------
 
 def test_edicao_mostra_o_antes_e_mantem_o_resto(user, account, category, make_transaction, conversation):
