@@ -297,14 +297,14 @@ table.wrap td:first-child { white-space: normal; min-width: 180px; }
     <div class="flow">
       <div class="node"><span class="who nav">Navegador</span><b>POST /assistant/stream/</b><span class="d">texto e, se houver, um arquivo</span></div>
       <span class="arrow" aria-hidden="true">→</span>
-      <div class="node"><span class="who django">Django · StreamView</span><b>Barreira de entrada</b><span class="d">recusa com 400, ou 429 sem cota, antes de abrir o stream</span></div>
+      <div class="node"><span class="who django">Django · StreamView</span><b>Barreira de entrada</b><span class="d">recusa com 400, ou 429 sem cota e com outra resposta em curso, antes de abrir o stream</span></div>
       <span class="arrow" aria-hidden="true">→</span>
       <div class="node"><span class="who db">Banco</span><b>Grava sua mensagem</b><span class="d">uma <code>Message</code> com role=user</span></div>
     </div>
     <div class="loop">
       <div class="loop-title"><strong>Rodada, até 8 vezes</strong><span class="muted">laço <code>for _ in range(MAX_ROUNDS)</code></span></div>
       <div class="flow">
-        <div class="node"><span class="who django">Django</span><b>1. Monta o histórico</b><span class="d">as últimas 40 <code>Message</code>, com os <code>items</code> de cada uma</span></div>
+        <div class="node"><span class="who django">Django</span><b>1. Monta o histórico</b><span class="d">a rodada em curso inteira, e o que veio antes enquanto couber no teto</span></div>
         <span class="arrow" aria-hidden="true">→</span>
         <div class="node"><span class="who ia">OpenAI</span><b>2. Modelo responde</b><span class="d">texto em pedaços e/ou pedidos de ferramenta</span></div>
         <span class="arrow" aria-hidden="true">→</span>
@@ -359,6 +359,7 @@ table.wrap td:first-child { white-space: normal; min-width: 180px; }
         <ul>
           <li>Login e permissão <code>assistant.use_assistant</code>. Sem ela a resposta é 403, e não um redirect para o login.</li>
           <li>Tira o byte nulo. Com mais de 2000 caracteres, mensagem vazia sem anexo, arquivo inválido ou <code>/comando</code> inexistente, devolve <strong>400 em JSON</strong>.</li>
+          <li>Pega a vez do usuário, uma chave no Redis que o gerador devolve no fim. Com outra resposta ainda em curso, devolve <strong>429</strong>: “Ainda estou respondendo à sua mensagem anterior.” Cada stream segura uma thread do servidor enquanto o modelo responde, e sem isto alguns envios simultâneos tomariam as threads de todo mundo. O recusado não gasta cota.</li>
           <li>Por último, gasta uma mensagem da cota do dia com <code>DailyUsage.consume(user)</code>. Se ela já acabou, devolve <strong>429</strong>: “Você já mandou as 20 mensagens de hoje. O limite volta à meia-noite.” Texto, foto, áudio e /comando contam igual. Uma recusa das linhas acima não gasta cota.</li>
           <li><code>Conversation.get_or_create(user)</code>: cada usuário tem uma conversa só.</li>
           <li>Abre um <code>StreamingHttpResponse</code> <code>text/event-stream</code> com <code>X-Accel-Buffering: no</code>, para o nginx não segurar os pedaços.</li>
@@ -385,14 +386,14 @@ items   = [{"role": "user", "content": "Quanto gastei com mercado em agosto?"}]
 <pre>client().responses.create(
   model        = settings.OPENAI_MODEL,        <span class="c"># padrão "gpt-5.6-luna"</span>
   instructions = system_prompt(user, today),   <span class="c"># texto fixo de prompt.py + "Usuário: Gabriel / Hoje: 2026-09-14 (14/09/2026)"</span>
-  input        = history(conversation),        <span class="c"># os items das últimas 40 Message, em ordem</span>
+  input        = history(conversation),        <span class="c"># os items das Message que couberam na janela, em ordem</span>
   tools        = TOOLS,                        <span class="c"># os 8 schemas de tools.py</span>
   stream       = True,
   store        = False,                        <span class="c"># a OpenAI não guarda nada</span>
   include      = ["reasoning.encrypted_content"],
 )</pre>
         <ul>
-          <li><code>history()</code> pega as 40 mensagens mais recentes e descarta as <code>role=tool</code> que ficarem no começo da janela, porque a API recusa um resultado de ferramenta sem a chamada que o pediu.</li>
+          <li><code>history()</code> anda do mais novo para o mais velho, no máximo 40 mensagens. A rodada em curso — da sua fala até aqui — vai inteira, porque cortá-la deixaria chamada sem resposta. O que veio antes entra enquanto couber em <code>HISTORY_BUDGET</code>, 60 mil caracteres de texto: sem esse teto, uma consulta larga de ontem encareceria cada pergunta de hoje. No fim, descarta as <code>role=tool</code> que ficarem no começo da janela, porque a API recusa um resultado de ferramenta sem a chamada que o pediu.</li>
           <li>O prompt é montado de novo a cada rodada. Por isso a data de hoje está sempre certa.</li>
         </ul>
       </div></li>
@@ -692,8 +693,8 @@ items = [{"role": "user", "content": [
       </div></li>
       <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
         <p class="where"><span class="lane">Django</span><code>attachments.inspect</code></p>
-        <h4>Confere pelos bytes, com limite de 20 MB</h4>
-        <p>WebM, Ogg, MP4/M4A, WAV ou MP3.</p>
+        <h4>Confere pelos bytes, com limite de 8 MB</h4>
+        <p>WebM, Ogg, MP4/M4A, WAV ou MP3. Lê só os primeiros bytes para decidir o formato e confere o tamanho antes de trazer o arquivo para a memória: a transcrição é cobrada por minuto de fala, e o arquivo comprimido guarda muito mais tempo do que parece.</p>
       </div></li>
       <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
         <p class="where"><span class="lane">OpenAI</span><code>client.transcribe</code></p>
@@ -702,6 +703,7 @@ items = [{"role": "user", "content": [
   model    = settings.OPENAI_TRANSCRIBE_MODEL,   <span class="c"># padrão "gpt-4o-transcribe"</span>
   language = "pt",
   prompt   = "Fala em português do Brasil sobre finanças pessoais: reais, Pix, boleto, ...")</pre>
+        <p>A transcrição passa pelo mesmo teto de 2000 caracteres do texto digitado: acima disso, evento <code>error</code> com “O áudio é longo demais” e fim, sem gravar nada. Sem essa conferência, um áudio longo entraria como uma mensagem de tamanho nenhum e voltaria à API em cada rodada.</p>
         <p>Se falhar ou voltar vazia: evento <code>error</code> com “Não consegui entender o áudio” e fim. <strong>Nada é gravado</strong>, nem a mensagem nem o anexo. O único rastro fica no log, e a mensagem da cota do dia já foi gasta na barreira de entrada.</p>
       </div></li>
       <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
@@ -806,7 +808,9 @@ Complemento: setembro"}]</pre>
         <li><b>Uma transação parecida sempre aparece no card.</b><span>Ao criar transação, parcelamento ou transferência, <code>proposals.similar</code> faz a busca e o card mostra o quadro vermelho. Isso não depende do modelo. O aviso não impede a confirmação.</span></li>
         <li><b>Toda consulta calcula no banco.</b><span>As ferramentas somam com <code>Sum</code> e devolvem o recorte aplicado. Um argumento inválido volta como erro, e nunca vira um filtro silencioso.</span></li>
         <li><b>A cota diária barra antes de qualquer custo.</b><span>20 mensagens por dia sem faixa, 50 ou 100 com <code>message_limit_50</code> ou <code>message_limit_100</code>, e ilimitado com <code>unlimited_messages</code> ou para o superusuário. Sem cota não há transcrição, anexo nem chamada ao modelo. A conferência e a soma são um UPDATE só, então duas abas não passam juntas pela última vaga.</span></li>
-        <li><b>Há limites fixos.</b><span>8 rodadas por mensagem. Uma chamada idêntica a outra que já falhou não é executada de novo. 2000 caracteres por mensagem. Propostas expiram em 1 hora. Imagens até 8 MB e áudios até 20 MB, conferidos pelos bytes.</span></li>
+        <li><b>Há limites fixos.</b><span>8 rodadas por mensagem. Uma chamada idêntica a outra que já falhou não é executada de novo. 2000 caracteres por mensagem, transcrição de áudio incluída. Propostas expiram em 1 hora. Imagens e áudios até 8 MB, conferidos pelos bytes.</span></li>
+        <li><b>O tamanho do que sobe à API tem teto.</b><span>A conversa inteira vai em cada rodada, então o custo não está no número de mensagens. Um retorno acima de <code>MAX_TOOL_OUTPUT</code> (30 mil caracteres) é descartado com um aviso para estreitar o recorte; as consultas de uma mensagem somam até <code>TOOL_BUDGET</code> (120 mil) e as seguintes não são executadas; o histórico anterior à rodada em curso entra até <code>HISTORY_BUDGET</code> (60 mil). Os tetos de linha das ferramentas ficam abaixo disso, para uma página cheia sempre caber.</span></li>
+        <li><b>Uma resposta por vez para cada usuário.</b><span>Enquanto o stream está aberto, outro envio do mesmo usuário leva 429 e não gasta cota. A vez é uma chave no Redis, devolvida no fim do gerador e com validade de 300 s, para não ficar presa se o processo morrer no meio.</span></li>
       </ul>
     </div>
     <div>
@@ -830,7 +834,8 @@ Complemento: setembro"}]</pre>
     <p class="prose muted">Nada disto é erro de implementação. São consequências do desenho que, sem saber, parecem defeito.</p>
   </div>
   <ul class="watch">
-    <li><h4>A memória acaba antes do que parece</h4><p>O limite de 40 conta <em>linhas</em> de <code>Message</code>, e não perguntas. Uma pergunta com duas ferramentas ocupa 6 linhas, e os avisos internos também contam. Com perguntas desse tipo, o modelo lembra de algo como as últimas 6 ou 7.</p></li>
+    <li><h4>A memória acaba antes do que parece</h4><p>O limite de 40 conta <em>linhas</em> de <code>Message</code>, e não perguntas. Uma pergunta com duas ferramentas ocupa 6 linhas, e os avisos internos também contam. Com perguntas desse tipo, o modelo lembra de algo como as últimas 6 ou 7. E o teto de caracteres pode encurtar mais: depois de uma listagem grande, ela sozinha ocupa a janela e o que veio antes fica de fora.</p></li>
+    <li><h4>Uma consulta larga demais volta como recusa</h4><p>O retorno acima de 30 mil caracteres é descartado antes de entrar na conversa, e o modelo recebe um pedido para estreitar o recorte. Do lado de fora isso aparece como o assistente pedindo um período menor em vez de responder de primeira. Os tetos das ferramentas — 60 transações por página, 120 linhas de agrupamento — ficam abaixo desse limite justamente para que uma página cheia não caia aqui.</p></li>
     <li><h4>Confirmar não acorda o modelo</h4><p>O aviso interno é gravado no clique, mas o modelo só o lê na sua próxima mensagem. Até lá, nada muda na conversa.</p></li>
     <li><h4>Uma falha no meio deixa rastro parcial</h4><p>Se a OpenAI falhar na rodada 2, a sua mensagem e a rodada 1 ficam gravadas sem resposta. Na mensagem seguinte, o modelo vê a pergunta anterior sem resposta.</p></li>
     <li><h4>Nem todo erro aparece no admin</h4><p>Uma transcrição que falhou não grava nada. Uma exceção numa ferramenta vira “A ferramenta falhou” para o modelo, e o traceback vai para o log (“Ferramenta … falhou na conversa …”). Uma exceção fora disso gera “Stream da conversa … morreu”. Para depurar, olhe também o log do container.</p></li>
@@ -1033,7 +1038,7 @@ Complemento: setembro"}]</pre>
 
     client_max_body_size 25m;
 }</pre>
-          <p class="prose">Cada linha desfaz um comportamento padrão que quebraria o stream: HTTP/1.1 e <code>Connection</code> vazio para a conexão ficar aberta, buffer e cache desligados para o pedaço chegar na hora, <code>gzip off</code> porque o compressor também acumula, 300 s de timeout porque uma resposta com várias ferramentas demora, e 25 MB de corpo, folga sobre o limite de 20 MB do áudio.</p>
+          <p class="prose">Cada linha desfaz um comportamento padrão que quebraria o stream: HTTP/1.1 e <code>Connection</code> vazio para a conexão ficar aberta, buffer e cache desligados para o pedaço chegar na hora, <code>gzip off</code> porque o compressor também acumula, 300 s de timeout porque uma resposta com várias ferramentas demora, e 10 MB de corpo, folga sobre o limite de 8 MB do anexo.</p>
         </div>
       </div>
     </div>
