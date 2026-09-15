@@ -263,7 +263,7 @@ function setupAssistant(root) {
             const warning = document.createElement('div');
             warning.className = 'similar';
             const intro = document.createElement('p');
-            intro.textContent = 'Já existe transações parecidas:';
+            intro.textContent = 'Já existem transações parecidas:';
             const items = document.createElement('ul');
             summary.similar.forEach((text) => {
                 const item = document.createElement('li');
