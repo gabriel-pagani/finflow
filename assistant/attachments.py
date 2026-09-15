@@ -23,9 +23,12 @@ SIGNATURES = [
     (AttachmentKind.AUDIO, 'audio/mpeg', '.mp3', lambda head: head.startswith(b'ID3') or head[:2] == b'\xff\xfb'),
 ]
 
+# O áudio é cobrado por minuto de fala transcrita, e o arquivo comprimido guarda
+# muito mais tempo do que parece: 8 MB já cobrem um recado longo gravado pelo
+# navegador, e limitam o que uma gravação preparada à mão consegue mandar.
 LIMITS = {
     AttachmentKind.IMAGE: 8 * 1024 * 1024,
-    AttachmentKind.AUDIO: 20 * 1024 * 1024,
+    AttachmentKind.AUDIO: 8 * 1024 * 1024,
 }
 
 # No turno guardado a imagem é o id do anexo, e só vira bytes na hora de montar
@@ -50,17 +53,19 @@ class Upload:
         return f'anexo{self.extension}'
 
 
+# Lê os primeiros bytes, decide, e só então traz o arquivo inteiro para a
+# memória: carregar tudo antes de recusar pelo tipo ou pelo tamanho põe no
+# processo o que nem vai ser usado, e a recusa não gasta cota de quem insiste.
 def inspect(upload):
-    data = upload.read()
-    if not data:
+    head = upload.read(16)
+    if not head:
         raise UploadError('O arquivo chegou vazio.')
 
-    head = data[:16]
     for kind, mime, extension, matches in SIGNATURES:
         if matches(head):
-            if len(data) > LIMITS[kind]:
+            if upload.size > LIMITS[kind]:
                 raise UploadError(f'O arquivo tem mais de {LIMITS[kind] // (1024 * 1024)} MB. Mande um menor.')
-            return Upload(kind=kind, mime=mime, extension=extension, data=data)
+            return Upload(kind=kind, mime=mime, extension=extension, data=head + upload.read())
 
     raise UploadError('Formato não aceito. Mande uma foto (JPEG, PNG ou WebP) ou um áudio.')
 
