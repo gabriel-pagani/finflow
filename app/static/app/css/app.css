@@ -397,7 +397,7 @@
     margin-right: auto;
 }
 
-/* A escolha do tipo de lançamento não tem formulário: cabe em menos largura
+/* A escolha do tipo de transação não tem formulário: cabe em menos largura
    que os modais de campos. */
 .modal-narrow {
     width: min(420px, calc(100vw - 32px));

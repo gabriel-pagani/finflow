@@ -114,7 +114,7 @@ function setupDialogDismiss(dialog) {
 // O modal oferece só o que o servidor aceitaria: quais tipos e métodos cada
 // conta aceita vem das regras de negócio dela, cada método admite só algumas
 // naturezas, só a natureza Normal recebe categoria e um cartão pertence a uma
-// conta só. Isso poupa o usuário de montar um lançamento impossível e só
+// conta só. Isso poupa o usuário de montar uma transação impossível e só
 // descobrir no envio; quem valida de verdade continua sendo o model.
 const SYNC_OPTIONS = 'finflow:sync-options';
 
@@ -207,7 +207,7 @@ function linkFields(form, options) {
     if (!linked) return;
     const { names, combinations } = linked;
 
-    // Cartão com lançamentos não troca de conta nem de final: na edição dele a
+    // Cartão com transações não troca de conta nem de final: na edição dele a
     // conta fica só com a que ele já tem. O id em edição vem do CRUD da tela.
     const lastDigits = form.querySelector('[name="last_digits"]');
     const locked = () => Boolean(modal) && modal.dataset.modal === 'card' && options.locked_cards.includes(form.dataset.editing);

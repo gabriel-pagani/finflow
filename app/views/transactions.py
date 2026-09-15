@@ -10,7 +10,7 @@ from .mixins import FilteredTransactionsMixin, ModalDeleteView, ModalWriteMixin,
 
 # As combinações que cada conta aceita, para o modal só oferecer o que o
 # servidor aprovaria. Quem valida continua sendo o model: isto poupa o usuário
-# de montar um lançamento impossível, não substitui a checagem.
+# de montar uma transação impossível, não substitui a checagem.
 #
 # Os ids saem como texto porque o value de um <option> é texto, e comparar com
 # número exigiria converter dos dois lados no navegador.
@@ -22,7 +22,7 @@ def form_options(user):
     return {
         'rules': rules,
         'cards': {str(pk): str(account_id) for pk, account_id in Card.objects.filter(user=user).values_list('pk', 'account_id')},
-        # Cartão com lançamentos não troca de conta nem de final na edição.
+        # Cartão com transações não troca de conta nem de final na edição.
         'locked_cards': [str(pk) for pk in Card.objects.filter(user=user, transactions__isnull=False).distinct().values_list('pk', flat=True)],
         # As naturezas que cada método admite: a Interna só mexe no saldo, e o
         # crédito não entra nele.

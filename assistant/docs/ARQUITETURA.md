@@ -453,7 +453,7 @@ explicação ([`queries.py:91`](../queries.py#L91)).
 |---|---|
 | `consultar_cadastros` | Contas, categorias, cartões e códigos. "Chame antes de usar qualquer id." |
 | `analisar_transacoes` | Somas e agrupamentos calculados no banco, até 2 eixos. |
-| `listar_transacoes` | Lançamentos um a um, com ids e origem. |
+| `listar_transacoes` | Transações uma a uma, com ids e origem. |
 | `consultar_saldo` | Saldo por conta, igual ao card da Visão Geral. |
 | `propor_cartao` | Criar / editar / apagar cartão. |
 | `propor_transacao` | Criar / editar / apagar transação avulsa. |

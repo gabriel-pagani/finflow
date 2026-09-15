@@ -147,7 +147,7 @@ def check_delete(instance):
     except ValidationError as error:
         raise ProposalError(' '.join(error.messages))
     except (ProtectedError, RestrictedError):
-        raise ProposalError('O registro está em uso por outros lançamentos e não pode ser apagado.')
+        raise ProposalError('O registro está em uso por outras transações e não pode ser apagado.')
 
 
 def read_target(spec, kind, user, arguments):
@@ -241,7 +241,7 @@ def build(kind, user, arguments):
     elif kind == Kind.TRANSFER:
         notes.append(f'Gera uma saída em {Method.DEBIT.label} na conta de origem e uma entrada na de destino, as duas como {Nature.INTERNAL.label}.')
     elif kind == Kind.CARD and action == Action.UPDATE and any('before' in entry for entry in rows):
-        notes.append('Um ciclo novo vale só para as próximas compras; os lançamentos já feitos mantêm a data que tinham.')
+        notes.append('Um ciclo novo vale só para as próximas compras; as transações já feitas mantêm a data que tinham.')
 
     summary = {'title': title, 'action': action, 'rows': rows, 'notes': notes}
     return instance.pk if instance else None, data, state, summary
@@ -308,7 +308,7 @@ def apply(proposal):
         except ValidationError as error:
             raise ProposalError(' '.join(error.messages))
         except (ProtectedError, RestrictedError):
-            raise ProposalError('O registro está em uso por outros lançamentos e não pode ser apagado.')
+            raise ProposalError('O registro está em uso por outras transações e não pode ser apagado.')
         return label
 
     form = spec.form(data=proposal.payload, instance=instance, user=proposal.user)

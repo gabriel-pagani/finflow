@@ -31,7 +31,7 @@ class CardCreateView(CardWriteMixin, CreateView):
 
 
 class CardUpdateView(CardWriteMixin, UpdateView):
-    success_message = 'Cartão atualizado com sucesso. O ciclo novo vale para as próximas compras; lançamentos já feitos mantêm a data que tinham.'
+    success_message = 'Cartão atualizado com sucesso. O ciclo novo vale para as próximas compras; transações já feitas mantêm a data que tinham.'
 
 
 class CardDeleteView(ModalDeleteView):
