@@ -22,7 +22,7 @@ O assistente é um chat que conversa sobre o dinheiro do usuário logado e que
 | [`urls.py`](../urls.py) | 20 | As 11 rotas do assistente. |
 | [`models.py`](../models.py) | 248 | Conversa, Mensagem, Anexo, Proposta, Comando e a permissão de uso. |
 | [`migrations/0001…0004`](../migrations/) | 154 | O desenho acima no banco. |
-| [`prompt.py`](../prompt.py) | 107 | As regras que o modelo lê antes de cada resposta. |
+| [`prompt.py`](../prompt.py) | 114 | As regras que o modelo lê antes de cada resposta. |
 | [`tools.py`](../tools.py) | 175 | O contrato JSON das 8 ferramentas e o despachante. |
 | [`queries.py`](../queries.py) | 440 | Leitura: filtros, agregação, listagem, saldo, cadastro. |
 | [`proposals.py`](../proposals.py) | 358 | Escrita em duas etapas: propor, confirmar. |
@@ -31,11 +31,13 @@ O assistente é um chat que conversa sobre o dinheiro do usuário logado e que
 | [`forms.py`](../forms.py) | 35 | O `Form` do comando: nome normalizado e o teto de quantos cabem. |
 | [`client.py`](../client.py) | 192 | O laço com o modelo: histórico, stream, ferramentas, teto. |
 | [`views.py`](../views.py) | 233 | HTTP: SSE, histórico, anexo protegido, confirmar/descartar, comandos. |
+| [`admin.py`](../admin.py) | 289 | Os cinco models no admin, só leitura, e a linha do tempo das conversas. |
 | [`management/commands/prune_attachments.py`](../management/commands/prune_attachments.py) | 70 | Faxina dos comprovantes vencidos e dos órfãos. |
 | [`templates/assistant/panel.html`](../templates/assistant/panel.html) | 119 | O painel: cabeçalho, lista, compositor e o modal de comandos. |
 | [`templates/assistant/page.html`](../templates/assistant/page.html) | 9 | A página que embute o painel. |
-| [`static/assistant/js/assistant.js`](../static/assistant/js/assistant.js) | 822 | Todo o comportamento do chat no navegador. |
-| [`static/assistant/css/assistant.css`](../static/assistant/css/assistant.css) | 614 | Aparência, estado de gravação, teclado do celular, comandos. |
+| [`static/assistant/js/assistant.js`](../static/assistant/js/assistant.js) | 869 | Todo o comportamento do chat no navegador. |
+| [`static/assistant/css/assistant.css`](../static/assistant/css/assistant.css) | 646 | Aparência, tabelas, estado de gravação, teclado do celular, comandos. |
+| [`static/assistant/css/admin.css`](../static/assistant/css/admin.css) | 26 | A linha do tempo do admin com todas as linhas da mesma altura. |
 
 E fora da pasta, quatro pontos de solda:
 
@@ -62,7 +64,8 @@ E fora da pasta, quatro pontos de solda:
 
 - **1** — a classe base que o Django procura ao carregar `'assistant'` em `INSTALLED_APPS`.
 - **5** — o rótulo interno; é por ele que a permissão vira `assistant.use_assistant`.
-- **6** — o nome que aparece no admin.
+- **6** — o nome que aparece no admin, e por isso a seção **Assistente** onde o
+  [`admin.py`](../admin.py) registra os models, separada da seção Sistema do app.
 
 Não há `default_auto_field` porque o projeto define `DEFAULT_AUTO_FIELD` global —
 daí o `BigAutoField` que aparece nas migrations.
@@ -92,7 +95,7 @@ daí o `BigAutoField` que aparece nas migrations.
   especial no nginx.
 - **13–15, 18–19** — recebem `pk` na URL. Repare que o template não consegue gerar
   uma URL com id variável sem JS: ele gera com `0` e o JS troca o segmento
-  ([`assistant.js:184`](../static/assistant/js/assistant.js#L184)).
+  ([`assistant.js:231`](../static/assistant/js/assistant.js#L231)).
 - **16–19** — os comandos seguem a nomenclatura das telas do app (`add`, `change`,
   `delete`). Criar e editar são a mesma view: a presença do `pk` decide.
 </details>
@@ -277,7 +280,7 @@ As quatro dependem em cadeia e a primeira depende de `AUTH_USER_MODEL` via
 </details>
 
 <details>
-<summary><b>assistant/prompt.py</b> — 107 linhas, as regras que o modelo lê antes de cada resposta</summary>
+<summary><b>assistant/prompt.py</b> — 114 linhas, as regras que o modelo lê antes de cada resposta</summary>
 
 O arquivo é uma constante de texto e uma função de três linhas. Ele não é
 decorativo: quase toda regra ali existe porque um comportamento ruim apareceu.
@@ -350,18 +353,25 @@ bate com a tela que o usuário está olhando.
   ferramenta e proposta. É por isso que elas entram no turno do usuário, e não em
   `instructions`.
 
-### Linhas 91–97 — `# ESTILO`
+### Linhas 91–104 — `# ESTILO`
 
-Português do Brasil, `1.234,56`, `31/08/2026`, e a proibição de repassar nome de
-campo, JSON ou nome de ferramenta ao usuário.
+- **93–97** — Português do Brasil, `1.234,56`, `31/08/2026`, e a proibição de
+  repassar nome de campo, JSON ou nome de ferramenta ao usuário.
+- **99–104** — o markdown que o chat entende, e só ele: negrito, itálico, listas e
+  tabelas. O modelo escreve o markdown completo de qualquer jeito, e o que o
+  [renderizador](../static/assistant/js/assistant.js#L112) não conhece chega cru
+  à tela. Por isso a lista é fechada, e a tabela vem com o **quando** (comparar
+  períodos, contas ou categorias) e o **como**: valores alinhados à direita e
+  poucas colunas, porque a tela pode ser a de um celular. Título de seção é linha
+  em negrito, não `#`.
 
-### Linhas 101–107 — `system_prompt(user, today)`
+### Linhas 108–114 — `system_prompt(user, today)`
 
 ```python
-102 return (f'{IDENTITY}\n'
-104         f'# CONTEXTO\n\n'
-105         f'Usuário: {user.get_short_name() or user.get_username()}\n'
-106         f'Hoje: {today.isoformat()} ({today:%d/%m/%Y})\n')
+109 return (f'{IDENTITY}\n'
+111         f'# CONTEXTO\n\n'
+112         f'Usuário: {user.get_short_name() or user.get_username()}\n'
+113         f'Hoje: {today.isoformat()} ({today:%d/%m/%Y})\n')
 ```
 
 As duas únicas coisas variáveis: quem é e que dia é hoje. A data vai nos dois
@@ -387,10 +397,18 @@ modo estrito recusaria o próprio `null` que ele mesmo exige.
 
 ### Linhas 20–35 — `FILTERS`, o vocabulário de recorte
 
-Os treze filtros que as duas ferramentas de leitura compartilham. As descrições
+Os catorze filtros que as duas ferramentas de leitura compartilham. As descrições
 são escritas para serem lidas pelo modelo, não por um programador — repare em
 **29**: `'null, todos os métodos, inclusive o crédito.'` O contrato avisa a
 pegadinha no mesmo lugar onde ela pode ser cometida.
+
+A **26** é o exemplo do contrário. `uncategorized` sozinho **restringe** às
+transações sem categoria ([`queries.py:157–161`](../queries.py#L157)), o mesmo que a
+opção "Categoria Não Identificada" faz no filtro das telas. A descrição dizia que
+ele "inclui" essas transações, e o modelo o marcava achando que assim via todas:
+"quanto gastei este mês" voltava só o que não tinha categoria. A descrição atual
+diz o que o `true` faz e o caminho para o que o modelo queria: `null` para ver
+todas as categorias e `group_by` para quebrar por elas.
 
 `date_field`, `type`, `method`, `nature` e `origin` são gerados a partir de
 `queries.*` (linhas 21, 28–31), então enum novo no domínio aparece aqui sozinho.
@@ -1301,10 +1319,10 @@ evita o painel duplicado na própria página do assistente — é aí que
 </details>
 
 <details>
-<summary><b>assistant/static/assistant/js/assistant.js</b> — 822 linhas, o chat no navegador</summary>
+<summary><b>assistant/static/assistant/js/assistant.js</b> — 869 linhas, o chat no navegador</summary>
 
-O arquivo inteiro é **uma função** (`setupAssistant`, 6–817) chamada no
-`DOMContentLoaded` (819–822). Tudo que é estado mora no fecho dela; não há variável
+O arquivo inteiro é **uma função** (`setupAssistant`, 6–864) chamada no
+`DOMContentLoaded` (866–869). Tudo que é estado mora no fecho dela; não há variável
 global. E a decisão que explica a forma do arquivo está no cabeçalho:
 
 ```js
@@ -1345,7 +1363,7 @@ Uma referência para cada pedaço do painel, todas resolvidas a partir de `root`
 - **46–55** — traduz o nome técnico da ferramenta para o que a tela diz. As quatro
   `propor_*` dizem a mesma frase: "Montando a proposta...".
 
-### Linhas 79–122 — o renderizador de Markdown
+### Linhas 79–169 — o renderizador de Markdown
 
 ```js
 79 function escapeHtml(text) {
@@ -1354,68 +1372,85 @@ Uma referência para cada pedaço do painel, todas resolvidas a partir de `root`
 
 O comentário 76–78 é a razão de existir: o texto do modelo **pode conter descrições
 digitadas pelo usuário**, e `innerHTML` cru injetaria isso no DOM. Então o texto é
-escapado **primeiro** (102) e só depois recebe as poucas marcações que este
-renderizador conhece.
+escapado **primeiro** (123) e só depois recebe as poucas marcações que este
+renderizador conhece — as mesmas que o `# ESTILO` do prompt lista.
 
 - **84–89 `inline`** — código, negrito, itálico. A ordem é deliberada (comentário
   83): negrito antes de itálico, senão o `**` de `**negrito**` vira dois itálicos.
-- **91–122 `renderMarkdown`** — parágrafos e listas, com `closeList` controlando a
-  lista aberta e trocando de `ul` para `ol` quando o tipo muda (108–111).
+- **91–110 as tabelas** — `cells` parte a linha nos `|` das pontas e do meio;
+  `TABLE_ROW` (95) reconhece uma linha de tabela e `TABLE_DIVIDER` (96) a divisória
+  `|---|---:|`. `renderTable` tira o alinhamento de cada coluna da divisória (`:`
+  à direita é direita, nas duas pontas é centro) e envolve a tabela numa
+  `div.assistant-table`: o comentário 98–99 explica que ela rola na horizontal
+  para colunas demais não empurrarem a conversa no celular. O alinhamento vai em
+  `style` na célula, o que a CSP permite (`style-src` aceita inline; só script não).
+- **112–169 `renderMarkdown`** — um laço por índice, e não `forEach`, porque a
+  tabela **consome várias linhas de uma vez** (131–137).
+  - **129** — só é tabela se a linha **seguinte** for a divisória. O comentário
+    127–128 diz o que isso dá no stream: o cabeçalho aparece como texto até a
+    divisória chegar, e o `appendDelta` reprocessa tudo e o transforma em tabela.
+    De quebra, `1/2 | metade` numa frase comum não vira tabela.
+  - **142–148** — `#` a `######` viram uma linha em negrito. O prompt pede negrito,
+    mas o modelo às vezes escreve `##`, principalmente quando já escreveu antes na
+    mesma conversa; sem isso o título chegaria cru.
+  - **150–161** — listas, com `closeList` (116–121) controlando a lista aberta e
+    trocando de `ul` para `ol` quando o tipo muda (155–158). Tabela e título também
+    fecham a lista aberta antes de entrar.
 
-### Linhas 124–181 — as bolhas
+### Linhas 171–228 — as bolhas
 
-- **128–130** — a bolha do assistente guarda o texto cru em `dataset.raw` e renderiza
+- **175–177** — a bolha do assistente guarda o texto cru em `dataset.raw` e renderiza
   Markdown.
-- **132–138** — a do usuário usa `textContent` (nunca HTML) e tem um `<p class="text">`
+- **179–185** — a do usuário usa `textContent` (nunca HTML) e tem um `<p class="text">`
   **próprio, possivelmente vazio**: o áudio chega sem texto e a transcrição só
-  preenche depois (168–173).
-- **148–166 `mediaNode`** — imagem com clique para abrir em tamanho real
-  (`noopener`, 156) e `load → scroll` (155), porque a foto muda a altura da lista
+  preenche depois (215–220).
+- **195–213 `mediaNode`** — imagem com clique para abrir em tamanho real
+  (`noopener`, 203) e `load → scroll` (202), porque a foto muda a altura da lista
   depois de já ter rolado; áudio com `controls` e `preload="metadata"`.
-- **177–181 `appendDelta`** — **reprocessa o acumulado a cada delta**, não o pedaço.
+- **224–228 `appendDelta`** — **reprocessa o acumulado a cada delta**, não o pedaço.
   Uma marcação pode chegar aberta num pedaço e fechada no seguinte.
 
-### Linhas 184–270 — o card de proposta
+### Linhas 231–317 — o card de proposta
 
 ```js
-184 function withId(template, id) {
-185     return template.replace(/\/0\//, `/${id}/`);
+231 function withId(template, id) {
+232     return template.replace(/\/0\//, `/${id}/`);
 ```
 
 O contraponto do `{% url 'assistant:confirm' 0 %}` do template. Serve também às
 rotas de editar e apagar comando.
 
-**190–220 — o desenho.** Tudo com `createElement`/`textContent`, nada de `innerHTML`:
-o card exibe descrição digitada pelo usuário. O comentário 188–189 diz o essencial:
+**237–267 — o desenho.** Tudo com `createElement`/`textContent`, nada de `innerHTML`:
+o card exibe descrição digitada pelo usuário. O comentário 235–236 diz o essencial:
 **o front não recalcula valor nem data**, ele mostra o que o servidor resolveu.
-A linha 203–208 desenha a mudança como `antigo → novo`, com o antigo dentro de `<s>`.
+A linha 250–255 desenha a mudança como `antigo → novo`, com o antigo dentro de `<s>`.
 
-**222–229 `finish`** — remove o rodapé, acrescenta a frase de desfecho tirada de
-`OUTCOMES`. **233–236** — proposta que já chega resolvida (vinda do histórico) nasce
+**269–276 `finish`** — remove o rodapé, acrescenta a frase de desfecho tirada de
+`OUTCOMES`. **280–283** — proposta que já chega resolvida (vinda do histórico) nasce
 sem botão.
 
-**251–266 `act`** — desabilita os dois botões antes de sair (252), e:
+**298–313 `act`** — desabilita os dois botões antes de sair (299), e:
 
 - se a resposta traz um estado final, encerra o card;
-- se não, **reabilita os botões** (259) — um 409 de "mudou desde a proposta" deixa a
+- se não, **reabilita os botões** (306) — um 409 de "mudou desde a proposta" deixa a
   proposta viva;
-- erro de rede também reabilita (263) e mostra a bolha de erro.
+- erro de rede também reabilita (310) e mostra a bolha de erro.
 
-### Linhas 272–321 — eventos do stream
+### Linhas 319–368 — eventos do stream
 
 ```js
-286 function* parse(buffer) {
-288     while ((index = buffer.value.indexOf('\n\n')) !== -1) {
-291         const line = chunk.split('\n').find((part) => part.startsWith('data: '));
-294         yield JSON.parse(line.slice(6));
-296     } catch (error) { /* Evento ilegível não derruba o resto do stream. */ }
+333 function* parse(buffer) {
+335     while ((index = buffer.value.indexOf('\n\n')) !== -1) {
+338         const line = chunk.split('\n').find((part) => part.startsWith('data: '));
+341         yield JSON.parse(line.slice(6));
+343     } catch (error) { /* Evento ilegível não derruba o resto do stream. */ }
 ```
 
 Um gerador que consome o buffer até o último `\n\n` completo e **deixa o resto lá**:
 um evento pode chegar partido entre dois pedaços da rede. O `buffer` é passado como
 objeto `{value}` justamente para poder ser alterado aqui dentro.
 
-**301–321 `handle`** — os cinco eventos:
+**348–368 `handle`** — os cinco eventos:
 
 | Evento | O que faz |
 |---|---|
@@ -1425,131 +1460,131 @@ objeto `{value}` justamente para poder ser alterado aqui dentro.
 | `proposal` | desenha o card e zera `state.reply` |
 | `error` | bolha de erro e zera `state.reply` |
 
-Zerar `state.reply` (309, 315, 319) é o detalhe que faz o texto **depois** de uma
+Zerar `state.reply` (356, 362, 366) é o detalhe que faz o texto **depois** de uma
 ferramenta virar uma bolha nova, em vez de continuar a anterior.
 
-### Linhas 333–357 — o anexo em espera
+### Linhas 380–404 — o anexo em espera
 
 `holdAttachment` troca o que estiver lá, monta a prévia com o mesmo `mediaNode` do
 chat e um botão de remover. `dropAttachment(keep)` tem o parâmetro que o comentário
-349–350 explica: depois do envio, a bolha passou a usar **a mesma URL do objeto**, e
+396–397 explica: depois do envio, a bolha passou a usar **a mesma URL do objeto**, e
 revogá-la apagaria a foto que acabou de ser mandada.
 
-### Linhas 362–384 — `shrink`
+### Linhas 409–431 — `shrink`
 
 Desenha a foto num `<canvas>` reduzido e exporta JPEG a 82%. De quebra, **normaliza
 para JPEG o que o navegador souber desenhar, como o HEIC do iPhone** — formato que o
-servidor não aceita. O que ele não conseguir desenhar segue como veio (377–380) e
+servidor não aceita. O que ele não conseguir desenhar segue como veio (424–427) e
 quem recusa é o servidor.
 
-### Linhas 387–442 — o microfone
+### Linhas 434–489 — o microfone
 
-- **387–399 `microphoneProblem`** — traduz o `error.name` do navegador em quatro
+- **434–446 `microphoneProblem`** — traduz o `error.name` do navegador em quatro
   respostas diferentes: recusado, inexistente, ocupado, e o genérico. O nome do erro
   separa quem bloqueou o microfone de quem não tem um.
-- **407–409** — navegador sem `MediaRecorder` recebe uma frase que oferece as outras
+- **454–456** — navegador sem `MediaRecorder` recebe uma frase que oferece as outras
   duas saídas: digitar ou mandar foto.
-- **422** — escolhe o primeiro formato suportado da lista.
-- **430–438 `stop`** — **para as trilhas** (432): sem isso o indicador de microfone
+- **469** — escolhe o primeiro formato suportado da lista.
+- **477–485 `stop`** — **para as trilhas** (479): sem isso o indicador de microfone
   segue aceso na aba mesmo com a gravação encerrada. Depois monta o `Blob` e o
   coloca em espera.
 
-### Linhas 444–480 — `send`, o envio
+### Linhas 491–527 — `send`, o envio
 
 ```js
-445 panel.dataset.busy = 'true';
-449 const body = new FormData();
-462 const reader = response.body.getReader();
-467 while (true) {
-468     const {done, value} = await reader.read();
-470     buffer.value += decoder.decode(value, {stream: true});
-471     for (const event of parse(buffer)) handle(event, state);
+492 panel.dataset.busy = 'true';
+496 const body = new FormData();
+509 const reader = response.body.getReader();
+514 while (true) {
+515     const {done, value} = await reader.read();
+517     buffer.value += decoder.decode(value, {stream: true});
+518     for (const event of parse(buffer)) handle(event, state);
 ```
 
-- **445** — `busy` no `dataset` é ao mesmo tempo trava lógica (751) e seletor de CSS.
-- **447** — o status inicial já diz se vai transcrever ou pensar.
-- **470** — `{stream: true}` no decoder: um caractere multibyte pode estar partido
+- **492** — `busy` no `dataset` é ao mesmo tempo trava lógica (798) e seletor de CSS.
+- **494** — o status inicial já diz se vai transcrever ou pensar.
+- **517** — `{stream: true}` no decoder: um caractere multibyte pode estar partido
   entre dois pedaços.
-- **475–479 `finally`** — **sempre** limpa o status, libera o `busy` e devolve o foco
+- **522–526 `finally`** — **sempre** limpa o status, libera o `busy` e devolve o foco
   ao campo (exceto no celular, para não subir o teclado).
 
-### Linhas 493–511 — `load`
+### Linhas 540–558 — `load`
 
-O comentário 490–492 explica as duas decisões: a conversa mora no banco e pode ter
+O comentário 537–539 explica as duas decisões: a conversa mora no banco e pode ter
 andado em outro aparelho, então o histórico é **rebuscado a cada abertura**; e a
-lista só é trocada quando a resposta chega (505), para não piscar vazia. A linha
-494 protege contra recarregar no meio de uma resposta. Conversa vazia ganha a
-bolha de boas-vindas (509), que também avisa que `/` chama um comando.
+lista só é trocada quando a resposta chega (552), para não piscar vazia. A linha
+541 protege contra recarregar no meio de uma resposta. Conversa vazia ganha a
+bolha de boas-vindas (556), que também avisa que `/` chama um comando.
 
-### Linhas 513–578 — as sugestões de comando
+### Linhas 560–625 — as sugestões de comando
 
-- **513–523 `loadCommands`** — busca a lista e o teto, e **engole a falha**: sem
+- **560–570 `loadCommands`** — busca a lista e o teto, e **engole a falha**: sem
   ela só faltam as sugestões (o servidor continua resolvendo o `/nome` digitado).
-- **527–532 `matchingCommands`** — só sugere enquanto a mensagem é **a barra e o
-  começo de um nome**, sem espaço (comentário 525–526). Depois do espaço já é o
+- **574–579 `matchingCommands`** — só sugere enquanto a mensagem é **a barra e o
+  começo de um nome**, sem espaço (comentário 572–573). Depois do espaço já é o
   complemento, e uma lista aberta roubaria o Enter de quem está escrevendo.
-- **542–564 `renderSuggestions`** — tudo com `textContent`: a prévia das instruções
-  é texto do usuário. O comentário 555–556 explica o `mousedown` com
-  `preventDefault` em vez de `click`: o campo não perde o foco, e o `blur` (812) não
+- **589–611 `renderSuggestions`** — tudo com `textContent`: a prévia das instruções
+  é texto do usuário. O comentário 602–603 explica o `mousedown` com
+  `preventDefault` em vez de `click`: o campo não perde o foco, e o `blur` (859) não
   fecha a lista antes da escolha.
-- **574–578 `useCommand`** — **escolher já envia** (comentário 572–573): o comando é
+- **621–625 `useCommand`** — **escolher já envia** (comentário 619–620): o comando é
   atalho. Quem quer complemento digita o nome e segue com espaço, ou usa Tab.
 
-### Linhas 581–704 — `setupCommands`, o modal
+### Linhas 628–751 — `setupCommands`, o modal
 
-Só roda na página, onde o `<dialog>` existe (737). O formulário e a lista são duas
+Só roda na página, onde o `<dialog>` existe (784). O formulário e a lista são duas
 vistas do mesmo modal, alternadas por `hidden`.
 
-- **591–592** — `namedItem('name')`, e não `elements.name`, por um detalhe que o
-  comentário 590 aponta: `name` de um `<form>` é o atributo do próprio form.
-- **597–627 `showList`** — desenha a partir de `commands`, com a mesma
-  `commandLabel` das sugestões; cada item abre a edição. As linhas 601–606 aplicam
+- **638–639** — `namedItem('name')`, e não `elements.name`, por um detalhe que o
+  comentário 637 aponta: `name` de um `<form>` é o atributo do próprio form.
+- **644–674 `showList`** — desenha a partir de `commands`, com a mesma
+  `commandLabel` das sugestões; cada item abre a edição. As linhas 648–653 aplicam
   o teto que veio com a lista (`commandLimit`): a contagem "2 de 5" no rodapé e,
   no teto, o Novo Comando **travado antes do clique**, em vez de abrir um
   formulário que o servidor vai recusar. Superusuário (`null`) não vê contagem.
-- **629–640 `showEditor`** — `null` é um comando novo; Excluir só aparece na edição.
-- **644–647 `disarmDelete`** — excluir pede **dois cliques**: o primeiro troca o
-  rótulo por "Confirmar exclusão". O comentário 642–643 diz por que não um segundo
+- **676–687 `showEditor`** — `null` é um comando novo; Excluir só aparece na edição.
+- **691–694 `disarmDelete`** — excluir pede **dois cliques**: o primeiro troca o
+  rótulo por "Confirmar exclusão". O comentário 689–690 diz por que não um segundo
   modal de confirmação.
-- **649–670 `write`** — o mesmo caminho para salvar e apagar: trava os botões,
+- **696–717 `write`** — o mesmo caminho para salvar e apagar: trava os botões,
   mostra o erro que o servidor já mandou em frase pronta ou, dando certo,
   **rebusca a lista** e volta a ela.
-- **674–680** — abrir mostra a lista que já se tem e a troca quando a busca volta
-  (comentário 672–673): o comando pode ter mudado em outro aparelho.
-- **686–689** — clique no fundo escuro fecha, como nos modais do app.
+- **721–727** — abrir mostra a lista que já se tem e a troca quando a busca volta
+  (comentário 719–720): o comando pode ter mudado em outro aparelho.
+- **733–736** — clique no fundo escuro fecha, como nos modais do app.
 
-### Linhas 721–727 — `trackViewport`
+### Linhas 768–774 — `trackViewport`
 
 ```js
-724 const fit = () => document.documentElement.style.setProperty('--assistant-viewport', `${viewport.height}px`);
+771 const fit = () => document.documentElement.style.setProperty('--assistant-viewport', `${viewport.height}px`);
 ```
 
 O teclado virtual **cobre** a janela sem encolhê-la, e só o `visualViewport` enxerga
 a área que sobrou. A variável vai no `<html>` porque quem a consome é o `<body>`
-(CSS, linha 598).
+(CSS, linha 630).
 
-### Linhas 729–816 — a ligação dos eventos
+### Linhas 776–863 — a ligação dos eventos
 
-- **733–736** — no modo embutido, carrega o histórico e os comandos na hora; no
-  flutuante, só ao abrir (`open`, 706).
-- **737** — o modal de comandos só é ligado se existir.
-- **739–745** — Limpar: para a gravação, descarta o anexo, chama o servidor, esvazia
+- **780–783** — no modo embutido, carrega o histórico e os comandos na hora; no
+  flutuante, só ao abrir (`open`, 753).
+- **784** — o modal de comandos só é ligado se existir.
+- **786–792** — Limpar: para a gravação, descarta o anexo, chama o servidor, esvazia
   a lista e recarrega (voltando à bolha de boas-vindas).
-- **747–759** — o `submit`: **foto sem legenda é mensagem** (750), e nada sai enquanto
+- **794–806** — o `submit`: **foto sem legenda é mensagem** (797), e nada sai enquanto
   `busy`. Limpa o campo, fecha as sugestões, devolve a altura de uma linha e chama
   `send`.
-- **775–794 `suggestionKey`** — com a lista aberta, setas andam por ela, Enter envia
+- **822–841 `suggestionKey`** — com a lista aberta, setas andam por ela, Enter envia
   o destacado, Tab só completa `/nome ` e Esc fecha a lista. O `stopPropagation`
-  do Esc impede que o mesmo toque feche o painel flutuante (814–816).
-- **797–803** — Enter envia, Shift+Enter quebra a linha; a lista aberta tem a
-  primeira palavra (798).
-- **805–810** — a `textarea` cresce com o conteúdo até 120px, e cada tecla refaz as
+  do Esc impede que o mesmo toque feche o painel flutuante (861–863).
+- **844–850** — Enter envia, Shift+Enter quebra a linha; a lista aberta tem a
+  primeira palavra (845).
+- **852–857** — a `textarea` cresce com o conteúdo até 120px, e cada tecla refaz as
   sugestões a partir da primeira.
-- **814–816** — Esc fecha o painel flutuante (e só ele).
+- **861–863** — Esc fecha o painel flutuante (e só ele).
 </details>
 
 <details>
-<summary><b>assistant/static/assistant/css/assistant.css</b> — 614 linhas, a aparência e três truques</summary>
+<summary><b>assistant/static/assistant/css/assistant.css</b> — 646 linhas, a aparência e três truques</summary>
 
 A maior parte é estilo comum, usando as variáveis do tema global (`--surface`,
 `--border`, `--radius`). Vale destacar o que **não** é decorativo:
@@ -1560,28 +1595,115 @@ A maior parte é estilo comum, usando as variáveis do tema global (`--surface`,
 - **91–93** — `.assistant-messages > * { flex-shrink: 0 }`. Sem isso, item de flex
   encolhe abaixo do próprio conteúdo quando a coluna enche: **a conversa rola, ela
   não se espreme.**
-- **201–207 `.assistant-proposal`** — o card destoa do resto do chat de propósito: é
-  a única coisa ali que grava. E `action-delete` (209) troca a cor.
-- **304–342** — as sugestões de comando ocupam a faixa acima da linha de digitar e
+- **138–168 `.assistant-table`** — a caixa da tabela tem `max-width: 100%` e
+  `overflow-x: auto` (143–146): é ela que rola, não o balão. As células não quebram
+  linha (`nowrap`, 158), e a tabela desfaz o `overflow-wrap: anywhere` do balão
+  (151), senão um valor como `1.850,00` se partiria no meio numa tela estreita.
+- **233–239 `.assistant-proposal`** — o card destoa do resto do chat de propósito: é
+  a única coisa ali que grava. E `action-delete` (241) troca a cor.
+- **336–374** — as sugestões de comando ocupam a faixa acima da linha de digitar e
   **rolam** a partir de 180px, para uma lista longa não empurrar a conversa para
-  fora da tela. A prévia das instruções (327–336) fica numa linha com reticências:
+  fora da tela. A prévia das instruções (359–368) fica numa linha com reticências:
   serve para reconhecer, não para ler.
-- **379–387** — os dois ícones do botão de gravar moram no HTML, e
+- **411–419** — os dois ícones do botão de gravar moram no HTML, e
   `[data-recording="true"]` escolhe qual aparece.
-- **389–400** — o botão **pisca em vermelho** enquanto grava: sem um sinal assim, um
+- **421–432** — o botão **pisca em vermelho** enquanto grava: sem um sinal assim, um
   toque acidental grava a sala inteira sem ninguém notar.
-- **430 `[data-busy="true"]`** — a `textarea` fica visivelmente travada enquanto a
+- **462 `[data-busy="true"]`** — a `textarea` fica visivelmente travada enquanto a
   resposta chega.
-- **436–558** — o modal de comandos. O comentário 438–439 diz por que ele repete o
+- **468–590** — o modal de comandos. O comentário 470–471 diz por que ele repete o
   desenho do `.modal`: a página do assistente estende o `global.html`, e não o
   `app.html`, então o `app.css` onde o `.modal` mora não carrega ali.
-- **560–588** — o modo página: a conversa numa coluna estreita, porque numa tela
+- **592–620** — o modo página: a conversa numa coluna estreita, porque numa tela
   larga as bolhas ficariam a meio palmo uma da outra; e `body.page-assistant` presa
   à janela, para quem rola ser a conversa, não a página.
-- **590–614 `@media (max-width: 768px)`** — no celular o painel vira tela cheia e usa
-  `height: var(--assistant-viewport, 100dvh)` (598): **a variável que o JS escreve**.
-  É o par do `trackViewport`. As instruções vão a 16px (610–613) para o iOS não dar
+- **622–646 `@media (max-width: 768px)`** — no celular o painel vira tela cheia e usa
+  `height: var(--assistant-viewport, 100dvh)` (630): **a variável que o JS escreve**.
+  É o par do `trackViewport`. As instruções vão a 16px (642–645) para o iOS não dar
   zoom ao focar.
+</details>
+
+<details>
+<summary><b>assistant/admin.py</b> e <b>admin.css</b> — 289 e 26 linhas, a conversa aberta para depuração</summary>
+
+O chat mostra ao usuário só a fala e a resposta. Quando uma resposta sai errada, a
+pergunta é outra: **que ferramenta o modelo chamou, com que argumentos, e o que
+voltou**. Tudo isso já está gravado em `Message.items`; o admin só o põe à vista.
+
+### Linhas 19–26 — `ReadOnlyAdmin`
+
+```python
+21 class ReadOnlyAdmin(admin.ModelAdmin):
+22     def has_add_permission(self, request):
+25     def has_change_permission(self, request, obj=None):
+```
+
+Os cinco models herdam dela: dá para ver e apagar, **não para criar nem editar**. O
+comentário 19–20 diz por quê: as mensagens voltam ao modelo a cada rodada
+([`client.py:44`](../client.py#L44)), e editar uma à mão reescreveria o que ele
+acha que aconteceu. Apagar continua liberado, que é o que o Limpar do chat faz.
+
+Os models ficam na seção **Assistente** sem nenhum código aqui: é o `verbose_name`
+de [`apps.py`](../apps.py).
+
+### Linhas 29–49 — `ConversationAdmin`
+
+Uma conversa por usuário, com a contagem e dois atalhos: as mensagens abrem a linha
+do tempo já filtrada por aquele usuário (44), as propostas abrem a lista de
+propostas da conversa (49).
+
+### Linhas 52–120 — as peças da linha do tempo
+
+- **54–60 `STEPS`** — as cinco etapas, cada uma com uma cor: Usuário, Aviso Interno,
+  Assistente, Chamada de Ferramenta e Ferramenta Recusou.
+- **71–78 `collapsible`** — o formato de **toda** célula: um `<details>` cujo
+  resumo é uma linha só. O comentário 71–72 diz o contrato: fechada, todas as
+  linhas têm a mesma altura; aberta, o resumo **some** e o conteúdo inteiro aparece,
+  sem repetir o começo. Quem esconde o resumo é o CSS, não o Python.
+- **85–91 `arguments_of`** — tira os `null` dos argumentos (comentário 90): no modo
+  estrito todo campo vem preenchido, e o `null` é o que o modelo não usou. Sem isso
+  cada chamada mostraria os catorze filtros.
+- **109–120 `result_summary`** — resume o retorno pelo que ele traz: totais, grupos,
+  página de transações ou cadastro. É o texto que aparece fechado.
+
+Tudo passa por `format_html`: a descrição de uma transação e o texto do modelo são
+escapados, como no chat.
+
+### Linhas 123–237 — `MessageAdmin`, a linha do tempo
+
+- **130** — o único filtro é o usuário.
+- **133** — a mais recente primeiro: abre no que acabou de acontecer.
+- **140–143 `get_queryset`** — **os retornos de ferramenta não ganham linha**. O
+  comentário diz o motivo: com várias chamadas na mesma rodada, uma linha por
+  retorno não deixa saber de qual chamada ele é. Eles aparecem dentro da rodada.
+- **153–159 `results_of`** — acha o retorno de cada chamada: as linhas `tool`
+  seguintes da conversa, uma por chamada (comentário 157), casadas pelo `call_id`.
+  É a mesma ordem em que o laço as grava ([`client.py:170–186`](../client.py#L170)).
+- **161–166 `kind_of`** — decide a etapa. Uma rodada em que **qualquer** chamada foi
+  recusada fica vermelha, para o erro saltar na lista.
+- **174–186 `detail`** — a rodada fechada mostra `ferramenta → resumo`, separadas
+  por `·`; aberta, cada chamada com os argumentos, o retorno logo abaixo e o JSON
+  completo (`call_block`, 216–233). Retorno de proposta vira link para a proposta,
+  com a **situação atual** e não a da hora (`proposal_state`, 203–205): mostra se o
+  usuário confirmou ou descartou depois.
+- **188–201 `user_detail`** — a fala e o anexo. Num `/comando` o chat mostra o que
+  foi digitado, mas o modelo leu as instruções expandidas (comentário 197): o texto
+  enviado de fato abre à parte quando é diferente.
+
+### Linhas 240–289 — propostas, anexos e comandos
+
+Listas simples com o JSON formatado no detalhe. O anexo mostra **só o nome do
+arquivo** (comentário 272): ele não tem URL pública, sai pela
+[`AttachmentView`](../views.py#L127) e só para o dono.
+
+### `admin.css`
+
+Carregado só na linha do tempo, pelo `Media` do `MessageAdmin` (137–138).
+
+- **3–5** — a data não quebra linha: é ela que faria as linhas terem alturas
+  diferentes.
+- **7–13** — o resumo corta com reticências na largura da tela.
+- **15–22** — aberto, o resumo some e um "Recolher" toma o lugar dele.
 </details>
 
 <details>
@@ -1646,6 +1768,7 @@ E a CSP (184–196), que amarra decisões do front:
 |---|---|
 | `conftest.py` | As fixtures e o **cliente falso da OpenAI**. |
 | `test_access.py` | Quem entra e quem toma 403 em cada rota. |
+| `test_admin.py` | A seção Assistente, o admin só de leitura e a linha do tempo: chamada junto do retorno, recusa, situação da proposta, comando, aviso interno e o resumo de uma linha. |
 | `test_attachments.py` | Assinatura, limite, caminho no disco, entrega protegida, esquecimento. |
 | `test_client.py` | O laço: rodadas, teto, chamada repetida que falhou, histórico. |
 | `test_commands.py` | Gerenciar comandos (dono, nome, repetição, faixas de permissão, quem perde a faixa, tamanho) e chamá-los: o que o modelo lê, o que o chat mostra. |
