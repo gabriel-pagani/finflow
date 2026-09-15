@@ -6,7 +6,7 @@ from django.utils import timezone
 from openai import OpenAI, OpenAIError
 
 from . import attachments, commands
-from .models import AttachmentKind, Message, Role
+from .models import MAX_MESSAGE, AttachmentKind, Message, Role
 from .prompt import system_prompt
 from .tools import TOOLS, run
 
@@ -18,6 +18,39 @@ logger = logging.getLogger(__name__)
 MAX_ROUNDS = 8
 
 HISTORY_LIMIT = 40
+
+# Os tetos de tamanho do que sobe para a API, em caracteres — a medida que existe
+# aqui, e que dá uns quatro caracteres por token. O limite de mensagens por dia
+# conta envios, não o que cada um consome, e sem estes tetos uma mensagem só
+# ("liste tudo, de 200 em 200") custa mais do que um dia inteiro de conversa: a
+# conversa vai inteira em cada uma das rodadas, e uma rodada pode disparar várias
+# chamadas de uma vez.
+#
+# MAX_TOOL_OUTPUT corta a consulta larga demais para entrar na conversa;
+# TOOL_BUDGET é o quanto as consultas de uma mensagem podem somar; HISTORY_BUDGET
+# é o quanto das mensagens anteriores volta junto.
+MAX_TOOL_OUTPUT = 30_000
+TOOL_BUDGET = 120_000
+HISTORY_BUDGET = 60_000
+
+# Trava de segurança para uma resposta que não termina; a resposta normal é muito
+# menor, e o raciocínio do modelo cabe com folga.
+MAX_OUTPUT_TOKENS = 8_000
+
+REPEATED = {
+    'ok': False,
+    'error': 'Chamada idêntica a uma que já falhou nesta mensagem; não foi executada de novo. Corrija o que o erro apontou ou explique ao usuário o que falta.',
+}
+
+EXHAUSTED = {
+    'ok': False,
+    'error': 'As consultas desta mensagem já ocuparam o espaço que cabe na conversa, e esta não foi executada. Responda com o que já tem ou peça ao usuário para dividir o pedido.',
+}
+
+OVERSIZED = {
+    'ok': False,
+    'error': 'O retorno é grande demais para caber na conversa e foi descartado. Estreite o recorte: período mais curto, menos transações por vez, menos eixos em group_by.',
+}
 
 # Quantas mensagens com foto voltam com a foto. As anteriores viram um marcador:
 # reenviar todo comprovante a cada pergunta encareceria a conversa inteira, e o
@@ -41,8 +74,23 @@ def client():
     return OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
+# Do mais novo para o mais velho. A rodada em curso vai inteira, custe o que
+# custar: ela começa na fala do usuário e cortá-la deixaria chamada sem resposta,
+# que a API recusa. O que veio antes entra enquanto couber no teto, contado pelo
+# texto de cada turno — o raciocínio cifrado ocupa muito caractere e poucos
+# tokens, e contá-lo cortaria a conversa cedo demais.
 def history(conversation):
-    window = list(conversation.messages.order_by('-created_at', '-id')[:HISTORY_LIMIT])[::-1]
+    window, budget, turn = [], HISTORY_BUDGET, True
+
+    for message in conversation.messages.order_by('-created_at', '-id')[:HISTORY_LIMIT]:
+        if not turn:
+            budget -= len(message.content)
+            if budget < 0:
+                break
+        window.append(message)
+        turn = turn and message.role != Role.USER
+
+    window.reverse()
 
     # O corte pode começar numa resposta de ferramenta cuja chamada ficou fora da
     # janela, e a API recusa a conversa inteira nesse caso.
@@ -124,6 +172,13 @@ def converse(conversation, user, text, upload=None, command=None):
 
         # O que foi digitado e o que foi dito são a mesma fala, e vão num turno só.
         text = '\n'.join(part for part in (text, spoken) if part)
+
+        # O teto de caracteres vale para a fala também: sem isto, um áudio longo
+        # entra como mensagem de tamanho nenhum e volta para a API a cada rodada.
+        if len(text) > MAX_MESSAGE:
+            yield {'type': 'error', 'message': f'O áudio é longo demais: a transcrição passou de {MAX_MESSAGE} caracteres. Grave um mais curto.'}
+            return
+
         yield {'type': 'transcript', 'text': text}
 
     # O chat mostra o /comando que foi digitado; só o modelo lê as instruções.
@@ -136,6 +191,8 @@ def converse(conversation, user, text, upload=None, command=None):
     # Chamada idêntica a uma que já falhou nesta mensagem daria o mesmo erro, e
     # repeti-la só consome as rodadas até o teto.
     failed = set()
+    # Quanto as consultas desta mensagem já ocuparam, somando as rodadas.
+    spent = 0
 
     for _ in range(MAX_ROUNDS):
         try:
@@ -147,6 +204,7 @@ def converse(conversation, user, text, upload=None, command=None):
                 stream=True,
                 store=False,
                 include=['reasoning.encrypted_content'],
+                max_output_tokens=MAX_OUTPUT_TOKENS,
             )
 
             content, output = '', []
@@ -171,13 +229,27 @@ def converse(conversation, user, text, upload=None, command=None):
             yield {'type': 'tool', 'name': call.get('name', '')}
 
             signature = (call.get('name'), call.get('arguments'))
-            if signature in failed:
-                payload, proposal = {'ok': False, 'error': 'Chamada idêntica a uma que já falhou nesta mensagem; não foi executada de novo. Corrija o que o erro apontou ou explique ao usuário o que falta.'}, None
+            proposal = None
+
+            if spent >= TOOL_BUDGET:
+                payload = EXHAUSTED
+            elif signature in failed:
+                payload = REPEATED
             else:
                 payload, proposal = execute(call, user, today, conversation)
                 if payload.get('ok') is False:
                     failed.add(signature)
+
             result = json.dumps(payload, ensure_ascii=False, default=str)
+
+            # O que não cabe fica de fora inteiro: guardado, ele voltaria à API
+            # em cada rodada seguinte e empurraria o resto da conversa para fora.
+            if len(result) > MAX_TOOL_OUTPUT:
+                payload, proposal = OVERSIZED, None
+                result = json.dumps(payload, ensure_ascii=False)
+                failed.add(signature)
+
+            spent += len(result)
             Message.objects.create(
                 conversation=conversation,
                 role=Role.TOOL,

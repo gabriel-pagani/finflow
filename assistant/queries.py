@@ -28,10 +28,14 @@ ORDERS = {
     'smallest': ('value', '-effective_at'),
 }
 
-MAX_GROUPS = 300
+# Os tetos de linha por retorno moram abaixo do MAX_TOOL_OUTPUT do client: uma
+# página cheia precisa caber na conversa, senão a consulta roda no banco e é
+# descartada na volta, gastando uma rodada à toa. Para ver mais, o modelo pagina
+# com offset; para somar, usa analisar_transacoes.
+MAX_GROUPS = 120
 MAX_AXES = 2
 DEFAULT_LIMIT = 50
-MAX_LIMIT = 200
+MAX_LIMIT = 60
 
 
 class QueryError(Exception):
