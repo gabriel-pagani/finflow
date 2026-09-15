@@ -1,0 +1,1169 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Base que o artefato recebe pronta e o arquivo aberto direto no navegador não tem. */
+html { color-scheme: light dark; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Assistente FinFlow por Dentro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #1f2430;
+  --muted: #5f6677;
+  --line: #e2e4e8;
+  --accent: #3f4d7a;
+  --accent-soft: #e6e9f3;
+  --code-bg: #eef0f4;
+  --code-ink: #2a3040;
+  --nav: #2b7a8a;
+  --django: #3f4d7a;
+  --ia: #9a6a1f;
+  --db: #56702c;
+  --good: #2e7d32;
+  --warn: #8a6d3b;
+  --bad: #c62828;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --cond: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151c;
+    --surface: #1a1e27;
+    --ink: #e4e7ee;
+    --muted: #9aa1b0;
+    --line: #2b313d;
+    --accent: #9ba8dc;
+    --accent-soft: #252b3d;
+    --code-bg: #0e1117;
+    --code-ink: #cfd5e2;
+    --nav: #62b6c5;
+    --django: #9ba8dc;
+    --ia: #d6a55a;
+    --db: #9fc16b;
+    --good: #6fbf73;
+    --warn: #d0ad6e;
+    --bad: #ef6b6b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151c;
+  --surface: #1a1e27;
+  --ink: #e4e7ee;
+  --muted: #9aa1b0;
+  --line: #2b313d;
+  --accent: #9ba8dc;
+  --accent-soft: #252b3d;
+  --code-bg: #0e1117;
+  --code-ink: #cfd5e2;
+  --nav: #62b6c5;
+  --django: #9ba8dc;
+  --ia: #d6a55a;
+  --db: #9fc16b;
+  --good: #6fbf73;
+  --warn: #d0ad6e;
+  --bad: #ef6b6b;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  padding-inline: 20px;
+  padding-block: 40px 80px;
+}
+.page { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 64px; }
+h1, h2, h3, h4 { text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-family: var(--cond); font-weight: 600; font-size: clamp(2rem, 5vw, 2.9rem); letter-spacing: -0.01em; }
+h2 { font-family: var(--cond); font-weight: 600; font-size: 1.65rem; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+h4 { font-size: 1rem; font-weight: 600; }
+p { margin: 0; }
+.prose { max-width: 68ch; }
+.muted { color: var(--muted); }
+code, pre, .mono { font-family: var(--mono); font-size: 0.86em; }
+:not(pre) > code { background: var(--code-bg); color: var(--code-ink); padding: 1px 5px; border-radius: 4px; }
+pre {
+  background: var(--code-bg); color: var(--code-ink);
+  margin: 0; padding: 12px 14px; border-radius: 6px;
+  overflow-x: auto; line-height: 1.5; font-size: 12.5px; white-space: pre;
+}
+pre .c { color: var(--muted); }
+pre .k { color: var(--accent); }
+.eyebrow { font-family: var(--cond); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 20px; }
+.section-head { display: flex; flex-direction: column; gap: 8px; }
+
+/* Cabeçalho */
+header { display: flex; flex-direction: column; gap: 18px; }
+.lede { font-size: 1.12rem; max-width: 62ch; }
+.ideas { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 2px solid var(--ink); margin-top: 12px; }
+.idea { padding: 16px 18px 4px 0; display: flex; flex-direction: column; gap: 6px; }
+.idea + .idea { padding-left: 18px; border-left: 1px solid var(--line); }
+.idea b { font-family: var(--cond); font-size: 1.12rem; font-weight: 600; }
+.idea p { font-size: 0.93rem; color: var(--muted); }
+@media (max-width: 760px) {
+  .ideas { grid-template-columns: 1fr; }
+  .idea + .idea { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
+}
+
+/* Circuito */
+.circuit { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; }
+.node { flex: 1 1 150px; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; background: var(--bg); }
+.node .who { font-family: var(--cond); text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.7rem; font-weight: 600; }
+.node b { font-size: 0.93rem; }
+.node span.d { font-size: 0.83rem; color: var(--muted); }
+.arrow { align-self: center; color: var(--muted); font-size: 1.1rem; }
+.loop { border: 1.5px dashed var(--accent); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.loop-title { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 0.85rem; }
+.loop-title strong { color: var(--accent); font-family: var(--cond); font-size: 1rem; }
+.exits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.88rem; }
+.exit { padding: 10px 12px; border-radius: 6px; background: var(--accent-soft); }
+.exit b { font-family: var(--mono); font-size: 0.85em; }
+@media (max-width: 640px) { .exits { grid-template-columns: 1fr; } .arrow { display: none; } }
+.who.nav { color: var(--nav); } .who.django { color: var(--django); } .who.ia { color: var(--ia); } .who.db { color: var(--db); }
+
+/* Abas */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); }
+.tab {
+  font: inherit; font-size: 0.92rem; background: none; border: 0; color: var(--muted);
+  padding: 8px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.tab:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scenario { display: flex; flex-direction: column; gap: 18px; }
+.ask { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.ask q { font-size: 1.08rem; font-weight: 500; quotes: "“" "”"; }
+.ask p { font-size: 0.9rem; color: var(--muted); }
+
+/* Rastro */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.trace { list-style: none; margin: 0; padding: 0; }
+.step { display: grid; grid-template-columns: 64px 1fr; }
+.rail { display: grid; grid-template-columns: repeat(4, 16px); position: relative; }
+.rail span { position: relative; }
+.rail span::before { content: ""; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+.rail span.on::after {
+  content: ""; position: absolute; left: 1px; top: 17px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--dot); box-shadow: 0 0 0 3px var(--bg);
+}
+.step[data-lane="nav"] { --dot: var(--nav); }
+.step[data-lane="django"] { --dot: var(--django); }
+.step[data-lane="ia"] { --dot: var(--ia); }
+.step[data-lane="db"] { --dot: var(--db); }
+.step .body { padding: 12px 0 22px 8px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.where { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 0.8rem; }
+.lane { font-family: var(--cond); font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--dot); }
+.where code { background: none; padding: 0; color: var(--muted); }
+.body ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.round { display: grid; grid-template-columns: 64px 1fr; align-items: center; }
+.round .rail span::before { background: var(--line); }
+.round .label { display: flex; align-items: center; gap: 10px; padding: 6px 0 6px 8px; font-family: var(--cond); font-weight: 600; color: var(--accent); font-size: 0.95rem; }
+.round .label::after { content: ""; flex: 1; height: 1px; background: var(--accent); opacity: 0.4; }
+.round .label small { font-family: var(--sans); font-weight: 400; color: var(--muted); font-size: 0.8rem; }
+.note { font-size: 0.88rem; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 6px 6px 0; }
+.pause { display: grid; grid-template-columns: 64px 1fr; }
+.pause .label { padding: 14px 0 14px 8px; font-size: 0.85rem; color: var(--muted); font-style: italic; }
+.pause .rail span::before { background: repeating-linear-gradient(to bottom, var(--line) 0 4px, transparent 4px 9px); }
+
+/* Card de proposta de exemplo */
+.mock-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; max-width: 360px; display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem; }
+.mock-card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 0; }
+.mock-card dt { color: var(--muted); }
+.mock-card dd { margin: 0; font-variant-numeric: tabular-nums; }
+.mock-card .similar { border: 1px solid var(--bad); border-radius: 6px; padding: 8px 10px; font-size: 0.82rem; line-height: 1.4; }
+.mock-card .similar ul { margin: 4px 0 0; padding-left: 18px; }
+.mock-card .btns { display: flex; gap: 8px; }
+.mock-card .btns span { padding: 4px 10px; border-radius: 5px; font-size: 0.82rem; border: 1px solid var(--line); }
+.mock-card .btns span:first-child { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+
+/* Admin */
+.admin-list { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.admin-row { display: grid; grid-template-columns: 150px 180px 1fr; gap: 12px; padding: 9px 14px; border-top: 1px solid var(--line); align-items: baseline; font-size: 0.87rem; }
+.admin-row:first-child { border-top: 0; }
+.admin-row.head { background: var(--bg); font-family: var(--cond); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.07em; color: var(--muted); }
+.admin-row .t { font-variant-numeric: tabular-nums; color: var(--muted); font-family: var(--mono); font-size: 0.8rem; }
+.admin-row .d { min-width: 0; overflow-wrap: anywhere; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; color: #fff; font-size: 0.78rem; }
+.p-user { background: #417690; } .p-notice { background: #8a6d3b; } .p-assistant { background: #2e7d32; } .p-call { background: #6a1b9a; } .p-error { background: #c62828; }
+@media (max-width: 680px) {
+  .admin-row { grid-template-columns: 1fr; gap: 4px; }
+  .admin-row.head { display: none; }
+}
+.pill-key { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 24px; }
+.pill-key div { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+.pill-key p { color: var(--muted); }
+
+/* Garantias */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-top: 2px solid var(--ink); }
+.split > div { padding: 16px 20px 0 0; display: flex; flex-direction: column; gap: 12px; }
+.split > div + div { padding-left: 20px; border-left: 1px solid var(--line); }
+.split h3 { display: flex; align-items: center; gap: 8px; }
+.split h3 i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.claims { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.claims li { display: flex; flex-direction: column; gap: 2px; font-size: 0.92rem; }
+.claims li b { font-weight: 600; }
+.claims li span { color: var(--muted); font-size: 0.86rem; }
+@media (max-width: 760px) {
+  .split { grid-template-columns: 1fr; }
+  .split > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); margin-top: 16px; }
+}
+
+/* Pontos de atenção */
+.watch { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.watch li { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.watch li p { color: var(--muted); }
+
+/* Roteiro */
+.checks { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.checks li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--line); }
+.checks li:first-child { border-top: 0; }
+.checks input { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--accent); cursor: pointer; }
+.checks label { display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+.checks .expect { display: grid; grid-template-columns: 110px 1fr; gap: 3px 12px; font-size: 0.88rem; }
+.checks .expect dt { font-family: var(--cond); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.72rem; color: var(--muted); padding-top: 3px; }
+.checks .expect dd { margin: 0; }
+.checks .expect dd.bad { color: var(--bad); }
+.checks li.done h4 { text-decoration: line-through; color: var(--muted); }
+@media (max-width: 560px) { .checks .expect { grid-template-columns: 1fr; } }
+
+/* Mapa */
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; padding: 9px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+thead th { border-top: 0; font-family: var(--cond); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.07em; color: var(--muted); background: var(--bg); }
+td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 0.82rem; }
+table.wrap td:first-child { white-space: normal; min-width: 180px; }
+
+/* Operação e extensão */
+.sub { display: flex; flex-direction: column; gap: 12px; }
+.subs { display: flex; flex-direction: column; gap: 32px; }
+.sub h3 { font-family: var(--cond); font-size: 1.2rem; }
+.sub ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; max-width: 72ch; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .scenario:not([hidden]) { animation: rise 0.25s ease-out; }
+  @keyframes rise { from { transform: translateY(4px); } to { transform: none; } }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <p class="eyebrow">finflow-v2 · app <code>assistant</code> · lido do código em 15/09/2026</p>
+  <h1>O assistente por dentro</h1>
+  <p class="lede">O que acontece, na ordem, do Enter até a resposta: o que o navegador faz, o que o Django decide, o que vai para a OpenAI e o que fica gravado no banco. Tudo aqui foi conferido no código, e o mesmo conteúdo fica no projeto em <code>assistant/docs/ARQUITETURA.html</code>.</p>
+  <div class="ideas">
+    <div class="idea">
+      <b>O banco é a memória</b>
+      <p>A chamada vai com <code>store=False</code>: a OpenAI não guarda nada. A cada rodada o Django remonta a conversa a partir da tabela <code>Message</code> e manda tudo de novo.</p>
+    </div>
+    <div class="idea">
+      <b>O modelo só pede</b>
+      <p>Ele não toca no banco. Ele pede uma ferramenta e o Django a executa. Uma leitura roda na hora. Uma escrita vira uma <code>Proposal</code>, e só o seu clique grava.</p>
+    </div>
+    <div class="idea">
+      <b>Uma mensagem, várias rodadas</b>
+      <p>Cada ida e volta com o modelo é uma rodada. Enquanto ele pedir ferramentas, vem outra, até o limite de 8. A resposta final é a primeira rodada que não pede nada.</p>
+    </div>
+  </div>
+</header>
+
+<section id="circuito">
+  <div class="section-head">
+    <h2>O circuito de uma mensagem</h2>
+    <p class="prose muted">É a função <code>converse()</code>, em <code>client.py</code>, rodando dentro de uma resposta HTTP que só fecha no fim. Os exemplos abaixo percorrem esse circuito com dados reais.</p>
+  </div>
+  <div class="circuit">
+    <div class="flow">
+      <div class="node"><span class="who nav">Navegador</span><b>POST /assistant/stream/</b><span class="d">texto e, se houver, um arquivo</span></div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="node"><span class="who django">Django · StreamView</span><b>Barreira de entrada</b><span class="d">recusa com 400, ou 429 sem cota, antes de abrir o stream</span></div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="node"><span class="who db">Banco</span><b>Grava sua mensagem</b><span class="d">uma <code>Message</code> com role=user</span></div>
+    </div>
+    <div class="loop">
+      <div class="loop-title"><strong>Rodada, até 8 vezes</strong><span class="muted">laço <code>for _ in range(MAX_ROUNDS)</code></span></div>
+      <div class="flow">
+        <div class="node"><span class="who django">Django</span><b>1. Monta o histórico</b><span class="d">as últimas 40 <code>Message</code>, com os <code>items</code> de cada uma</span></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="node"><span class="who ia">OpenAI</span><b>2. Modelo responde</b><span class="d">texto em pedaços e/ou pedidos de ferramenta</span></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="node"><span class="who db">Banco</span><b>3. Grava a rodada</b><span class="d">uma <code>Message</code> role=assistant</span></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="node"><span class="who django">Django</span><b>4. Executa as ferramentas</b><span class="d">uma <code>Message</code> role=tool por chamada</span></div>
+      </div>
+      <div class="exits">
+        <div class="exit">Pediu ferramenta → os resultados entram no histórico e começa <b>outra rodada</b>.</div>
+        <div class="exit">Não pediu → evento <b>done</b>, a conexão fecha e a resposta está completa.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="rastros">
+  <div class="section-head">
+    <h2>Cinco mensagens, passo a passo</h2>
+    <p class="prose muted">Cada ponto no trilho mostra onde a etapa acontece. Ids, valores e nomes são de exemplo. A sequência de ferramentas é a que o prompt induz, mas quem escolhe é o modelo, então numa conversa real ela pode variar.</p>
+  </div>
+  <div class="legend" aria-label="Legenda dos trilhos">
+    <span><i style="background: var(--nav)"></i>Navegador · assistant.js</span>
+    <span><i style="background: var(--django)"></i>Django</span>
+    <span><i style="background: var(--ia)"></i>OpenAI</span>
+    <span><i style="background: var(--db)"></i>Banco</span>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Cenários">
+    <button class="tab" role="tab" id="tab-pergunta" aria-controls="sc-pergunta" aria-selected="true">Pergunta com número</button>
+    <button class="tab" role="tab" id="tab-proposta" aria-controls="sc-proposta" aria-selected="false" tabindex="-1">Nova transação e confirmação</button>
+    <button class="tab" role="tab" id="tab-foto" aria-controls="sc-foto" aria-selected="false" tabindex="-1">Foto de comprovante</button>
+    <button class="tab" role="tab" id="tab-audio" aria-controls="sc-audio" aria-selected="false" tabindex="-1">Áudio</button>
+    <button class="tab" role="tab" id="tab-comando" aria-controls="sc-comando" aria-selected="false" tabindex="-1">/comando</button>
+  </div>
+
+  <!-- Cenário 1 -->
+  <div class="scenario" id="sc-pergunta" role="tabpanel" aria-labelledby="tab-pergunta">
+    <div class="ask"><q>Quanto gastei com mercado em agosto?</q><p>Hoje é 14/09/2026. A categoria Mercado tem id 3. Resultado: 3 rodadas e 6 linhas em <code>Message</code>, das quais o chat mostra 2.</p></div>
+    <ol class="trace">
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>assistant.js · submit → send()</code></p>
+        <h4>Você aperta Enter</h4>
+        <ul>
+          <li>Desenha sua bolha, mostra “Pensando...” e marca o painel como ocupado (<code>data-busy</code>). Um segundo envio fica bloqueado até o fim.</li>
+          <li>Faz um <code>fetch</code> POST com <code>FormData</code> (<code>message</code>) e o CSRF no cabeçalho <code>X-CSRFToken</code>. É fetch, e não EventSource, porque o EventSource só faz GET.</li>
+        </ul>
+      </div></li>
+
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>views.py · StreamView.post</code></p>
+        <h4>Barreira de entrada, antes do primeiro byte</h4>
+        <ul>
+          <li>Login e permissão <code>assistant.use_assistant</code>. Sem ela a resposta é 403, e não um redirect para o login.</li>
+          <li>Tira o byte nulo. Com mais de 2000 caracteres, mensagem vazia sem anexo, arquivo inválido ou <code>/comando</code> inexistente, devolve <strong>400 em JSON</strong>.</li>
+          <li>Por último, gasta uma mensagem da cota do dia com <code>DailyUsage.consume(user)</code>. Se ela já acabou, devolve <strong>429</strong>: “Você já mandou as 20 mensagens de hoje. O limite volta à meia-noite.” Texto, foto, áudio e /comando contam igual. Uma recusa das linhas acima não gasta cota.</li>
+          <li><code>Conversation.get_or_create(user)</code>: cada usuário tem uma conversa só.</li>
+          <li>Abre um <code>StreamingHttpResponse</code> <code>text/event-stream</code> com <code>X-Accel-Buffering: no</code>, para o nginx não segurar os pedaços.</li>
+        </ul>
+        <p class="note">Toda recusa acontece aqui porque, depois que o stream começa, o status HTTP já saiu como 200. Dali em diante um erro só chega ao navegador como evento <code>error</code>.</p>
+      </div></li>
+
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco</span><code>client.py · converse()</code></p>
+        <h4>Grava a sua mensagem</h4>
+<pre><span class="c"># Message #1</span>
+role    = "user"
+content = "Quanto gastei com mercado em agosto?"   <span class="c"># o que o chat mostra</span>
+items   = [{"role": "user", "content": "Quanto gastei com mercado em agosto?"}]
+                                                   <span class="c"># o que o modelo lê</span></pre>
+        <p class="muted" style="font-size: 0.88rem">Aqui <code>content</code> e <code>items</code> são iguais. Eles diferem com foto (o item leva a imagem) e com /comando (o item leva as instruções).</p>
+      </div></li>
+
+      <li class="round"><div class="rail"><span></span><span></span><span></span><span></span></div><div class="label">Rodada 1 <small>o modelo precisa de ids</small></div></li>
+
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>client.py · history() e responses.create</code></p>
+        <h4>Monta e envia a chamada</h4>
+<pre>client().responses.create(
+  model        = settings.OPENAI_MODEL,        <span class="c"># padrão "gpt-5.6-luna"</span>
+  instructions = system_prompt(user, today),   <span class="c"># texto fixo de prompt.py + "Usuário: Gabriel / Hoje: 2026-09-14 (14/09/2026)"</span>
+  input        = history(conversation),        <span class="c"># os items das últimas 40 Message, em ordem</span>
+  tools        = TOOLS,                        <span class="c"># os 8 schemas de tools.py</span>
+  stream       = True,
+  store        = False,                        <span class="c"># a OpenAI não guarda nada</span>
+  include      = ["reasoning.encrypted_content"],
+)</pre>
+        <ul>
+          <li><code>history()</code> pega as 40 mensagens mais recentes e descarta as <code>role=tool</code> que ficarem no começo da janela, porque a API recusa um resultado de ferramenta sem a chamada que o pediu.</li>
+          <li>O prompt é montado de novo a cada rodada. Por isso a data de hoje está sempre certa.</li>
+        </ul>
+      </div></li>
+
+      <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">OpenAI</span><code>client.py · collect()</code></p>
+        <h4>Modelo pede o cadastro, sem escrever texto</h4>
+        <p>O prompt manda chamar <code>consultar_cadastros</code> antes de usar qualquer id. O stream não traz nenhum delta de texto, só o evento final <code>response.completed</code>, com a lista <code>output</code>.</p>
+        <p class="muted" style="font-size: 0.88rem"><code>collect()</code> repassa cada <code>response.output_text.delta</code> ao navegador e guarda o <code>output</code> do evento final. Se vier <code>response.failed</code>, <code>response.incomplete</code> ou <code>error</code>, a rodada vira o evento <code>error</code> com “Não consegui concluir agora” e a mensagem termina ali.</p>
+      </div></li>
+
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco</span></p>
+        <h4>Grava a rodada, mesmo sem texto</h4>
+<pre><span class="c"># Message #2</span>
+role    = "assistant"
+content = ""
+items   = [
+  {"type": "reasoning", "id": "rs_…", "encrypted_content": "gAAAAB…", "summary": []},
+  {"type": "function_call", "call_id": "call_a1", "name": "consultar_cadastros", "arguments": "{}"}
+]</pre>
+        <p class="muted" style="font-size: 0.88rem">O raciocínio cifrado vai junto e volta intacto na rodada seguinte. Sem ele o modelo esquece por que pediu aquilo e refaz a consulta.</p>
+      </div></li>
+
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>handle(event)</code></p>
+        <h4>Aparece “Consultando o cadastro...”</h4>
+<pre>data: {"type": "tool", "name": "consultar_cadastros"}</pre>
+      </div></li>
+
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>client.execute → tools.run → queries.registry</code></p>
+        <h4>Executa a leitura</h4>
+        <p>Devolve todas as contas, com as combinações de tipo e método aceitas por cada uma (vêm de <code>BusinessRule</code>), todas as categorias, os cartões <em>do usuário</em>, com a data em que uma compra de hoje seria cobrada, e os códigos de tipo, método e natureza.</p>
+        <p class="muted" style="font-size: 0.88rem">Contas e categorias são um cadastro compartilhado. Cartões e transações são filtrados por <code>user</code>.</p>
+      </div></li>
+
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco</span></p>
+        <h4>Grava o resultado, ligado à chamada pelo call_id</h4>
+<pre><span class="c"># Message #3</span>
+role    = "tool"
+content = '{"accounts": [...], "categories": [{"id": 3, "label": "Mercado"}, ...], "cards": [...]}'
+items   = [{"type": "function_call_output", "call_id": "call_a1", "output": "&lt;o mesmo JSON&gt;"}]</pre>
+      </div></li>
+
+      <li class="round"><div class="rail"><span></span><span></span><span></span><span></span></div><div class="label">Rodada 2 <small>agora ele sabe que Mercado é o id 3</small></div></li>
+
+      <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">OpenAI</span></p>
+        <h4>O histórico já traz as mensagens #1, #2 e #3. O modelo pede o cálculo</h4>
+<pre>{"type": "function_call", "call_id": "call_b7", "name": "analisar_transacoes",
+ "arguments": {"date_field": null, "start": "2026-08-01", "end": "2026-08-31",
+               "account": null, "category": [3], "uncategorized": null, "card": null,
+               "type": ["OUT"], "method": null, "nature": ["REGULAR"], "origin": null,
+               "min_value": null, "max_value": null, "search": null, "group_by": null}}</pre>
+        <p class="muted" style="font-size: 0.88rem">Todos os campos vêm preenchidos porque as ferramentas estão em <code>strict</code>. O <code>null</code> quer dizer “não filtre”. <code>nature: ["REGULAR"]</code> não é automático: o prompt pede isso para “quanto gastei”, e é aqui que você confere se o modelo seguiu.</p>
+      </div></li>
+
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>queries.Filters → analyze_transactions</code></p>
+        <h4>Valida cada argumento e soma no banco</h4>
+        <ul>
+          <li><code>Filters</code> lê campo por campo. Uma data mal escrita, um id que não existe ou <code>start</code> depois de <code>end</code> geram um <code>QueryError</code>, que volta <strong>ao modelo</strong> como <code>{"ok": false, "error": "..."}</code>. Você não vê esse erro, e o modelo deve corrigir a chamada.</li>
+          <li>A consulta sempre começa em <code>Transaction.objects.filter(user=self.user)</code>, e a soma é um <code>Sum</code> no Postgres.</li>
+          <li><code>describe()</code> devolve o recorte que de fato valeu, para o modelo conferir antes de narrar.</li>
+        </ul>
+<pre>{"filters": {"period": {"date_field": "effective_at", "meaning": "data efetiva (no crédito, o vencimento da fatura)",
+                        "start": "2026-08-01", "end": "2026-08-31"},
+             "category": [{"id": 3, "label": "Mercado"}],
+             "type": [{"code": "OUT", "label": "Saída"}],
+             "nature": [{"code": "REGULAR", "label": "Normal"}],
+             "not_filtered": "Toda dimensão ausente deste objeto entrou inteira no recorte, ..."},
+ "total": {"income": "0.00", "outcome": "812.40", "net": "-812.40", "count": 14}}</pre>
+        <p class="muted" style="font-size: 0.88rem">Mesmo caminho da rodada 1: evento <code>tool</code> (“Calculando...”), <code>Message #4</code> assistant com a chamada e <code>Message #5</code> tool com este JSON.</p>
+      </div></li>
+
+      <li class="round"><div class="rail"><span></span><span></span><span></span><span></span></div><div class="label">Rodada 3 <small>a resposta</small></div></li>
+
+      <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">OpenAI → Navegador</span><code>collect() → appendDelta()</code></p>
+        <h4>O texto chega em pedaços</h4>
+<pre>data: {"type": "delta", "text": "Em agosto você gastou "}
+data: {"type": "delta", "text": "**812,40** com Mercado"}
+data: {"type": "delta", "text": ", em 14 transações (pela data efetiva)."}</pre>
+        <p class="muted" style="font-size: 0.88rem">A cada pedaço, o navegador junta tudo o que já chegou e redesenha o Markdown, porque um <code>**</code> pode abrir num pedaço e fechar no seguinte.</p>
+      </div></li>
+
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco → Navegador</span></p>
+        <h4>Grava a resposta e encerra</h4>
+<pre><span class="c"># Message #6</span>
+role = "assistant", content = "Em agosto você gastou **812,40** com Mercado, ...",
+items = [{"type": "reasoning", ...}, {"type": "message", "content": [{"type": "output_text", ...}]}]
+
+data: {"type": "done"}</pre>
+        <p>Não há chamadas nesta rodada, então vem o <code>done</code> e o gerador termina. O navegador sai do laço de leitura e, no <code>finally</code>, tira o status e libera o painel.</p>
+      </div></li>
+    </ol>
+    <p class="note">Ao reabrir o chat, <code>HistoryView</code> devolve só as mensagens <code>visible=True</code>, sem <code>role=tool</code> e sem as de conteúdo vazio que não têm anexo. Das 6 linhas sobram a #1 e a #6. As outras quatro existem para o modelo e para o admin.</p>
+  </div>
+
+  <!-- Cenário 2 -->
+  <div class="scenario" id="sc-proposta" role="tabpanel" aria-labelledby="tab-proposta" hidden>
+    <div class="ask"><q>Lança 50 reais de mercado hoje no débito do Nubank</q><p>A primeira parte é igual à pergunta: sua mensagem, depois a rodada 1 com <code>consultar_cadastros</code>. O que muda começa na rodada 2. A conta Nubank é o id 2, e a proposta criada será a #17. Neste exemplo, ontem já foi gravada uma saída de 50,00 no Mercado pela mesma conta, então o card avisa que pode ser repetida.</p></div>
+    <ol class="trace">
+      <li class="round"><div class="rail"><span></span><span></span><span></span><span></span></div><div class="label">Rodada 2 <small>o modelo pede para propor</small></div></li>
+
+      <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">OpenAI</span></p>
+        <h4>Modelo pede <code>propor_transacao</code></h4>
+<pre>{"name": "propor_transacao", "arguments": {
+   "action": "create", "id": null, "occurred_at": null, "account": 2, "type": "OUT",
+   "method": "DEBIT", "card": null, "nature": null, "category": 3,
+   "description": null, "value": "50.00", "clear": null}}</pre>
+      </div></li>
+
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>proposals.propose → build</code></p>
+        <h4>Monta a proposta com o formulário da própria tela</h4>
+        <ul>
+          <li>Confere se a ação vale para o tipo de registro: parcelamento e transferência não aceitam <code>update</code>.</li>
+          <li>Separa o que veio preenchido (<code>null</code> e <code>""</code> são descartados) e recusa campo que o formulário não tem.</li>
+          <li><strong>Criar</strong> parte dos valores iniciais do formulário da tela (data de hoje, natureza Normal). <strong>Editar</strong> parte do registro atual e guarda um <code>snapshot</code> dele. <strong>Apagar</strong> apaga de verdade dentro de uma transação e desfaz tudo, só para descobrir se o banco deixaria (<code>check_delete</code>).</li>
+          <li>Roda <code>TransactionForm(data, user).is_valid()</code>, o mesmo form da tela, com as mesmas regras de conta, tipo e método. Se for inválido, devolve <code>{"ok": false, "errors": {...}}</code> ao modelo e nenhuma proposta é criada.</li>
+          <li>Numa edição que não muda nada, também recusa: não há o que propor.</li>
+        </ul>
+      </div></li>
+
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>proposals.similar</code>, só ao criar</p>
+        <h4>Procura uma transação parecida que já esteja gravada</h4>
+        <p>Com o form já válido, busca registros do mesmo usuário com o <strong>mesmo valor</strong> e a <strong>data da transação</strong> (<code>occurred_at</code>) a até 3 dias da pedida, para mais ou para menos (<code>SIMILAR_WINDOW</code>). Além disso, cada tipo exige alguns campos iguais (<code>Spec.matching</code>):</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Proposta</th><th>Também precisa ser igual</th><th>Como cada achado aparece</th></tr></thead>
+            <tbody>
+              <tr><td>transação</td><td>conta e tipo</td><td><code>01/09/2026 · Almoço · Mercado (87,40)</code></td></tr>
+              <tr><td>parcelamento</td><td>cartão e número de parcelas</td><td><code>04/09/2026 · Geladeira · 1.000,00 (3x)</code></td></tr>
+              <tr><td>transferência</td><td>origem e destino, no mesmo sentido</td><td><code>04/09/2026 · 250,00 (Nubank → Itaú)</code></td></tr>
+              <tr><td>cartão</td><td colspan="2">não procura</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul>
+          <li>Traz no máximo 5 achados (<code>MAX_SIMILAR</code>), os mais recentes primeiro, e os coloca em <code>summary["similar"]</code>. Sem achados, a chave nem existe.</li>
+          <li><strong>Avisa, mas não barra.</strong> A proposta é criada do mesmo jeito, porque duas compras iguais no mesmo dia existem. Quem decide se é repetição é você, diante do card.</li>
+          <li>Editar e apagar não fazem essa busca.</li>
+        </ul>
+      </div></li>
+
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco</span></p>
+        <h4>Cria a Proposal. Nenhuma Transaction é gravada</h4>
+<pre><span class="c"># Proposal #17</span>
+kind = "transaction", action = "create", target_id = null, status = "pending"
+payload  = {"occurred_at": "2026-09-14", "nature": "REGULAR", "account": 2, "type": "OUT",
+            "method": "DEBIT", "category": 3, "value": "50.00"}   <span class="c"># o que será validado de novo no clique</span>
+snapshot = {}                                                    <span class="c"># na edição: o registro como estava</span>
+summary  = {"title": "Criar transação", "action": "create", "rows": [...], "notes": [],
+            "similar": ["13/09/2026 · Mercado (50,00)"]}               <span class="c"># só se a busca achou algo</span></pre>
+        <p class="muted" style="font-size: 0.88rem">O modelo recebe <code>{"ok": true, "status": "aguardando_confirmacao", "proposal_id": 17, "summary": ..., "message": "NADA foi gravado. ..."}</code>, e isso também vira uma <code>Message</code> role=tool. Quando há <code>similar</code>, a <code>message</code> ganha no fim: “ATENÇÃO: já existe transação parecida, listada em summary.similar e destacada no card. Diga que pode ser repetida e peça que ele confira antes de confirmar.”</p>
+      </div></li>
+
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>proposalCard()</code></p>
+        <h4>O card aparece antes da frase do modelo</h4>
+<pre>data: {"type": "proposal", "id": 17, "summary": {...}, "state": "open"}</pre>
+        <div class="mock-card" aria-label="Exemplo do card">
+          <strong>Criar transação</strong>
+          <dl>
+            <dt>Conta</dt><dd>Nubank</dd>
+            <dt>Tipo</dt><dd>Saída</dd>
+            <dt>Método</dt><dd>Débito</dd>
+            <dt>Natureza</dt><dd>Normal</dd>
+            <dt>Categoria</dt><dd>Mercado</dd>
+            <dt>Valor</dt><dd>50,00</dd>
+            <dt>Data da Transação</dt><dd>14/09/2026</dd>
+          </dl>
+          <div class="similar">
+            <p>Já existem transações parecidas:</p>
+            <ul><li>13/09/2026 · Mercado (50,00)</li></ul>
+          </div>
+          <div class="btns"><span>Confirmar</span><span>Descartar</span></div>
+        </div>
+        <p class="muted" style="font-size: 0.88rem">O card só mostra o que o servidor resolveu, sem recalcular nada no navegador. Linhas vazias (Cartão, Descrição) não aparecem. Na edição, cada campo alterado aparece riscado → novo. O quadro vermelho aparece só quando o resumo traz <code>similar</code>, e fica acima das notas.</p>
+      </div></li>
+
+      <li class="round"><div class="rail"><span></span><span></span><span></span><span></span></div><div class="label">Rodada 3 <small>a frase curta</small></div></li>
+
+      <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">OpenAI → Navegador</span></p>
+        <h4>“Já existe uma transação igual no dia 13. Confere se não é repetida antes de confirmar.” Depois, <code>done</code></h4>
+        <p>Sem <code>similar</code>, a frase seria só um pedido de confirmação, como “Confere no card e confirma se estiver certo.” Se você responder que é outra transação, o prompt manda não insistir.</p>
+        <p>O stream fecha e a conversa com o modelo termina aqui. A proposta fica pendente no banco, esperando você.</p>
+      </div></li>
+
+      <li class="pause"><div class="rail"><span></span><span></span><span></span><span></span></div><div class="label">… segundos ou minutos depois. Você tem 1 hora (<code>Proposal.EXPIRY</code>).</div></li>
+
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>act(urls.confirm)</code></p>
+        <h4>Você clica em Confirmar</h4>
+        <p>Os botões travam e sai um POST para <code>/assistant/proposal/17/confirm/</code>. É uma requisição separada, sem stream, e <strong>o modelo não é chamado</strong>.</p>
+      </div></li>
+
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>ConfirmView → proposals.confirm → apply</code></p>
+        <h4>Valida de novo e grava numa transação atômica</h4>
+        <ul>
+          <li>A proposta é buscada com <code>user=request.user</code>: a de outra pessoa dá 404.</li>
+          <li>Precisa estar <code>pending</code> e ter menos de 1 hora. Se não estiver, a resposta é 409 (“expirou”, “já foi confirmada”).</li>
+          <li>Em editar ou apagar: <code>select_for_update</code> no registro e comparação com o <code>snapshot</code>. Se algo mudou desde a proposta, recusa com “O registro mudou desde a proposta”.</li>
+          <li>Roda o mesmo form com o <code>payload</code> guardado. É o que o card mostrou, e não uma nova leitura do que você disse. Se ainda for válido, <code>form.save()</code>.</li>
+        </ul>
+      </div></li>
+
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco</span><code>proposals.resolve</code></p>
+        <h4>Grava a transação, fecha a proposta e deixa um recado para o modelo</h4>
+<pre><span class="c"># Transaction nova, criada pelo TransactionForm.save()</span>
+<span class="c"># Proposal #17</span>
+status = "confirmed", result = "Mercado (50,00)", resolved_at = agora
+
+<span class="c"># Message nova, invisível no chat</span>
+role = "user", visible = False
+content = "O usuário confirmou a proposta 17 (Criar transação) e ela FOI gravada: Mercado (50,00)."</pre>
+        <p class="muted" style="font-size: 0.88rem">Se a gravação falhar, o <code>atomic</code> desfaz tudo, o status vira <code>failed</code> e o recado diz “ela NÃO foi gravada: motivo”. Descartar grava <code>cancelled</code> e “Nada foi gravado”.</p>
+      </div></li>
+
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span></p>
+        <h4>O card troca os botões pelo desfecho</h4>
+<pre>{"state": "confirmed", "result": "Mercado (50,00)"}   →   “Feito: Mercado (50,00)”</pre>
+        <p>O recado invisível só é lido pelo modelo <strong>na sua próxima mensagem</strong>, quando <code>history()</code> o inclui. É assim que ele sabe que não precisa oferecer a mesma transação de novo.</p>
+      </div></li>
+    </ol>
+  </div>
+
+  <!-- Cenário 3 -->
+  <div class="scenario" id="sc-foto" role="tabpanel" aria-labelledby="tab-foto" hidden>
+    <div class="ask"><q>(foto de um cupom, sem legenda)</q><p>O que muda em relação à pergunta é o caminho da imagem até o modelo. Depois de ler o cupom, o modelo segue como na nova transação: cadastro, proposta, card.</p></div>
+    <ol class="trace">
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>fileInput change → shrink()</code></p>
+        <h4>A foto é reduzida antes de subir</h4>
+        <ul>
+          <li>No celular, <code>capture="environment"</code> abre direto a câmera traseira.</li>
+          <li><code>shrink()</code> desenha a imagem num canvas com lado máximo de 1600 px e exporta em JPEG com qualidade 0,82. Isso também converte o HEIC do iPhone, quando o navegador consegue desenhá-lo.</li>
+          <li>A imagem fica numa faixa acima do campo e é enviada como <code>file</code> = <code>foto.jpg</code>. Uma mensagem leva um anexo só.</li>
+        </ul>
+      </div></li>
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>attachments.inspect</code></p>
+        <h4>O tipo é conferido pelos bytes, e não pelo nome</h4>
+        <p>Olha os primeiros 16 bytes: <code>FF D8 FF</code> é JPEG, <code>89 50 4E 47</code> é PNG, <code>RIFF…WEBP</code> é WebP. Imagem acima de 8 MB ou formato desconhecido dá 400 antes do stream. O <code>content_type</code> que o navegador informa é ignorado.</p>
+      </div></li>
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco e disco</span><code>attachments.attach / user_item</code></p>
+        <h4>O arquivo vai para o disco, e no item fica só uma referência</h4>
+<pre><span class="c"># arquivo: MEDIA_ROOT/assistant/&lt;user_id&gt;/&lt;uuid&gt;.jpg     (o nome original não é usado)</span>
+<span class="c"># Attachment #42</span>  kind = "image", mime = "image/jpeg"
+<span class="c"># Message</span>         role = "user", content = ""
+items = [{"role": "user", "content": [
+           {"type": "input_image", "image_url": "attachment:42", "detail": "high"}]}]</pre>
+        <p class="muted" style="font-size: 0.88rem">Com legenda, entra antes um <code>{"type": "input_text", ...}</code>. O <code>detail: high</code> é proposital: com a leitura barata o modelo erra centavos no cupom.</p>
+      </div></li>
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>client.history → attachments.resolve / embed</code></p>
+        <h4>A referência vira bytes a cada rodada, e só nas duas fotos mais recentes</h4>
+        <ul>
+          <li>Entre as mensagens da janela que têm foto, as <strong>2 mais recentes</strong> (<code>IMAGE_MEMORY</code>) viram <code>data:image/jpeg;base64,…</code>. O arquivo é lido do disco, e a busca confere se o anexo é do dono da conversa.</li>
+          <li>As fotos mais antigas, ou cujo arquivo já foi apagado, viram o texto <code>[o usuário enviou uma foto neste ponto da conversa; a imagem não está mais anexada]</code>.</li>
+          <li>O base64 nunca vai para o banco. Ele é montado na hora e reenviado <em>em toda rodada</em>: uma proposta de 3 rodadas manda a foto 3 vezes.</li>
+        </ul>
+      </div></li>
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador → Django</span><code>AttachmentView</code></p>
+        <h4>A foto que aparece no chat</h4>
+        <p>No histórico, o anexo vem como <code>/assistant/attachment/42/</code>. A view confere o dono (a de outra pessoa dá 404). Em produção ela responde com <code>X-Accel-Redirect</code> e é o nginx quem entrega o arquivo. Com <code>DEBUG</code> ligado, o próprio Django entrega.</p>
+      </div></li>
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco e disco</span><code>make prune-attachments</code></p>
+        <h4>Limpeza</h4>
+        <p>O comando <code>prune_attachments</code> apaga anexos com mais de <code>ASSISTANT_ATTACHMENT_RETENTION_DAYS</code> dias (padrão 30), um por vez, para o sinal <code>post_delete</code> remover o arquivo do disco. Também apaga arquivos sem linha correspondente que tenham mais de 24 h. Limpar a conversa apaga os anexos pelo mesmo sinal.</p>
+      </div></li>
+    </ol>
+  </div>
+
+  <!-- Cenário 4 -->
+  <div class="scenario" id="sc-audio" role="tabpanel" aria-labelledby="tab-audio" hidden>
+    <div class="ask"><q>(áudio) “gastei trinta e dois na farmácia no pix”</q><p>O modelo de chat nunca recebe o áudio. Ele recebe só a transcrição, como se você tivesse digitado.</p></div>
+    <ol class="trace">
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>startRecording() → MediaRecorder</code></p>
+        <h4>Grava e envia</h4>
+        <p>Tenta os formatos nesta ordem: <code>audio/webm;codecs=opus</code> (Chrome), <code>audio/webm</code>, <code>audio/mp4</code> (Safari), <code>audio/ogg</code>. Ao parar, o áudio fica na faixa. No envio, o status é “Transcrevendo o áudio...” e a sua bolha sai sem texto.</p>
+      </div></li>
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>attachments.inspect</code></p>
+        <h4>Confere pelos bytes, com limite de 20 MB</h4>
+        <p>WebM, Ogg, MP4/M4A, WAV ou MP3.</p>
+      </div></li>
+      <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">OpenAI</span><code>client.transcribe</code></p>
+        <h4>Transcreve antes de gravar qualquer coisa</h4>
+<pre>client().audio.transcriptions.create(
+  model    = settings.OPENAI_TRANSCRIBE_MODEL,   <span class="c"># padrão "gpt-4o-transcribe"</span>
+  language = "pt",
+  prompt   = "Fala em português do Brasil sobre finanças pessoais: reais, Pix, boleto, ...")</pre>
+        <p>Se falhar ou voltar vazia: evento <code>error</code> com “Não consegui entender o áudio” e fim. <strong>Nada é gravado</strong>, nem a mensagem nem o anexo. O único rastro fica no log, e a mensagem da cota do dia já foi gasta na barreira de entrada.</p>
+      </div></li>
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>fillBubble()</code></p>
+        <h4>A transcrição preenche a sua bolha</h4>
+<pre>data: {"type": "transcript", "text": "gastei trinta e dois na farmácia no pix"}</pre>
+        <p class="muted" style="font-size: 0.88rem">Se você digitou algo junto, o texto enviado é o digitado, uma quebra de linha e o falado.</p>
+      </div></li>
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco</span></p>
+        <h4>A mensagem guarda o texto, e o áudio fica como anexo</h4>
+<pre>Message: role = "user", content = "gastei trinta e dois na farmácia no pix"
+         items = [{"role": "user", "content": "gastei trinta e dois na farmácia no pix"}]
+Attachment: kind = "audio", mime = "audio/webm"   <span class="c"># só para tocar no chat</span></pre>
+        <p>A partir daqui é o circuito normal. O prompt avisa que a transcrição erra justamente em números e nomes próprios, e pede para confirmar em caso de dúvida em vez de escolher o mais parecido.</p>
+      </div></li>
+    </ol>
+  </div>
+
+  <!-- Cenário 5 -->
+  <div class="scenario" id="sc-comando" role="tabpanel" aria-labelledby="tab-comando" hidden>
+    <div class="ask"><q>/gastos-fixos setembro</q><p>Um comando é só um texto guardado. O chat mostra o que você digitou, e o modelo recebe as instruções expandidas.</p></div>
+    <ol class="trace">
+      <li class="step" data-lane="nav"><div class="rail"><span class="on"></span><span></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Navegador</span><code>renderSuggestions() / useCommand()</code></p>
+        <h4>A barra abre as sugestões</h4>
+        <p>Enquanto o campo contém só <code>/</code> e o começo de um nome, aparece a lista de comandos salvos. As setas navegam, Enter envia o comando destacado, Tab completa o nome e deixa um espaço para o complemento. A lista existe só para sugerir: quem resolve o nome é o servidor.</p>
+      </div></li>
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>commands.find, dentro da barreira do StreamView</code></p>
+        <h4>Resolve o nome antes do stream</h4>
+        <p>A regex <code>/([a-z0-9-]+)</code> só vale <strong>no começo</strong> da mensagem e precisa ser seguida de espaço ou do fim do texto. “1/2 do aluguel” continua sendo conversa. O nome é comparado em minúsculas. Se você não tiver esse comando, a resposta é 400: “Você não tem o comando /gastos-fixos”.</p>
+      </div></li>
+      <li class="step" data-lane="db"><div class="rail"><span></span><span></span><span></span><span class="on"></span></div><div class="body">
+        <p class="where"><span class="lane">Banco</span><code>commands.expand</code></p>
+        <h4>O content guarda o que foi digitado, e o item leva as instruções</h4>
+<pre>content = "/gastos-fixos setembro"
+items   = [{"role": "user", "content":
+"[Comando /gastos-fixos] Instruções que salvei para este comando. Siga-as agora e me responda com o resultado.
+
+&lt;instrucoes&gt;
+Some as saídas das categorias Aluguel, Luz, Internet e Academia e mostre numa tabela.
+&lt;/instrucoes&gt;
+
+Complemento: setembro"}]</pre>
+        <p class="muted" style="font-size: 0.88rem">As instruções são copiadas no momento da chamada. Se você editar o comando depois, as conversas antigas continuam com o texto antigo. No admin, isso aparece em “Texto enviado ao modelo”.</p>
+      </div></li>
+      <li class="step" data-lane="ia"><div class="rail"><span></span><span></span><span class="on"></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">OpenAI</span></p>
+        <h4>Daqui em diante é o circuito normal</h4>
+        <p>A seção <code># COMANDOS</code> do prompt manda tratar as instruções como pedido seu, responder sem perguntar se deve começar e manter as regras: números vêm de ferramenta, gravar é por proposta.</p>
+      </div></li>
+      <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
+        <p class="where"><span class="lane">Django</span><code>CommandForm · Command.limit_for</code></p>
+        <h4>Criar e editar comandos</h4>
+        <p>O modal fica só na página do assistente. O nome passa por slug (“Gastos Fixos” vira <code>gastos-fixos</code>) e é único por usuário. O limite é 5 comandos, 10 ou 20 com as permissões <code>command_limit_10</code> e <code>command_limit_20</code>, e ilimitado com <code>unlimited_commands</code> ou para o superusuário. O limite só barra a criação.</p>
+      </div></li>
+    </ol>
+  </div>
+</section>
+
+<section id="admin">
+  <div class="section-head">
+    <h2>Como ler o admin</h2>
+    <p class="prose muted">Em <em>Assistente › Mensagens</em>, cada linha é uma <code>Message</code>, exceto as <code>role=tool</code>, que aparecem dentro da chamada que as pediu (ligadas pelo <code>call_id</code>). A lista é ordenada da <strong>mais nova para a mais antiga</strong>, então uma conversa se lê de baixo para cima. Filtre pelo usuário.</p>
+  </div>
+
+  <div class="pill-key">
+    <div><span><span class="pill p-user">Usuário</span></span><p>Uma mensagem sua visível. Ao abrir: o texto, o anexo e, num /comando, o “Texto enviado ao modelo”.</p></div>
+    <div><span><span class="pill p-call">Chamada de Ferramenta</span></span><p>Uma rodada em que o modelo só pediu ferramentas, sem texto. Mostra os argumentos (sem os <code>null</code>) e um resumo do retorno.</p></div>
+    <div><span><span class="pill p-error">Ferramenta Recusou</span></span><p>Uma rodada em que pelo menos uma chamada voltou <code>ok: false</code>. Isso não é bug por si só: o erro vai para o modelo corrigir. Vira problema se a rodada seguinte não corrigir.</p></div>
+    <div><span><span class="pill p-assistant">Assistente</span></span><p>Uma rodada com texto. Normalmente é a resposta final, mas uma rodada com texto <em>e</em> chamadas também recebe esta etiqueta.</p></div>
+    <div><span><span class="pill p-notice">Aviso Interno</span></span><p>O recado invisível sobre o desfecho de uma proposta (confirmada, descartada ou recusada), que só o modelo lê.</p></div>
+  </div>
+
+  <p class="eyebrow">A nova transação e a confirmação, como aparecem no admin</p>
+  <div class="admin-list" role="table" aria-label="Exemplo da lista de mensagens no admin">
+    <div class="admin-row head" role="row"><span role="columnheader">Quando</span><span role="columnheader">Etapa</span><span role="columnheader">O que aconteceu</span></div>
+    <div class="admin-row" role="row"><span class="t" role="cell">14/09/2026 10:02:41</span><span role="cell"><span class="pill p-notice">Aviso Interno</span></span><span class="d" role="cell">O usuário confirmou a proposta 17 (Criar transação) e ela FOI gravada: Mercado (50,00).</span></div>
+    <div class="admin-row" role="row"><span class="t" role="cell">14/09/2026 10:01:58</span><span role="cell"><span class="pill p-assistant">Assistente</span></span><span class="d" role="cell">Já existe uma transação igual no dia 13. Confere se não é repetida antes de confirmar.</span></div>
+    <div class="admin-row" role="row"><span class="t" role="cell">14/09/2026 10:01:55</span><span role="cell"><span class="pill p-call">Chamada de Ferramenta</span></span><span class="d" role="cell"><code>propor_transacao</code> → Proposta #17: Criar transação (Confirmada)</span></div>
+    <div class="admin-row" role="row"><span class="t" role="cell">14/09/2026 10:01:52</span><span role="cell"><span class="pill p-call">Chamada de Ferramenta</span></span><span class="d" role="cell"><code>consultar_cadastros</code> → 6 contas, 12 categorias, 2 cartões</span></div>
+    <div class="admin-row" role="row"><span class="t" role="cell">14/09/2026 10:01:50</span><span role="cell"><span class="pill p-user">Usuário</span></span><span class="d" role="cell">Lança 50 reais de mercado hoje no débito do Nubank</span></div>
+  </div>
+  <p class="prose muted" style="font-size: 0.9rem">A situação entre parênteses na linha da proposta é lida da <code>Proposal</code> na hora em que você abre o admin. Por isso ela mostra “Confirmada” mesmo tendo sido criada como pendente. O link leva à proposta, com <code>payload</code>, <code>snapshot</code> e resumo. Na página de detalhe de cada mensagem, o campo <em>Itens</em> é o JSON exato que volta para a API.</p>
+  <p class="prose muted" style="font-size: 0.9rem">Em <em>Assistente › Usos Diários</em> há uma linha por usuário e dia, com as mensagens enviadas e o limite que as permissões dão hoje. Apagar a linha de hoje devolve o dia inteiro ao usuário.</p>
+</section>
+
+<section id="garantias">
+  <div class="section-head">
+    <h2>O que é garantido e o que é só pedido</h2>
+    <p class="prose muted">Esta é a distinção que mais importa para confiar no assistente. O que está à esquerda o código impõe, não importa o que o modelo faça. O que está à direita depende de o modelo seguir o prompt, e por isso vale conferir no admin.</p>
+  </div>
+  <div class="split">
+    <div>
+      <h3><i style="background: var(--good)"></i>Garantido pelo código</h3>
+      <ul class="claims">
+        <li><b>Nada é gravado sem o seu clique.</b><span>As ferramentas <code>propor_*</code> só criam <code>Proposal</code>. <code>Transaction</code> e <code>Card</code> são gravados apenas em <code>proposals.apply</code>, chamado só pelo POST de confirmação.</span></li>
+        <li><b>O que se grava é o que o card mostrou.</b><span>O <code>payload</code> fica guardado e é validado de novo pelo mesmo form da tela. Em editar e apagar, se o registro mudou desde a proposta, a confirmação é recusada.</span></li>
+        <li><b>Cada um vê só o que é seu.</b><span>Transações, cartões, propostas, conversas e anexos são sempre filtrados pelo usuário da requisição. O modelo não escolhe o usuário. Contas e categorias são compartilhadas por desenho.</span></li>
+        <li><b>A regra de negócio é a mesma da tela.</b><span>A proposta usa <code>CardForm</code>, <code>TransactionForm</code>, <code>InstallmentForm</code> e <code>TransferForm</code>. Apagar testa o <code>delete()</code> real e desfaz.</span></li>
+        <li><b>Uma transação parecida sempre aparece no card.</b><span>Ao criar transação, parcelamento ou transferência, <code>proposals.similar</code> faz a busca e o card mostra o quadro vermelho. Isso não depende do modelo. O aviso não impede a confirmação.</span></li>
+        <li><b>Toda consulta calcula no banco.</b><span>As ferramentas somam com <code>Sum</code> e devolvem o recorte aplicado. Um argumento inválido volta como erro, e nunca vira um filtro silencioso.</span></li>
+        <li><b>A cota diária barra antes de qualquer custo.</b><span>20 mensagens por dia sem faixa, 50 ou 100 com <code>message_limit_50</code> ou <code>message_limit_100</code>, e ilimitado com <code>unlimited_messages</code> ou para o superusuário. Sem cota não há transcrição, anexo nem chamada ao modelo. A conferência e a soma são um UPDATE só, então duas abas não passam juntas pela última vaga.</span></li>
+        <li><b>Há limites fixos.</b><span>8 rodadas por mensagem. Uma chamada idêntica a outra que já falhou não é executada de novo. 2000 caracteres por mensagem. Propostas expiram em 1 hora. Imagens até 8 MB e áudios até 20 MB, conferidos pelos bytes.</span></li>
+      </ul>
+    </div>
+    <div>
+      <h3><i style="background: var(--warn)"></i>Só pedido ao modelo (prompt.py)</h3>
+      <ul class="claims">
+        <li><b>Que o número da resposta seja o da ferramenta.</b><span>Nada impede o modelo de escrever um valor diferente do <code>total</code> que recebeu. <strong>Este é o ponto principal a conferir.</strong></span></li>
+        <li><b>Que “quanto gastei” use <code>nature: REGULAR</code>.</b><span>Sem esse filtro entram transferências e ajustes de saldo, e o número fica diferente do da Visão Geral.</span></li>
+        <li><b>Que ele diga qual recorte usou.</b><span>Por exemplo, data efetiva ou data da compra no crédito.</span></li>
+        <li><b>Que não diga “feito” antes da confirmação.</b><span>O retorno da proposta avisa com “NADA foi gravado”, mas a frase quem escreve é o modelo.</span></li>
+        <li><b>Que avise na frase que a transação pode ser repetida.</b><span>O card avisa de qualquer jeito. A frase e o “não insistir” se você disser que é outra dependem do modelo.</span></li>
+        <li><b>Que pergunte o que falta em vez de chutar.</b><span>Isso vale para a conta, o valor ilegível numa foto e o nome mal transcrito num áudio.</span></li>
+        <li><b>Que recuse assuntos fora do escopo e trate o texto dentro de imagens como dado.</b><span>Não há filtro no código para isso.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="atencao">
+  <div class="section-head">
+    <h2>Comportamentos que podem surpreender</h2>
+    <p class="prose muted">Nada disto é erro de implementação. São consequências do desenho que, sem saber, parecem defeito.</p>
+  </div>
+  <ul class="watch">
+    <li><h4>A memória acaba antes do que parece</h4><p>O limite de 40 conta <em>linhas</em> de <code>Message</code>, e não perguntas. Uma pergunta com duas ferramentas ocupa 6 linhas, e os avisos internos também contam. Com perguntas desse tipo, o modelo lembra de algo como as últimas 6 ou 7.</p></li>
+    <li><h4>Confirmar não acorda o modelo</h4><p>O aviso interno é gravado no clique, mas o modelo só o lê na sua próxima mensagem. Até lá, nada muda na conversa.</p></li>
+    <li><h4>Uma falha no meio deixa rastro parcial</h4><p>Se a OpenAI falhar na rodada 2, a sua mensagem e a rodada 1 ficam gravadas sem resposta. Na mensagem seguinte, o modelo vê a pergunta anterior sem resposta.</p></li>
+    <li><h4>Nem todo erro aparece no admin</h4><p>Uma transcrição que falhou não grava nada. Uma exceção numa ferramenta vira “A ferramenta falhou” para o modelo, e o traceback vai para o log (“Ferramenta … falhou na conversa …”). Uma exceção fora disso gera “Stream da conversa … morreu”. Para depurar, olhe também o log do container.</p></li>
+    <li><h4>Descartar funciona depois de expirar</h4><p><code>cancel()</code> só verifica se a proposta está <code>pending</code>, e não a idade. Um card que ficou aberto na tela por mais de 1 hora ainda aceita Descartar e registra “Descartada”. Confirmar, não.</p></li>
+    <li><h4>O aviso de repetida é tirado na hora da proposta</h4><p>A busca roda só quando a proposta é criada, e não de novo no clique. Se uma transação igual for gravada pela tela enquanto o card está aberto, ele não avisa. Na proposta de transação, a busca olha todas as transações da conta, inclusive parcelas e pernas de transferência, e compara a data da compra, e não a data efetiva.</p></li>
+    <li><h4>Limpar apaga tudo</h4><p><code>ResetView</code> apaga a <code>Conversation</code>, e com ela, em cascata, as mensagens, as propostas (inclusive as pendentes) e os anexos, com os arquivos. As transações já confirmadas continuam, e a cota do dia não volta.</p></li>
+    <li><h4>A cota conta o envio, e não a resposta</h4><p>Uma mensagem aceita na barreira de entrada gasta a cota mesmo que o modelo falhe ou o áudio não se transcreva, porque a chamada à API já aconteceu. Quem não tem limite também é contado. O dia vira à meia-noite de São Paulo (<code>timezone.localdate()</code>).</p></li>
+  </ul>
+</section>
+
+<section id="roteiro">
+  <div class="section-head">
+    <h2>Roteiro para você verificar</h2>
+    <p class="prose muted">Cada item exercita uma parte do circuito e diz o que procurar no admin. Com a lista completa, cada garantia do código terá sido vista funcionando pelo menos uma vez. As marcações ficam salvas só neste navegador.</p>
+  </div>
+  <ol class="checks">
+    <li><input type="checkbox" id="chk-numero"><label for="chk-numero">
+      <h4>Um número bate com a tela</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Pergunte “quanto gastei em agosto?” e abra a Visão Geral no mesmo mês.</dd>
+        <dt>No admin</dt><dd>Na linha de <code>analisar_transacoes</code>: <code>start</code>/<code>end</code> de agosto e <code>nature: ["REGULAR"]</code>. Em “Retorno completo”, <code>total.outcome</code> tem que ser o número da resposta.</dd>
+        <dt>Problema se</dt><dd class="bad">o número da resposta não aparece em nenhum retorno, ou o filtro de natureza ficou de fora.</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-recusa"><label for="chk-recusa">
+      <h4>Um erro de ferramenta é corrigido</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Não há como forçar o modelo a errar. Filtre o admin pelo seu usuário e procure linhas <span class="pill p-error">Ferramenta Recusou</span> nas conversas que já existem.</dd>
+        <dt>No admin</dt><dd>Logo acima de cada uma (a lista é da mais nova para a mais antiga), uma chamada corrigida ou uma pergunta para você.</dd>
+        <dt>Problema se</dt><dd class="bad">a resposta traz um valor mesmo assim, ou a mensagem termina em “Não consegui fechar uma resposta” (8 rodadas).</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-descartar"><label for="chk-descartar">
+      <h4>Descartar não grava</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Peça uma transação nova e clique em Descartar.</dd>
+        <dt>No admin</dt><dd><code>Proposal</code> com situação “Descartada”, um <span class="pill p-notice">Aviso Interno</span>, e nenhuma transação nova na listagem.</dd>
+        <dt>Problema se</dt><dd class="bad">surgir uma transação, ou o modelo disser “lancei” antes do clique.</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-confirmar"><label for="chk-confirmar">
+      <h4>Confirmar grava exatamente o card</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Peça uma transação no crédito, confira a Data Efetiva no card e clique em Confirmar.</dd>
+        <dt>No admin</dt><dd>“Confirmada”, e o <code>payload</code> da proposta igual aos campos da transação criada, com a mesma data efetiva do card.</dd>
+        <dt>Problema se</dt><dd class="bad">algum campo da transação difere do card.</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-repetida"><label for="chk-repetida">
+      <h4>Uma transação repetida é avisada, mas não barrada</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Peça de novo uma transação que já existe: mesma conta, tipo e valor, com data a até 3 dias da original.</dd>
+        <dt>No admin</dt><dd>No resumo da <code>Proposal</code>, a chave <code>similar</code> com a transação original. O card mostra o quadro vermelho e a frase do modelo fala em repetição. Confirmando, a segunda transação é gravada.</dd>
+        <dt>Problema se</dt><dd class="bad">o card não avisar, se avisar com outro valor ou outra conta, ou se a confirmação for recusada por causa do aviso.</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-conflito"><label for="chk-conflito">
+      <h4>Uma edição concorrente é barrada</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Peça para mudar o valor de uma transação. Antes de confirmar, edite essa transação pela tela normal. Depois clique em Confirmar.</dd>
+        <dt>No admin</dt><dd>“Recusada na Confirmação”, com o resultado “O registro mudou desde a proposta”. O card mostra “Não foi gravado”.</dd>
+        <dt>Problema se</dt><dd class="bad">a confirmação sobrescrever a sua edição manual.</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-foto"><label for="chk-foto">
+      <h4>A foto chega ao modelo e não pesa no banco</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Mande a foto de um cupom sem legenda.</dd>
+        <dt>No admin</dt><dd>Em <em>Anexos</em>, uma linha <code>image/jpeg</code>. Nos <em>Itens</em> da mensagem, <code>"image_url": "attachment:N"</code>, e não um base64 enorme. A proposta traz o valor e a data do cupom.</dd>
+        <dt>Problema se</dt><dd class="bad">o valor proposto não estiver no cupom (o modelo estimou em vez de perguntar).</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-comando"><label for="chk-comando">
+      <h4>O comando expande</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Crie <code>/teste</code> com uma instrução simples e chame <code>/teste agosto</code>.</dd>
+        <dt>No admin</dt><dd>A linha do usuário mostra “/teste agosto”. Em “Texto enviado ao modelo” aparecem o <code>&lt;instrucoes&gt;</code> e o <code>Complemento: agosto</code>.</dd>
+        <dt>Problema se</dt><dd class="bad">o modelo perguntar “devo começar?” ou ignorar o complemento.</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-cota"><label for="chk-cota">
+      <h4>A cota do dia barra todos os tipos</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Com um usuário sem faixa, abra <em>Usos Diários</em> no admin e acompanhe a linha dele enquanto envia texto, uma foto, um áudio e um /comando. Depois clique em Limpar e envie mais uma.</dd>
+        <dt>No admin</dt><dd>“Mensagens Enviadas” sobe 1 a cada envio, inclusive depois de Limpar. Um /comando inexistente não sobe o contador. Quando o contador chega a 20, a mensagem seguinte é recusada no chat e nenhuma <code>Message</code> nova aparece.</dd>
+        <dt>Problema se</dt><dd class="bad">algum tipo de envio não contar, se Limpar zerar o contador ou se uma mensagem além das 20 chegar ao modelo.</dd>
+      </dl>
+    </label></li>
+    <li><input type="checkbox" id="chk-isolamento"><label for="chk-isolamento">
+      <h4>Outro usuário não enxerga nada</h4>
+      <dl class="expect">
+        <dt>Faça</dt><dd>Com um segundo usuário que tenha a permissão, abra o chat e abra a URL <code>/assistant/attachment/N/</code> de um anexo do primeiro.</dd>
+        <dt>Esperado</dt><dd>Uma conversa vazia para o segundo usuário, e 404 no anexo. As somas que ele pedir não incluem as suas transações.</dd>
+        <dt>Problema se</dt><dd class="bad">qualquer dado do primeiro usuário aparecer.</dd>
+      </dl>
+    </label></li>
+  </ol>
+</section>
+
+<section id="mapa">
+  <div class="section-head">
+    <h2>Onde está cada coisa</h2>
+    <p class="prose muted">Para quando você quiser abrir o código de uma etapa acima. Os caminhos são relativos à pasta <code>assistant/</code>.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Arquivo</th><th>Papel no circuito</th></tr></thead>
+      <tbody>
+        <tr><td>views.py</td><td>Portas HTTP: a barreira do stream (com a cota do dia), o histórico, confirmar e descartar, anexos, limpar e o CRUD de comandos.</td></tr>
+        <tr><td>urls.py</td><td>As 11 rotas do assistente.</td></tr>
+        <tr><td>client.py</td><td>O laço de rodadas (<code>converse</code>), a montagem do histórico, a transcrição e a leitura do stream.</td></tr>
+        <tr><td>prompt.py</td><td>As regras dadas ao modelo, com o nome do usuário e a data de hoje.</td></tr>
+        <tr><td>tools.py</td><td>Os 8 schemas enviados à API e o despachante <code>run()</code>.</td></tr>
+        <tr><td>queries.py</td><td>As 4 ferramentas de leitura: filtros, agregação, listagem, saldo e cadastro.</td></tr>
+        <tr><td>proposals.py</td><td>As 4 ferramentas de escrita: montar a proposta, o card, a busca de transação parecida, confirmar, descartar e o aviso interno.</td></tr>
+        <tr><td>attachments.py</td><td>A checagem pelos bytes, a gravação, a referência <code>attachment:N</code> e a conversão para base64.</td></tr>
+        <tr><td>commands.py · forms.py</td><td>Resolver <code>/nome</code>, expandir as instruções e validar comandos com limite.</td></tr>
+        <tr><td>models.py</td><td><code>Conversation</code>, <code>Message</code>, <code>Attachment</code>, <code>Proposal</code>, <code>Command</code> e <code>DailyUsage</code>, a cota do dia com as faixas de permissão.</td></tr>
+        <tr><td>admin.py</td><td>A linha do tempo das mensagens e o uso diário, somente leitura.</td></tr>
+        <tr><td>management/commands/prune_attachments.py</td><td>A limpeza dos anexos vencidos e dos arquivos órfãos.</td></tr>
+        <tr><td>templates/assistant/panel.html · page.html</td><td>O painel (cabeçalho, lista, compositor e modal de comandos) e a página que o embute.</td></tr>
+        <tr><td>static/…/assistant.js</td><td>O envio, a leitura do stream, o Markdown, os cards, a foto, o áudio e as sugestões de comando.</td></tr>
+        <tr><td>static/…/css/</td><td>A aparência do chat (<code>assistant.css</code>) e da linha do tempo do admin (<code>admin.css</code>).</td></tr>
+        <tr><td>docs/ARQUITETURA.html</td><td>Este documento.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="eyebrow">Fora da pasta</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Arquivo</th><th>O quê</th></tr></thead>
+      <tbody>
+        <tr><td>project/settings.py</td><td>O app em <code>INSTALLED_APPS</code>, a chave e os modelos da OpenAI, a retenção dos anexos e a CSP.</td></tr>
+        <tr><td>project/urls.py</td><td><code>assistant/</code> pendurado na raiz.</td></tr>
+        <tr><td>templates/global/global.html</td><td>O CSS, o link no menu, o painel flutuante (fora da página do assistente) e o script, tudo atrás de <code>perms.assistant.use_assistant</code>.</td></tr>
+        <tr><td>deploy/http.conf</td><td>O <code>/protected-media/</code> interno e o <code>location</code> do stream sem buffer.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="operacao">
+  <div class="section-head">
+    <h2>Configuração e operação</h2>
+    <p class="prose muted">O que liga o assistente para alguém, o que se ajusta por ambiente e o que a infraestrutura precisa fazer para o stream e os anexos funcionarem.</p>
+  </div>
+  <div class="subs">
+    <div class="sub">
+      <h3>Permissões</h3>
+      <div class="table-wrap">
+        <table class="wrap">
+          <thead><tr><th>Permissão</th><th>Efeito</th></tr></thead>
+          <tbody>
+            <tr><td>assistant.use_assistant</td><td>Libera o assistente: o link no menu, o CSS, o painel, o script e as 11 rotas. Sem ela, as rotas respondem 403.</td></tr>
+            <tr><td>assistant.command_limit_10 · assistant.command_limit_20 · assistant.unlimited_commands</td><td>Sobem o limite de 5 comandos para 10, 20 ou ilimitado.</td></tr>
+            <tr><td>assistant.message_limit_50 · assistant.message_limit_100 · assistant.unlimited_messages</td><td>Sobem o limite de 20 mensagens por dia para 50, 100 ou ilimitado.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose">Nas duas famílias de faixa, com mais de uma permissão vale a maior, e o superusuário é ilimitado porque tem todas. A regra está em <code>tier_limit</code>, no <code>models.py</code>. Tirar a faixa de comandos não apaga comando: só impede criar até ficar abaixo do limite novo. Tirar a faixa de mensagens vale a partir do próximo envio.</p>
+      <p class="prose muted">As permissões são dadas pelo admin, no usuário ou num grupo. Em código:</p>
+<pre>user.user_permissions.add(Permission.objects.get(codename='use_assistant', content_type__app_label='assistant'))</pre>
+    </div>
+
+    <div class="sub">
+      <h3>Variáveis de ambiente</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variável</th><th>Padrão</th><th>Para quê</th></tr></thead>
+          <tbody>
+            <tr><td>OPENAI_API_KEY</td><td>—</td><td>A chave da OpenAI.</td></tr>
+            <tr><td>OPENAI_MODEL</td><td><code>gpt-5.6-luna</code></td><td>O modelo do chat.</td></tr>
+            <tr><td>OPENAI_TRANSCRIBE_MODEL</td><td><code>gpt-4o-transcribe</code></td><td>O modelo que transcreve os áudios.</td></tr>
+            <tr><td>ASSISTANT_ATTACHMENT_RETENTION_DAYS</td><td><code>30</code></td><td>Depois de quantos dias o <code>prune_attachments</code> apaga um anexo. Zero não apaga nada por idade.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose">Trocar de modelo é variável de ambiente, e não deploy de código. Antes, confira se o modelo novo aceita <code>include=['reasoning.encrypted_content']</code> (sem isso o laço refaz consultas e fica caro) e <code>strict: True</code> com <code>additionalProperties: False</code>, que é o que impede argumento inventado.</p>
+    </div>
+
+    <div class="sub">
+      <h3>nginx (deploy/http.conf)</h3>
+      <div class="grid-2">
+        <div class="sub">
+<pre>location /protected-media/ {
+    internal;
+    alias /app/media_root/;
+}</pre>
+          <p class="prose"><code>internal</code> significa que o navegador não consegue chegar aqui: só um <code>X-Accel-Redirect</code> vindo do <code>AttachmentView</code> abre esta porta.</p>
+        </div>
+        <div class="sub">
+<pre>location /assistant/stream/ {
+    ...
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 300s;
+    gzip off;
+
+    client_max_body_size 25m;
+}</pre>
+          <p class="prose">Cada linha desfaz um comportamento padrão que quebraria o stream: HTTP/1.1 e <code>Connection</code> vazio para a conexão ficar aberta, buffer e cache desligados para o pedaço chegar na hora, <code>gzip off</code> porque o compressor também acumula, 300 s de timeout porque uma resposta com várias ferramentas demora, e 25 MB de corpo, folga sobre o limite de 20 MB do áudio.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>CSP (project/settings.py)</h3>
+      <ul class="claims">
+        <li><b><code>script-src: self</code></b><span>Nenhum script inline, por isso as rotas e o CSRF vão em atributos <code>data-*</code> do painel.</span></li>
+        <li><b><code>img-src: self, data:, blob:</code></b><span><code>blob:</code> é a prévia da foto antes do envio.</span></li>
+        <li><b><code>media-src: self, blob:</code></b><span>A prévia do áudio gravado.</span></li>
+        <li><b><code>connect-src: self</code></b><span>O <code>fetch</code> do stream só fala com a própria origem.</span></li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3>Logs e limpeza</h3>
+<pre>make containers-logs container=django          <span class="c"># "Ferramenta … falhou", "Stream da conversa … morreu", áudio não transcrito</span>
+make prune-attachments                         <span class="c"># apaga anexos vencidos e arquivos órfãos</span>
+make prune-attachments args="--dry-run"        <span class="c"># só conta o que sairia</span></pre>
+    </div>
+  </div>
+</section>
+
+<section id="estender">
+  <div class="section-head">
+    <h2>Como estender</h2>
+    <p class="prose muted">Os passos para as mudanças mais prováveis, na ordem em que o circuito precisa delas.</p>
+  </div>
+  <div class="grid-2">
+    <div class="sub">
+      <h3>Uma ferramenta de leitura</h3>
+      <ol>
+        <li>Escreva a função em <code>queries.py</code> recebendo <code>(user, arguments)</code> e levantando <code>QueryError</code> com uma mensagem que ensine o formato certo.</li>
+        <li>Declare o schema em <code>TOOLS</code>, no <code>tools.py</code>, com <code>function(...)</code>.</li>
+        <li>Registre a função no dicionário <code>readers</code> de <code>tools.run</code>.</li>
+        <li>Acrescente a frase de status no <code>STATUS</code> do <code>assistant.js</code>.</li>
+        <li>Se ela mudar o sentido de algum recorte, diga isso no <code>prompt.py</code>.</li>
+        <li>Teste em <code>tests/assistant/test_queries.py</code>.</li>
+      </ol>
+    </div>
+    <div class="sub">
+      <h3>Um tipo proponível</h3>
+      <ol>
+        <li>Acrescente o valor em <code>Kind</code>, no <code>models.py</code>, <strong>e</strong> gere a migration: a <code>CheckConstraint</code> de <code>kind</code> precisa conhecê-lo.</li>
+        <li>Acrescente a linha em <code>SPECS</code>, no <code>proposals.py</code>, com model, form, as ações permitidas e, se criar pode repetir um registro, os campos de <code>matching</code>. Nesse caso o model precisa ter <code>value</code> e <code>occurred_at</code>.</li>
+        <li>Declare a ferramenta com <code>proposal(...)</code> em <code>TOOLS</code> e registre-a em <code>PROPOSERS</code>.</li>
+        <li>Se o card precisar de linha calculada ou nota, acrescente o ramo em <code>build</code> e, para apagar, em <code>delete_summary</code>.</li>
+        <li>Documente a regra no <code>prompt.py</code>: o modelo não adivinha o que o novo tipo significa.</li>
+        <li>Teste em <code>tests/assistant/test_proposals.py</code>.</li>
+      </ol>
+    </div>
+    <div class="sub">
+      <h3>Uma faixa de limite</h3>
+      <ol>
+        <li>Acrescente a permissão no <code>Meta.permissions</code> do model (<code>Command</code> ou <code>DailyUsage</code>) e a tupla em <code>TIERS</code>, mantendo a ordem da maior para a menor.</li>
+        <li>Gere a migration com <code>make make-migrations app=assistant</code>.</li>
+        <li>Teste no <code>test_commands.py</code> ou no <code>test_usage.py</code>, que já têm o padrão parametrizado das faixas.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section id="testes">
+  <div class="section-head">
+    <h2>Testes</h2>
+    <p class="prose muted">A peça central é a fixture <code>fake_openai</code>, no <code>conftest.py</code>: ela troca <code>assistant.client.client</code> por um objeto que devolve rodadas enfileiradas, em ordem, montadas por <code>text_turn</code> e <code>tool_turn</code>. Dá para testar o laço inteiro, inclusive as 8 rodadas do limite, sem tocar na rede. Os testes também são um bom lugar para ver cada cenário deste documento descrito em poucas linhas.</p>
+  </div>
+<pre>make run-tests                                  <span class="c"># a suíte inteira, alguns minutos</span>
+make run-tests args="tests/assistant -q"        <span class="c"># só o assistente</span></pre>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Arquivo</th><th>Cobre</th></tr></thead>
+      <tbody>
+        <tr><td>conftest.py</td><td>As fixtures e o cliente falso da OpenAI.</td></tr>
+        <tr><td>test_access.py</td><td>Quem entra e quem recebe 403 em cada rota.</td></tr>
+        <tr><td>test_admin.py</td><td>A seção Assistente, o admin só de leitura, a linha do tempo (chamada junto do retorno, recusa, situação da proposta, comando, aviso interno, resumo de uma linha) e o limite atual no uso diário.</td></tr>
+        <tr><td>test_attachments.py</td><td>Assinatura pelos bytes, limites, caminho no disco, entrega protegida e esquecimento das fotos antigas.</td></tr>
+        <tr><td>test_client.py</td><td>O laço: rodadas, limite de 8, chamada repetida que falhou e histórico.</td></tr>
+        <tr><td>test_commands.py</td><td>Gerenciar comandos (dono, nome, repetição, faixas de permissão, quem perde a faixa, tamanho) e chamá-los: o que o modelo lê e o que o chat mostra.</td></tr>
+        <tr><td>test_proposals.py</td><td>Validação, snapshot, expiração, confirmação e recusa, e a transação parecida: o que avisa, o que não avisa e que o aviso não barra.</td></tr>
+        <tr><td>test_queries.py</td><td>Filtros, agregação, eixos, saldo e cadastro.</td></tr>
+        <tr><td>test_tools.py</td><td>O contrato dos schemas.</td></tr>
+        <tr><td>test_usage.py</td><td>A cota do dia: o limite padrão, todos os tipos de envio contando igual, recusas que não gastam, Limpar que não devolve, o dia seguinte, outro usuário e as faixas.</td></tr>
+        <tr><td>test_prune_attachments.py</td><td>Vencidos, órfãos, folga de 24 h e <code>--dry-run</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function () {
+  const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+
+  function select(tab) {
+    tabs.forEach((other) => {
+      const active = other === tab;
+      other.setAttribute('aria-selected', active ? 'true' : 'false');
+      other.tabIndex = active ? 0 : -1;
+      document.getElementById(other.getAttribute('aria-controls')).hidden = !active;
+    });
+  }
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => select(tab));
+    tab.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+      const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+      select(next);
+      next.focus();
+      event.preventDefault();
+    });
+  });
+
+  const KEY = 'finflow-assistente-roteiro';
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (error) { saved = {}; }
+
+  document.querySelectorAll('.checks input').forEach((box) => {
+    const item = box.closest('li');
+    box.checked = Boolean(saved[box.id]);
+    item.classList.toggle('done', box.checked);
+    box.addEventListener('change', () => {
+      saved[box.id] = box.checked;
+      item.classList.toggle('done', box.checked);
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (error) { /* sem armazenamento, só não lembra */ }
+    });
+  });
+})();
+</script>
+</body>
+</html>
