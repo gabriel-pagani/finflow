@@ -291,7 +291,9 @@ def test_o_portal_nao_e_capturado_pelo_middleware(client, user, settings):
     user.save(update_fields=['is_staff'])
     client.force_login(user)
 
-    response = client.get(f'/{settings.ADMIN_PANEL_PATH.strip("/")}/')
+    # Montado como o urls.py monta, e não como se acha que ele monta: a variável
+    # pode vir com ou sem barra no fim, e a rota sai diferente em cada caso.
+    response = client.get(f'/{settings.ADMIN_PANEL_PATH}/')
 
     assert response.status_code in (200, 302)
     assert reverse('app:otp_setup') not in response.get('Location', '')
