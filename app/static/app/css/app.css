@@ -572,7 +572,7 @@
     background: none;
     border: none;
     color: var(--muted);
-    text-decoration: underline;
+    /* text-decoration: underline; */
     cursor: pointer;
     padding: 0;
 }

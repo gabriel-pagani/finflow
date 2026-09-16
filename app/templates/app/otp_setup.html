@@ -14,7 +14,7 @@
 
         <h2 class="otp-title">Ative a verificação em duas etapas</h2>
         <p class="login-aside">
-            Abra um aplicativo autenticador e aponte a câmera para o QR Code abaixo.
+            Abra um aplicativo autenticador e aponte a câmera para o QR Code abaixo:
         </p>
 
         {% for error in form.non_field_errors %}
@@ -22,11 +22,6 @@
         {% endfor %}
 
         <div class="otp-qr">{{ qr }}</div>
-
-        <p class="login-aside">
-            Não consegue apontar a câmera? Cadastre à mão:<br>
-            <code class="otp-secret">{{ secret }}</code>
-        </p>
 
         <form method="post" action="{% url 'app:otp_setup' %}">
             {% csrf_token %}

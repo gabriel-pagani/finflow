@@ -7,6 +7,7 @@ app_name = 'app'
 
 urlpatterns = [
     path('login/', views.LoginView.as_view(), name='login'),
+    path('login/token/', views.LoginTokenView.as_view(), name='login_token'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('access-request/', views.AccessRequestView.as_view(), name='access_request'),
     path('two-factor/', views.OtpSetupView.as_view(), name='otp_setup'),

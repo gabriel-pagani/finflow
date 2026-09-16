@@ -1,4 +1,4 @@
-from .auth import AccessRequestView, LoginView, LogoutView, OtpSetupView
+from .auth import AccessRequestView, LoginTokenView, LoginView, LogoutView, OtpSetupView
 from .cards import CardCreateView, CardDeleteView, CardUpdateView, CardsListView
 from .dashboards import ForecastView, OverviewView
 from .transactions import (
@@ -19,6 +19,7 @@ __all__ = [
     'CardsListView',
     'ForecastView',
     'InstallmentCreateView',
+    'LoginTokenView',
     'LoginView',
     'LogoutView',
     'OtpSetupView',

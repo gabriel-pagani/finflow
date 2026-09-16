@@ -1,0 +1,34 @@
+{% extends 'app/app.html' %}
+{% load static %}
+
+{% block title %}Verificação - FinFlow{% endblock %}
+
+{% block body_class %}page-login{% endblock %}
+
+{% block content %}
+    <section class="card login-card">
+        <h1>
+            <img src="{% static 'global/images/dark-blue-logo.png' %}">
+            FinFlow
+        </h1>
+
+        <form method="post" action="{% url 'app:login_token' %}">
+            {% csrf_token %}
+
+            <div class="login-field">
+                <label for="{{ form.token.id_for_label }}">{{ form.token.label }}</label>
+                {{ form.token }}
+                {% for error in form.token.errors %}
+                    <p class="login-error">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <button type="submit">Entrar</button>
+        </form>
+
+        {% comment %}Voltar recomeça: a tela da senha descarta a espera do código.{% endcomment %}
+        <p class="login-aside">
+            <a href="{% url 'app:login' %}">Sair</a>
+        </p>
+    </section>
+{% endblock %}

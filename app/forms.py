@@ -6,14 +6,11 @@ from django.utils import timezone
 from django_otp import match_token
 
 from .models import AccessRequest, Card, Installment, Method, Transaction, Transfer, User
-from .utils.otp import confirmed_device
 
 
 CARD_REQUIRED_ERROR = 'Escolha o cartão usado na compra. Se você ainda não tem nenhum, cadastre um em Cartões.'
 
 INVALID_LOGIN_ERROR = 'Usuário e/ou senha inválidos!'
-
-TOKEN_REQUIRED_ERROR = 'Informe o código de verificação do seu aplicativo autenticador.'
 
 TOKEN_INVALID_ERROR = (
     'Código inválido. Confira se digitou o código que está no aplicativo agora; se ele acabou de virar, '
@@ -33,13 +30,7 @@ def token_field(label):
 
 
 class LoginForm(AuthenticationForm):
-    """
-    Senha e, para quem já cadastrou o aplicativo, o código de seis dígitos.
-
-    Quem ainda não cadastrou entra só com a senha e é levado ao cadastro pelo
-    middleware: exigir aqui um código que a pessoa ainda não tem como gerar a
-    trancaria do lado de fora da própria conta.
-    """
+    """A primeira etapa: usuário e senha, sem falar em código."""
 
     error_messages = {
         **AuthenticationForm.error_messages,
@@ -48,38 +39,39 @@ class LoginForm(AuthenticationForm):
         'invalid_login': INVALID_LOGIN_ERROR,
     }
 
-    otp_token = token_field('Código de Verificação')
 
-    def __init__(self, *args, **kwargs):
+class LoginTokenForm(forms.Form):
+    """
+    A segunda etapa, que só existe para quem cadastrou o aplicativo.
+
+    Quem chega aqui já passou pela senha, e a view sabe de quem é a vez: por
+    isso o campo aparece para quem tem o que digitar, e só para ele.
+    """
+
+    token = token_field('Código de verificação')
+
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        # Só quem já cadastrou precisa preencher, e o campo fica escondido para
-        # quem ainda não tem o que digitar.
-        self.fields['otp_token'].required = False
+        self.user = user
         # O dispositivo que conferiu o código, para a view marcar a sessão.
         self.device = None
+        self.fields['token'].widget.attrs['autofocus'] = True
 
-    def clean(self):
-        cleaned_data = super().clean()
-        user = self.get_user()
+    def clean_token(self):
+        token = self.cleaned_data['token'].strip()
 
-        if user is not None and confirmed_device(user):
-            token = (cleaned_data.get('otp_token') or '').strip()
-            if not token:
-                raise ValidationError(TOKEN_REQUIRED_ERROR, code='token_required')
-
-            # O match_token confere o código em todos os dispositivos do usuário
-            # e segura a repetição: cada erro dobra a espera do próximo palpite.
-            self.device = match_token(user, token)
-            if self.device is None:
-                raise ValidationError(TOKEN_INVALID_ERROR, code='token_invalid')
-
-        return cleaned_data
+        # O match_token confere o código em todos os dispositivos do usuário e
+        # segura a repetição: cada erro dobra a espera do próximo palpite.
+        self.device = match_token(self.user, token)
+        if self.device is None:
+            raise ValidationError(TOKEN_INVALID_ERROR)
+        return token
 
 
 class OtpSetupForm(forms.Form):
     """O código que confirma que o aplicativo foi cadastrado direito."""
 
-    token = token_field('Código do Aplicativo')
+    token = token_field('Código do aplicativo')
 
     def __init__(self, *args, device=None, **kwargs):
         super().__init__(*args, **kwargs)

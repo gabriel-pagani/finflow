@@ -36,11 +36,6 @@
                 {{ form.password }}
             </div>
 
-            <div class="login-field">
-                <label for="{{ form.otp_token.id_for_label }}">{{ form.otp_token.label }}</label>
-                {{ form.otp_token }}
-            </div>
-
             {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
             <button type="submit">Entrar</button>
