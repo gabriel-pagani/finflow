@@ -10,8 +10,24 @@ from decimal import Decimal
 
 import pytest
 from django.contrib.auth import get_user_model
+from django_otp import DEVICE_ID_SESSION_KEY
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from app.models import Account, BusinessRule, Card, Category, Installment, Method, Transaction, Transfer, Type
+
+
+# Toda tela exige o segundo fator, então a sessão do teste nasce como a de quem
+# entrou pelo login com o código na mão. Quem testa o próprio cadastro monta a
+# sessão por conta, sem isto.
+def sign_in(client, user):
+    device = TOTPDevice.objects.create(user=user, name='default', confirmed=True)
+    client.force_login(user)
+
+    session = client.session
+    session[DEVICE_ID_SESSION_KEY] = device.persistent_id
+    session.save()
+
+    return device
 
 
 @pytest.fixture

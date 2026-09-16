@@ -1,0 +1,51 @@
+{% extends 'app/app.html' %}
+{% load static %}
+
+{% block title %}Verificação em Duas Etapas - FinFlow{% endblock %}
+
+{% block body_class %}page-login{% endblock %}
+
+{% block content %}
+    <section class="card login-card otp-card">
+        <h1>
+            <img src="{% static 'global/images/dark-blue-logo.png' %}">
+            FinFlow
+        </h1>
+
+        <h2 class="otp-title">Ative a verificação em duas etapas</h2>
+        <p class="login-aside">
+            Abra um aplicativo autenticador e aponte a câmera para o QR Code abaixo.
+        </p>
+
+        {% for error in form.non_field_errors %}
+            <p class="login-error">{{ error }}</p>
+        {% endfor %}
+
+        <div class="otp-qr">{{ qr }}</div>
+
+        <p class="login-aside">
+            Não consegue apontar a câmera? Cadastre à mão:<br>
+            <code class="otp-secret">{{ secret }}</code>
+        </p>
+
+        <form method="post" action="{% url 'app:otp_setup' %}">
+            {% csrf_token %}
+
+            <div class="login-field">
+                <label for="{{ form.token.id_for_label }}">{{ form.token.label }}</label>
+                {{ form.token }}
+                {% for error in form.token.errors %}
+                    <p class="login-error">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <button type="submit">Ativar</button>
+        </form>
+
+        {% comment %}Sair é POST, como na casca: GET não desloga.{% endcomment %}
+        <form class="otp-exit" method="post" action="{% url 'app:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="link">Sair</button>
+        </form>
+    </section>
+{% endblock %}

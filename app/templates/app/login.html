@@ -12,8 +12,15 @@
             FinFlow
         </h1>
 
-        {% if form.errors %}
-            <p class="login-error">Usuário e/ou senha inválidos!</p>
+        {% comment %}
+        Cada recado por si: o do usuário e senha é sempre o mesmo, de propósito,
+        mas o do código precisa dizer que é o código que está faltando ou errado.
+        {% endcomment %}
+        {% for error in form.non_field_errors %}
+            <p class="login-error">{{ error }}</p>
+        {% endfor %}
+        {% if form.errors and not form.non_field_errors %}
+            <p class="login-error">Preencha o usuário e a senha.</p>
         {% endif %}
 
         <form method="post" action="{% url 'app:login' %}">
@@ -27,6 +34,11 @@
             <div class="login-field">
                 <label for="{{ form.password.id_for_label }}">Senha</label>
                 {{ form.password }}
+            </div>
+
+            <div class="login-field">
+                <label for="{{ form.otp_token.id_for_label }}">{{ form.otp_token.label }}</label>
+                {{ form.otp_token }}
             </div>
 
             {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}

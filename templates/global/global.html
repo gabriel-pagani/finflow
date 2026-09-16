@@ -11,7 +11,11 @@
     {% block styles %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
-    {% if user.is_authenticated %}
+    {% comment %}
+    `bare` é da tela de cadastro do segundo fator: a sessão ainda não passou
+    pelo código, e o menu só ofereceria telas que devolvem a pessoa para lá.
+    {% endcomment %}
+    {% if user.is_authenticated and not bare %}
         <header class="topbar">
             <a class="brand" href="{% url 'app:overview' %}">
                 <img src="{% static 'global/images/dark-blue-logo.png' %}">
@@ -46,7 +50,11 @@
         {% block content %}{% endblock %}
     </main>
 
-    {% if perms.assistant.use_assistant %}
+    {% comment %}
+    Fora da tela de cadastro do segundo fator, pelo mesmo motivo do menu: o
+    chat só conseguiria conversar com a tela de cadastro.
+    {% endcomment %}
+    {% if perms.assistant.use_assistant and not bare %}
         {% if not assistant_page %}{% include 'assistant/panel.html' %}{% endif %}
         <script src="{% static 'assistant/js/assistant.js' %}"></script>
     {% endif %}

@@ -521,6 +521,62 @@
     font-size: 13px;
 }
 
+/* Explicação curta embaixo do campo, sem a moldura do aviso de erro. */
+.login-hint {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+/* ==========================================================================
+   Cadastro do segundo fator — mesma moldura da entrada, com o QR Code.
+   ========================================================================== */
+
+.otp-title {
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* O SVG do QR Code sai com a largura em milímetros; aqui ele vira um quadrado
+   que cabe no card, inclusive na tela estreita do celular. */
+.otp-qr {
+    display: flex;
+    justify-content: center;
+    margin: 16px 0;
+}
+
+.otp-qr svg {
+    width: 200px;
+    max-width: 100%;
+    height: auto;
+    background: #fff;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+/* A chave digitada à mão: monoespaçada e quebrando em qualquer ponto, que ela
+   não tem espaço para quebrar sozinha. */
+.otp-secret {
+    font-family: ui-monospace, monospace;
+    font-size: 15px;
+    letter-spacing: 1px;
+    word-break: break-all;
+    user-select: all;
+}
+
+.otp-exit {
+    text-align: center;
+}
+
+.otp-exit .link {
+    background: none;
+    border: none;
+    color: var(--muted);
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+}
+
 /* Recado fora do formulário: o convite a pedir conta, na entrada, e o aviso de
    que a conta nasce desligada, no pedido. */
 .login-aside {

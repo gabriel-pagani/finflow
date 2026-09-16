@@ -1,5 +1,7 @@
 import pytest
 
+from tests.conftest import sign_in
+
 @pytest.fixture(autouse=True)
 def serving(settings):
     # DEBUG=0 no ambiente de teste liga o SECURE_SSL_REDIRECT, e todo GET viraria 301.
@@ -14,5 +16,5 @@ def serving(settings):
 
 @pytest.fixture
 def logged(client, user):
-    client.force_login(user)
+    sign_in(client, user)
     return client

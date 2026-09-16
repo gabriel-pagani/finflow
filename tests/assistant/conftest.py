@@ -3,6 +3,8 @@ from types import SimpleNamespace
 import pytest
 from django.contrib.auth.models import Permission
 
+from tests.conftest import sign_in
+
 
 @pytest.fixture(autouse=True)
 def serving(settings):
@@ -20,7 +22,7 @@ def use_assistant(db):
 
 @pytest.fixture
 def logged(client, user):
-    client.force_login(user)
+    sign_in(client, user)
     return client
 
 
