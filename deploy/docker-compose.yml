@@ -71,9 +71,15 @@ services:
       dockerfile: deploy/Dockerfile
       target: test
     image: ${PROJECT_NAME:-finflow}-django-tests
+    # Tudo o que a imagem copia e os testes exercitam entra montado: sem isto,
+    # mudança em project/ ou nos templates da casca roda contra a cópia velha
+    # que ficou na imagem, e o teste passa ou falha pelo motivo errado.
     volumes:
       - ../app:/app/app
       - ../assistant:/app/assistant
+      - ../project:/app/project
+      - ../templates:/app/templates
+      - ../static:/app/static
       - ../tests:/app/tests
     env_file:
       - .env
