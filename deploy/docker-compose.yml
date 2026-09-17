@@ -61,6 +61,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    mem_limit: 4g
     networks:
       - network
     restart: unless-stopped
