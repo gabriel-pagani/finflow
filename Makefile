@@ -49,6 +49,9 @@ create-superuser:
 create-totp:
 	@docker compose -f deploy/docker-compose.yml exec -T -e TOTP_USER="$(user)" django python manage.py shell < scripts/create_totp.py
 
+create-app-role:
+	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/create_app_role.py
+
 make-migrations:
 	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -v "$(PWD)/app:/app/app" -v "$(PWD)/assistant:/app/assistant" django python manage.py makemigrations $(app)
 
