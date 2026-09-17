@@ -2,7 +2,6 @@ from datetime import timedelta
 
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
-from django.utils import timezone
 from django.views.generic import TemplateView
 
 from ..models import Method, Type
@@ -83,17 +82,9 @@ class ForecastView(FilteredTransactionsMixin, TemplateView):
     template_name = 'app/forecast.html'
     methods = [Method.CREDIT]
 
-    def get_filters(self):
-        filters = super().get_filters()
-        get = self.request.GET
-        today = timezone.localdate()
-
-        if not get.get('start'):
-            filters['start'] = today.isoformat()
-        if not get.get('end'):
-            filters['end'] = (today + timedelta(days=365)).isoformat()
-
-        return filters
+    # A previsão olha para a frente: de hoje até daqui a um ano.
+    def get_default_period(self, today):
+        return today, today + timedelta(days=365)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

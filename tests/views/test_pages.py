@@ -56,6 +56,19 @@ def test_filtro_com_valor_invalido_e_descartado(logged, debit_rule):
     assert logged.get(reverse('app:transactions_list'), {'account': 'lixo', 'category': 'x', 'type': 'ZZ', 'nature': 'ZZ'}).status_code == 200
 
 
+@pytest.mark.parametrize('route', ['app:overview', 'app:forecast', 'app:transactions_list'])
+def test_data_invalida_cai_no_periodo_padrao(logged, route):
+    padrao = logged.get(reverse(route)).context['filters']
+
+    # Texto que não é data e data que não existe: as duas iam cruas para a consulta.
+    response = logged.get(reverse(route), {'start': 'abc', 'end': '2026-02-30'})
+
+    assert response.status_code == 200
+    assert (response.context['filters']['start'], response.context['filters']['end']) == (padrao['start'], padrao['end'])
+    # O painel ao vivo lê os mesmos filtros, por outra saída.
+    assert logged.get(reverse(route), {'only': 'filters', 'start': 'abc'}).status_code == 200
+
+
 def test_filtro_por_natureza(logged, account, debit_rule, make_transaction):
     normal = make_transaction()
     normal.save()

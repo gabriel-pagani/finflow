@@ -1,3 +1,5 @@
+from datetime import date
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -24,6 +26,18 @@ UNCATEGORIZED_LABEL = 'Categoria Não Identificada'
 # divergir do recorte que a tela mostra.
 OPTIONS_PARAM = 'only'
 OPTIONS_VALUE = 'filters'
+
+
+def parse_date(value):
+    """A data do filtro, se for mesmo uma data; None se veio vazia ou inválida.
+
+    O valor vai direto para a consulta, e texto que não é data (?start=abc)
+    derrubava a página com 500 em vez de cair no período padrão.
+    """
+    try:
+        return date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def distinct_values(queryset, field):
@@ -61,13 +75,17 @@ def build_panel(name, legend, empty, gender, entries, available, selected):
 class FilteredTransactionsMixin(LoginRequiredMixin):
     methods = None
 
+    # O período quando a URL não traz um válido: o ano corrente.
+    def get_default_period(self, today):
+        return today.replace(month=1, day=1), today.replace(month=12, day=31)
+
     def get_filters(self):
         get = self.request.GET
-        today = timezone.localdate()
+        start, end = self.get_default_period(timezone.localdate())
 
         return {
-            'start': get.get('start') or today.replace(month=1, day=1).isoformat(),
-            'end': get.get('end') or today.replace(month=12, day=31).isoformat(),
+            'start': (parse_date(get.get('start')) or start).isoformat(),
+            'end': (parse_date(get.get('end')) or end).isoformat(),
             'account': [value for value in get.getlist('account') if value.isdigit()],
             'category': [value for value in get.getlist('category') if value.isdigit() or value == UNCATEGORIZED],
         }
