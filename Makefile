@@ -51,6 +51,9 @@ create-superuser:
 create-totp:
 	@docker compose -f deploy/docker-compose.yml exec -T -e TOTP_USER="$(user)" django python manage.py shell < scripts/create_totp.py
 
+protect-login:
+	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/cloudflare_login_rule.py $(args)
+
 create-app-role:
 	@docker compose -f deploy/docker-compose.yml run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/create_app_role.py
 
