@@ -1,17 +1,37 @@
+from datetime import date, timedelta
+
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 
 from app.models import Category
+
+
+PERIODO = {'start': '2026-01-01', 'end': '2026-12-31'}
 
 
 def seen_by(route, card):
     """O que cada página enxerga.
 
-    As opções seguem os métodos da página, então o lançamento que alimenta o
+    Os painéis seguem os métodos da página, então o lançamento que alimenta o
     filtro precisa ser do método certo: a previsão só olha crédito, e crédito
     pede cartão.
     """
     return {'method': 'CREDIT', 'card': card} if route == 'app:forecast' else {}
+
+
+def panel(response, name):
+    return next(item for item in response.context['panels'] if item['name'] == name)
+
+
+def options(response, name):
+    """Os rótulos que o painel oferece, na ordem em que aparecem na tela."""
+    return [option['label'] for option in panel(response, name)['options']]
+
+
+def available(response, name):
+    """Só os rótulos que ainda têm transação sob os outros filtros."""
+    return [option['label'] for option in panel(response, name)['options'] if option['available']]
 
 
 @pytest.mark.parametrize('route', ['app:overview', 'app:forecast', 'app:transactions_list', 'app:cards_list'])
@@ -67,10 +87,10 @@ def test_filtro_oferece_so_contas_e_categorias_em_uso(logged, route, account, ot
     make_transaction(category=category, **seen_by(route, card)).save()
     make_transaction(user=other_user, account=other_account, category=lazer).save()
 
-    response = logged.get(reverse(route))
+    response = logged.get(reverse(route), PERIODO)
 
-    assert list(response.context['accounts']) == [account]
-    assert list(response.context['categories']) == [category]
+    assert options(response, 'account') == [str(account)]
+    assert options(response, 'category') == [str(category)]
 
 
 @pytest.mark.parametrize('route', ['app:overview', 'app:forecast', 'app:transactions_list'])
@@ -80,10 +100,10 @@ def test_filtro_so_oferece_nao_identificada_com_transacao_sem_categoria(logged, 
     make_transaction(category=category, **visivel).save()
     # A de outro usuário não conta: a opção segue o que é meu.
     make_transaction(user=other_user, account=other_account).save()
-    assert logged.get(reverse(route)).context['uncategorized_choices'] == []
+    assert 'Categoria Não Identificada' not in options(logged.get(reverse(route), PERIODO), 'category')
 
     make_transaction(**visivel).save()
-    assert logged.get(reverse(route)).context['uncategorized_choices'] == [('none', 'Categoria Não Identificada')]
+    assert 'Categoria Não Identificada' in options(logged.get(reverse(route), PERIODO), 'category')
 
 
 @pytest.mark.parametrize('route', ['app:overview', 'app:forecast'])
@@ -93,20 +113,88 @@ def test_filtro_do_dashboard_segue_os_metodos_da_pagina(logged, route, account, 
     make_transaction(category=category).save()
     make_transaction(account=other_account, card=other_account_card, method='CREDIT', category=lazer).save()
 
-    response = logged.get(reverse(route))
+    response = logged.get(reverse(route), PERIODO)
 
     # A visão geral só olha débito e não se aplica; a previsão, só crédito.
     conta, categoria = {'app:overview': (account, category), 'app:forecast': (other_account, lazer)}[route]
-    assert list(response.context['accounts']) == [conta]
-    assert list(response.context['categories']) == [categoria]
+    assert options(response, 'account') == [str(conta)]
+    assert options(response, 'category') == [str(categoria)]
 
 
 def test_nao_identificada_do_dashboard_segue_os_metodos_da_pagina(logged, other_account, other_account_card,
                                                                  make_transaction):
     make_transaction(account=other_account, card=other_account_card, method='CREDIT').save()
 
-    assert logged.get(reverse('app:overview')).context['uncategorized_choices'] == []
-    assert logged.get(reverse('app:forecast')).context['uncategorized_choices'] == [('none', 'Categoria Não Identificada')]
+    assert options(logged.get(reverse('app:overview'), PERIODO), 'category') == []
+    assert options(logged.get(reverse('app:forecast'), PERIODO), 'category') == ['Categoria Não Identificada']
+
+
+def test_marcar_conta_recorta_as_categorias_oferecidas(logged, account, other_account, category,
+                                                      other_debit_rule, make_transaction):
+    lazer = Category.objects.create(description='Lazer')
+    make_transaction(category=category).save()
+    make_transaction(account=other_account, category=lazer).save()
+
+    url = reverse('app:transactions_list')
+
+    # Sem conta escolhida as duas categorias estão em jogo.
+    assert available(logged.get(url, PERIODO), 'category') == [str(lazer), str(category)]
+
+    response = logged.get(url, {**PERIODO, 'account': account.pk})
+
+    # Marcada a conta, sobra a categoria que existe nela — e as contas seguem
+    # inteiras na lista, senão trocar a conta escolhida ficaria impossível.
+    assert available(response, 'category') == [str(category)]
+    assert available(response, 'account') == [str(other_account), str(account)]
+
+
+def test_periodo_recorta_as_opcoes_oferecidas(logged, account, category, debit_rule, make_transaction):
+    lazer = Category.objects.create(description='Lazer')
+    make_transaction(category=category, occurred_at=date(2026, 3, 10)).save()
+    make_transaction(category=lazer, occurred_at=date(2026, 9, 4)).save()
+
+    response = logged.get(reverse('app:transactions_list'), {'start': '2026-01-01', 'end': '2026-06-30'})
+
+    assert available(response, 'category') == [str(category)]
+
+
+def test_previsao_so_oferece_o_que_ainda_esta_por_vir(logged, account, category, card, make_transaction):
+    hoje = timezone.localdate()
+    antiga = Category.objects.create(description='Antiga')
+    make_transaction(category=antiga, method='CREDIT', card=card, occurred_at=hoje - timedelta(days=120)).save()
+    make_transaction(category=category, method='CREDIT', card=card, occurred_at=hoje + timedelta(days=30)).save()
+
+    # Sem período na URL a previsão olha de hoje em diante, e o filtro segue o
+    # mesmo recorte: o que já foi pago não é previsão de gasto nenhum.
+    assert options(logged.get(reverse('app:forecast')), 'category') == [str(category)]
+
+
+def test_filtro_de_metodo_recorta_as_contas_oferecidas(logged, account, other_account, other_account_card,
+                                                      make_transaction):
+    make_transaction().save()
+    make_transaction(account=other_account, card=other_account_card, method='CREDIT').save()
+
+    url = reverse('app:transactions_list')
+
+    assert available(logged.get(url, {**PERIODO, 'method': 'CREDIT'}), 'account') == [str(other_account)]
+    assert available(logged.get(url, {**PERIODO, 'method': 'DEBIT'}), 'account') == [str(account)]
+
+
+def test_escolha_sem_dado_continua_marcada_e_sinalizada(logged, account, other_account, category,
+                                                       other_debit_rule, make_transaction):
+    lazer = Category.objects.create(description='Lazer')
+    make_transaction(category=category).save()
+    make_transaction(account=other_account, category=lazer).save()
+
+    response = logged.get(reverse('app:transactions_list'),
+                          {**PERIODO, 'account': other_account.pk, 'category': category.pk})
+
+    # A categoria não existe na conta marcada, mas some da lista seria pior: a
+    # escolha continua valendo, e é ela que deixou o resultado vazio.
+    mercado = next(option for option in panel(response, 'category')['options'] if option['label'] == str(category))
+    assert mercado['selected'] is True
+    assert mercado['available'] is False
+    assert list(response.context['object_list']) == []
 
 
 def test_filtro_junta_categoria_e_nao_identificada(logged, category, debit_rule, make_transaction):

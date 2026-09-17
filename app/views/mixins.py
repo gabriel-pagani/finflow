@@ -16,6 +16,39 @@ from ..models import Account, Category, Nature, Transaction
 # Valor do filtro para as transações sem categoria. Não é um pk, então não
 # colide com categoria nenhuma, e sai na URL legível.
 UNCATEGORIZED = 'none'
+UNCATEGORIZED_LABEL = 'Categoria Não Identificada'
+
+
+def distinct_values(queryset, field):
+    """Os valores que sobraram numa coluna, como texto — a forma que sai no HTML.
+
+    O `order_by()` limpa a ordenação padrão do model: com ela, as colunas de
+    ordem entram no DISTINCT e o banco devolve uma linha por transação em vez
+    de uma por valor.
+    """
+    return {str(value) for value in queryset.order_by().values_list(field, flat=True).distinct() if value is not None}
+
+
+def build_panel(name, legend, empty, gender, entries, available, selected):
+    """Monta um painel de filtro.
+
+    `entries` são todos os valores que a página admite e `available` os que
+    sobreviveram aos outros filtros. O que está marcado continua na lista mesmo
+    sem ter sobrado nada: tirar da tela uma escolha do usuário mudaria o filtro
+    sem ele pedir, e ele não veria por que o resultado ficou vazio.
+    """
+    options = [
+        {
+            'value': str(value),
+            'label': str(label),
+            'available': str(value) in available,
+            'selected': str(value) in selected,
+        }
+        for value, label in entries
+        if str(value) in available or str(value) in selected
+    ]
+
+    return {'name': name, 'legend': legend, 'empty': empty, 'gender': gender, 'options': options}
 
 
 class FilteredTransactionsMixin(LoginRequiredMixin):
@@ -44,41 +77,71 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
 
         return queryset
 
-    def get_base_transactions(self, filters):
+    # `ignore` deixa de fora o filtro de uma dimensão. Serve para montar as
+    # opções dela: com o próprio filtro aplicado, marcar uma conta esconderia
+    # todas as outras e a escolha viraria uma armadilha sem volta.
+    def get_base_transactions(self, filters, *, ignore=None):
         queryset = self.get_scoped_transactions().select_related('account', 'category')
 
-        if filters['account']:
+        if filters['account'] and ignore != 'account':
             queryset = queryset.filter(account_id__in=filters['account'])
 
         return queryset
 
-    def get_transactions(self, filters):
-        queryset = self.get_base_transactions(filters).filter(
+    def get_transactions(self, filters, *, ignore=None):
+        queryset = self.get_base_transactions(filters, ignore=ignore).filter(
             effective_at__gte=filters['start'],
             effective_at__lte=filters['end'],
         )
 
-        if filters['category']:
+        if filters['category'] and ignore != 'category':
             chosen = Q(category_id__in=[value for value in filters['category'] if value != UNCATEGORIZED])
             if UNCATEGORIZED in filters['category']:
                 chosen |= Q(category__isnull=True)
             queryset = queryset.filter(chosen)
 
+        return self.apply_extra_filters(queryset, filters, ignore)
+
+    # Onde cada página encaixa os filtros que só ela tem, para que eles entrem
+    # tanto no resultado quanto no recorte das opções das outras dimensões.
+    def apply_extra_filters(self, queryset, filters, ignore):
         return queryset
 
     def get_analytic_transactions(self, filters):
         return self.get_transactions(filters).filter(nature=Nature.REGULAR)
 
+    # Os painéis das dimensões que só algumas páginas têm.
+    def get_extra_panels(self, filters):
+        return []
+
+    def get_filter_panels(self, filters):
+        scoped = self.get_scoped_transactions()
+        accounts = self.get_transactions(filters, ignore='account')
+        categories = self.get_transactions(filters, ignore='category')
+
+        # Sem categoria também é uma escolha: sem esta opção, marcar categorias
+        # deixaria de fora, sempre, o que não tem nenhuma.
+        entries = list(Category.objects.filter(pk__in=scoped.values('category_id')).values_list('pk', 'description'))
+        available = distinct_values(categories, 'category_id')
+        if scoped.filter(category__isnull=True).exists():
+            entries.append((UNCATEGORIZED, UNCATEGORIZED_LABEL))
+        if categories.filter(category__isnull=True).exists():
+            available.add(UNCATEGORIZED)
+
+        return [
+            build_panel(
+                'account', 'Conta', 'Todas', 'f',
+                Account.objects.filter(pk__in=scoped.values('account_id')).values_list('pk', 'description'),
+                distinct_values(accounts, 'account_id'), filters['account'],
+            ),
+            build_panel('category', 'Categoria', 'Todas', 'f', entries, available, filters['category']),
+            *self.get_extra_panels(filters),
+        ]
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filters'] = self.get_filters()
-        scoped = self.get_scoped_transactions()
-        context['accounts'] = Account.objects.filter(pk__in=scoped.values('account_id'))
-        context['categories'] = Category.objects.filter(pk__in=scoped.values('category_id'))
-        # Sem categoria também é uma escolha: sem esta opção, marcar categorias
-        # deixaria de fora, sempre, o que não tem nenhuma.
-        uncategorized = scoped.filter(category__isnull=True).exists()
-        context['uncategorized_choices'] = [(UNCATEGORIZED, 'Categoria Não Identificada')] if uncategorized else []
+        context['panels'] = self.get_filter_panels(context['filters'])
         return context
 
 

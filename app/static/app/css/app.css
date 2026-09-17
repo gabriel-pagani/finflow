@@ -185,6 +185,14 @@
     background: var(--bg);
 }
 
+/* Opção que ficou sem transação sob os outros filtros. Ela continua clicável:
+   marcar uma opção vazia é um jeito legítimo de conferir que não há nada ali,
+   e desmarcá-la precisa continuar possível quando a escolha é que esvaziou. */
+.multiselect-option.is-empty {
+    color: var(--muted);
+    opacity: 0.55;
+}
+
 .multiselect-option input {
     /* checkbox precisa da aparência nativa que a regra geral de input remove */
     appearance: auto;

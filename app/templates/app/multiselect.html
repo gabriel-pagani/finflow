@@ -1,33 +1,26 @@
-{% load l10n %}{% comment %}
+{% comment %}
 Dropdown de múltipla escolha.
 
-Aceita dois formatos de opção, que podem vir juntos (os choices depois):
-  options  -> objetos do model, usa .pk e o __str__
-  choices  -> tuplas (valor, rótulo), como Type.choices
+As opções vêm prontas do servidor em `panel`: valor, rótulo, se estão marcadas
+e se ainda sobrou dado sob os outros filtros. O painel só desenha o que recebe.
 
 Sem JS o painel continua acessível (details/summary nativo) e os checkboxes
 enviam normalmente, então o filtro funciona mesmo com script desabilitado.
 {% endcomment %}
-<div class="multiselect" data-multiselect data-empty="{{ empty }}" data-gender="{{ gender|default:'m' }}">
-    <span class="multiselect-legend">{{ legend }}</span>
+<div class="multiselect" data-multiselect data-empty="{{ panel.empty }}" data-gender="{{ panel.gender|default:'m' }}">
+    <span class="multiselect-legend">{{ panel.legend }}</span>
     <details class="multiselect-details">
         <summary class="multiselect-toggle">
-            <span data-multiselect-label>{{ empty }}</span>
+            <span data-multiselect-label>{{ panel.empty }}</span>
         </summary>
         <div class="multiselect-panel">
             <div class="multiselect-options">
-                {% for option in options %}
-                    <label class="multiselect-option">
-                        <input type="checkbox" name="{{ name }}" value="{{ option.pk|unlocalize }}"
-                               {% if option.pk|stringformat:'s' in selected %}checked{% endif %}>
-                        <span>{{ option }}</span>
-                    </label>
-                {% endfor %}
-                {% for value, label in choices %}
-                    <label class="multiselect-option">
-                        <input type="checkbox" name="{{ name }}" value="{{ value }}"
-                               {% if value in selected %}checked{% endif %}>
-                        <span>{{ label }}</span>
+                {% for option in panel.options %}
+                    <label class="multiselect-option{% if not option.available %} is-empty{% endif %}"
+                           {% if not option.available %}title="Sem transação com os outros filtros de agora"{% endif %}>
+                        <input type="checkbox" name="{{ panel.name }}" value="{{ option.value }}"
+                               {% if option.selected %}checked{% endif %}>
+                        <span>{{ option.label }}</span>
                     </label>
                 {% endfor %}
             </div>

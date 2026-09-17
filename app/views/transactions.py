@@ -5,7 +5,7 @@ from django.views.generic.edit import CreateView, UpdateView
 
 from ..forms import InstallmentForm, TransactionForm, TransferForm
 from ..models import BusinessRule, Card, Installment, Method, Nature, Transaction, Transfer, Type
-from .mixins import FilteredTransactionsMixin, ModalDeleteView, ModalWriteMixin, OwnedListView
+from .mixins import FilteredTransactionsMixin, ModalDeleteView, ModalWriteMixin, OwnedListView, build_panel, distinct_values
 
 
 # As combinações que cada conta aceita, para o modal só oferecer o que o
@@ -57,16 +57,14 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
         filters['search'] = get.get('search', '').strip()
         return filters
 
-    def get_queryset(self):
-        filters = self.get_filters()
-        queryset = self.get_transactions(filters)
-
-        if filters['type']:
+    def apply_extra_filters(self, queryset, filters, ignore):
+        if filters['type'] and ignore != 'type':
             queryset = queryset.filter(type__in=filters['type'])
-        if filters['method']:
+        if filters['method'] and ignore != 'method':
             queryset = queryset.filter(method__in=filters['method'])
-        if filters['nature']:
+        if filters['nature'] and ignore != 'nature':
             queryset = queryset.filter(nature__in=filters['nature'])
+        # A busca não tem painel de opções, então não tem o que deixar de fora.
         if filters['search']:
             queryset = queryset.annotate(
                 description_unaccent=Unaccent('description'),
@@ -74,12 +72,22 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
 
         return queryset
 
+    def get_extra_panels(self, filters):
+        return [
+            build_panel('type', 'Tipo', 'Todos', 'm', Type.choices,
+                        distinct_values(self.get_transactions(filters, ignore='type'), 'type'), filters['type']),
+            build_panel('method', 'Método', 'Todos', 'm', Method.choices,
+                        distinct_values(self.get_transactions(filters, ignore='method'), 'method'), filters['method']),
+            build_panel('nature', 'Natureza', 'Todas', 'f', Nature.choices,
+                        distinct_values(self.get_transactions(filters, ignore='nature'), 'nature'), filters['nature']),
+        ]
+
+    def get_queryset(self):
+        return self.get_transactions(self.get_filters())
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        context['types'] = Type.choices
-        context['method_choices'] = Method.choices
-        context['nature_choices'] = Nature.choices
         context['search_enabled'] = True
 
         # Formulários dos modais de criação. Na edição o JS preenche os campos

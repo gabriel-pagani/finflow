@@ -1,4 +1,4 @@
-<form class="card filters" method="get">
+<form class="card filters" method="get" data-filters>
     <h2>Filtros</h2>
     <div class="filters-grid">
 {% comment %}
@@ -15,18 +15,14 @@
             <input type="date" name="end" value="{{ filters.end }}">
         </label>
 
-        {% include 'app/multiselect.html' with name='account' legend='Conta' empty='Todas' gender='f' options=accounts selected=filters.account %}
-        {% include 'app/multiselect.html' with name='category' legend='Categoria' empty='Todas' gender='f' options=categories choices=uncategorized_choices selected=filters.category %}
-
-        {% if types %}
-            {% include 'app/multiselect.html' with name='type' legend='Tipo' empty='Todos' choices=types selected=filters.type %}
-        {% endif %}
-        {% if method_choices %}
-            {% include 'app/multiselect.html' with name='method' legend='Método' empty='Todos' choices=method_choices selected=filters.method %}
-        {% endif %}
-        {% if nature_choices %}
-            {% include 'app/multiselect.html' with name='nature' legend='Natureza' empty='Todas' gender='f' choices=nature_choices selected=filters.nature %}
-        {% endif %}
+        {% comment %}
+        Quais painéis existem e em que ordem é decisão da view: são as
+        dimensões que a página filtra, e cada uma já vem com as opções
+        recortadas pelas escolhas das outras.
+        {% endcomment %}
+        {% for panel in panels %}
+            {% include 'app/multiselect.html' %}
+        {% endfor %}
 
         {% if search_enabled %}
             <label>

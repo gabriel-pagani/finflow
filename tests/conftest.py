@@ -66,6 +66,12 @@ def credit_rule(account):
 
 
 @pytest.fixture
+def other_debit_rule(other_account):
+    """Saída em débito na segunda conta, para os testes que precisam das duas."""
+    return BusinessRule.objects.create(account=other_account, type=Type.OUT, method=Method.DEBIT)
+
+
+@pytest.fixture
 def transfer_out_rule(account):
     """Saída em débito na conta de origem."""
     return BusinessRule.objects.create(account=account, type=Type.OUT, method=Method.DEBIT)
