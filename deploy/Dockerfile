@@ -23,7 +23,8 @@ COPY --from=builder /install /usr/local
 
 RUN groupadd --gid 1000 django && useradd --uid 1000 --gid django --create-home django
 
-COPY --chown=django:django ../ .
+# O código fica do root: o processo lê, mas não reescreve o próprio código.
+COPY ../ .
 
 RUN mkdir -p /app/static_root /app/media_root && chown django:django /app/static_root /app/media_root
 
