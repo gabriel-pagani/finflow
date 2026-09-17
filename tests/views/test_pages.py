@@ -197,6 +197,19 @@ def test_escolha_sem_dado_continua_marcada_e_sinalizada(logged, account, other_a
     assert list(response.context['object_list']) == []
 
 
+@pytest.mark.parametrize('route', ['app:overview', 'app:forecast', 'app:transactions_list'])
+def test_painel_ao_vivo_devolve_so_as_opcoes(logged, route, account, category, card, make_transaction):
+    make_transaction(category=category).save()
+    make_transaction(card=card, method='CREDIT', category=category).save()
+
+    response = logged.get(reverse(route), {**PERIODO, 'only': 'filters'})
+
+    assert response['Content-Type'] == 'application/json'
+    panels = {item['name']: item for item in response.json()['panels']}
+    assert [option['label'] for option in panels['account']['options']] == [str(account)]
+    assert [option['label'] for option in panels['category']['options']] == [str(category)]
+
+
 def test_filtro_junta_categoria_e_nao_identificada(logged, category, debit_rule, make_transaction):
     lazer = Category.objects.create(description='Lazer')
     make_transaction(category=category).save()

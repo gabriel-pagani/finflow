@@ -2,19 +2,22 @@
 Dropdown de múltipla escolha.
 
 As opções vêm prontas do servidor em `panel`: valor, rótulo, se estão marcadas
-e se ainda sobrou dado sob os outros filtros. O painel só desenha o que recebe.
+e se ainda sobrou dado sob os outros filtros. O painel só desenha o que recebe,
+e é por isso que o mesmo template serve tanto à primeira carga quanto ao
+repinte ao vivo.
 
 Sem JS o painel continua acessível (details/summary nativo) e os checkboxes
-enviam normalmente, então o filtro funciona mesmo com script desabilitado.
+enviam normalmente, então o filtro funciona mesmo com script desabilitado — só
+deixa de encolher sozinho, e volta a acertar as opções no Aplicar.
 {% endcomment %}
-<div class="multiselect" data-multiselect data-empty="{{ panel.empty }}" data-gender="{{ panel.gender|default:'m' }}">
+<div class="multiselect" data-multiselect="{{ panel.name }}" data-empty="{{ panel.empty }}" data-gender="{{ panel.gender|default:'m' }}">
     <span class="multiselect-legend">{{ panel.legend }}</span>
     <details class="multiselect-details">
         <summary class="multiselect-toggle">
             <span data-multiselect-label>{{ panel.empty }}</span>
         </summary>
         <div class="multiselect-panel">
-            <div class="multiselect-options">
+            <div class="multiselect-options" data-multiselect-options>
                 {% for option in panel.options %}
                     <label class="multiselect-option{% if not option.available %} is-empty{% endif %}"
                            {% if not option.available %}title="Sem transação com os outros filtros de agora"{% endif %}>

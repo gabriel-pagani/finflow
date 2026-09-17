@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -17,6 +18,12 @@ from ..models import Account, Category, Nature, Transaction
 # colide com categoria nenhuma, e sai na URL legível.
 UNCATEGORIZED = 'none'
 UNCATEGORIZED_LABEL = 'Categoria Não Identificada'
+
+# Como o painel ao vivo pede só as opções, na mesma URL da página. Sem isto
+# precisaria de uma rota paralela por tela, e o recorte das opções poderia
+# divergir do recorte que a tela mostra.
+OPTIONS_PARAM = 'only'
+OPTIONS_VALUE = 'filters'
 
 
 def distinct_values(queryset, field):
@@ -137,6 +144,14 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
             build_panel('category', 'Categoria', 'Todas', 'f', entries, available, filters['category']),
             *self.get_extra_panels(filters),
         ]
+
+    # O painel ao vivo pede as opções para a própria página, com os filtros que
+    # a pessoa acabou de mexer. Responder antes do super() poupa montar gráfico
+    # e paginação que ninguém vai ler.
+    def get(self, request, *args, **kwargs):
+        if request.GET.get(OPTIONS_PARAM) == OPTIONS_VALUE:
+            return JsonResponse({'panels': self.get_filter_panels(self.get_filters())})
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

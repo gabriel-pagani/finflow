@@ -3,6 +3,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-multiselect]').forEach(setupMultiselect);
+    document.querySelectorAll('[data-filters]').forEach(setupFilterSync);
     document.querySelectorAll('dialog.modal').forEach(setupDialogDismiss);
     setupLinkedFields();
     document.querySelectorAll('[data-record-urls]').forEach(setupRecordCrud);
@@ -17,17 +18,30 @@ function readJsonScript(id) {
 
 /* Multiselect ------------------------------------------------------------- */
 
+// O controlador de cada painel, para os filtros ao vivo repintarem as opções
+// sem ter de remontar o painel inteiro e perder o que está aberto na tela.
+const multiselects = new WeakMap();
+
+const NO_DATA = 'Sem transação com os outros filtros de agora';
+
 function setupMultiselect(root) {
     const details = root.querySelector('details');
     const label = root.querySelector('[data-multiselect-label]');
+    const list = root.querySelector('[data-multiselect-options]');
     const empty = root.dataset.empty || 'Todos';
-    const boxes = Array.from(root.querySelectorAll('input[type="checkbox"][name]'));
-    const all = addSelectAll(root, boxes, empty);
+    const all = addSelectAll(root, empty);
 
-    function updateLabel() {
-        const checked = boxes.filter((box) => box.checked);
-        const everything = checked.length === boxes.length;
+    function boxes() {
+        return Array.from(list.querySelectorAll('input[type="checkbox"][name]'));
+    }
 
+    function update() {
+        const options = boxes();
+        const checked = options.filter((box) => box.checked);
+        const everything = checked.length === options.length;
+
+        // Com uma opção só, marcar todas é marcar ela.
+        all.closest('.multiselect-all').hidden = options.length < 2;
         all.checked = checked.length > 0 && everything;
         all.indeterminate = checked.length > 0 && !everything;
 
@@ -46,12 +60,14 @@ function setupMultiselect(root) {
         root.classList.toggle('has-selection', checked.length > 0 && !everything);
     }
 
-    boxes.forEach((box) => box.addEventListener('change', updateLabel));
+    // O listener fica na lista, e não em cada caixa: assim as opções que
+    // chegam no repinte já nascem funcionando, sem religar nada.
+    list.addEventListener('change', update);
     all.addEventListener('change', () => {
-        boxes.forEach((box) => {
+        boxes().forEach((box) => {
             box.checked = all.checked;
         });
-        updateLabel();
+        update();
     });
 
     // Clicar fora fecha o painel; sem isso vários ficariam abertos ao mesmo tempo.
@@ -68,17 +84,69 @@ function setupMultiselect(root) {
         });
     });
 
-    updateLabel();
+    update();
+
+    let drawn = signatureOf(Array.from(list.children).map((node) => ({
+        value: node.querySelector('input').value,
+        available: !node.classList.contains('is-empty'),
+    })));
+
+    // Redesenhar troca as caixas embaixo do cursor e tira o foco de quem
+    // navega por teclado, então só acontece quando a lista mudou mesmo. Mexer
+    // num painel costuma devolver as opções dele iguais — elas são calculadas
+    // sem o filtro dele próprio —, e aí nada se move.
+    //
+    // O que está marcado vem do que já está na tela, nunca da resposta: ela
+    // retrata o formulário de quando saiu, e a pessoa pode ter clicado de novo
+    // enquanto ela vinha.
+    multiselects.set(root, (options) => {
+        const signature = signatureOf(options);
+        if (signature === drawn) return;
+        drawn = signature;
+
+        const marked = new Set(boxes().filter((box) => box.checked).map((box) => box.value));
+        list.replaceChildren(...options.map((option) => buildOption(root.dataset.multiselect, {
+            ...option,
+            selected: marked.has(option.value),
+        })));
+        update();
+    });
+}
+
+function signatureOf(options) {
+    return options.map((option) => `${option.value}:${option.available}`).join(',');
+}
+
+function buildOption(name, option) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'multiselect-option';
+    // A opção sem dado continua na lista em vez de sumir: se ela está marcada,
+    // é escolha da pessoa e some sem explicação; se não está, sumir e voltar a
+    // cada clique faria a lista dançar debaixo do cursor.
+    if (!option.available) {
+        wrapper.classList.add('is-empty');
+        wrapper.title = NO_DATA;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.name = name;
+    input.value = option.value;
+    input.checked = option.selected;
+
+    const text = document.createElement('span');
+    text.textContent = option.label;
+
+    wrapper.append(input, text);
+    return wrapper;
 }
 
 // Tirar uma opção só de uma lista longa pedia marcar todas as outras à mão.
 // Esta caixa marca ou desmarca tudo de uma vez. Ela nasce pelo JS e sem name:
 // não vai no envio, e sem script o filtro segue funcionando sem ela.
-function addSelectAll(root, boxes, empty) {
+function addSelectAll(root, empty) {
     const wrapper = document.createElement('div');
     wrapper.className = 'multiselect-all';
-    // Com uma opção só, marcar todas é marcar ela.
-    wrapper.hidden = boxes.length < 2;
 
     const option = document.createElement('label');
     option.className = 'multiselect-option';
@@ -94,6 +162,54 @@ function addSelectAll(root, boxes, empty) {
     root.querySelector('.multiselect-panel').prepend(wrapper);
 
     return input;
+}
+
+/* Filtros ao vivo ---------------------------------------------------------- */
+
+// Cada mexida no filtro pergunta ao servidor o que ainda tem transação sob as
+// outras escolhas, e os painéis encolhem na hora. O que muda é só a lista de
+// opções: os números e os gráficos continuam esperando o Aplicar, para a página
+// não se reescrever inteira a cada clique.
+//
+// Quem responde é a própria URL da tela, então o recorte das opções é o mesmo
+// que a tela usaria — e, se a ida falhar, os painéis ficam como estão e o
+// Aplicar corrige tudo.
+function setupFilterSync(form) {
+    let pending = null;
+    let latest = 0;
+
+    const endpoint = form.getAttribute('action') || window.location.pathname;
+
+    async function refresh() {
+        const params = new URLSearchParams(new FormData(form));
+        params.set('only', 'filters');
+
+        const ticket = ++latest;
+        let data;
+        try {
+            const response = await fetch(`${endpoint}?${params}`);
+            if (!response.ok) return;
+            data = await response.json();
+        } catch (error) {
+            return;
+        }
+
+        // Respostas podem chegar fora de ordem; só a da última mexida vale.
+        if (ticket !== latest) return;
+
+        data.panels.forEach((panel) => {
+            const root = form.querySelector(`[data-multiselect="${panel.name}"]`);
+            const render = root && multiselects.get(root);
+            if (render) render(panel.options);
+        });
+    }
+
+    // A espera junta o "selecionar todas", que muda várias caixas de uma vez,
+    // numa ida só.
+    form.addEventListener('change', () => {
+        clearTimeout(pending);
+        pending = setTimeout(refresh, 150);
+    });
 }
 
 /* Modais ------------------------------------------------------------------ */
