@@ -1,8 +1,9 @@
 """
 O pedido de conta feito da tela de login.
 
-Três coisas precisam valer ao mesmo tempo: o cadastro nasce desligado, ele não
-entra enquanto ninguém liberar, e o mesmo IP não pede de novo antes da janela.
+Quatro coisas precisam valer ao mesmo tempo: o cadastro nasce desligado, ele não
+entra enquanto ninguém liberar, o mesmo IP não pede de novo antes da janela, e a
+tela responde igual para quem já tem conta e para quem não tem.
 """
 from datetime import timedelta
 from uuid import uuid4
@@ -133,38 +134,80 @@ def test_pedido_recusado_nao_gasta_a_semana(client, db):
 
 
 def test_usuario_existente_nao_e_sobrescrito(client, user):
-    response = pedir(client, username='gabriel')
+    pedir(client, username='gabriel')
 
-    assert response.status_code == 200
     user.refresh_from_db()
     assert user.is_active is True
     assert user.check_password('segredo')
+    assert get_user_model().objects.count() == 1
 
 
-def test_email_ja_cadastrado_e_recusado(client, user):
+def test_email_ja_cadastrado_nao_cria_outra_conta(client, user):
     get_user_model().objects.filter(pk=user.pk).update(email='mariana@exemplo.com')
 
-    response = pedir(client)
+    pedir(client)
 
-    assert response.status_code == 200
     assert not get_user_model().objects.filter(username='mariana').exists()
+
+
+def test_usuario_que_so_difere_de_maiuscula_nao_cria_conta(client, user):
+    """O cadastro do Django recusaria, e é recusa que conta quem tem conta."""
+    pedir(client, username='GABRIEL')
+
+    assert get_user_model().objects.count() == 1
+
+
+@pytest.mark.parametrize('campo', [
+    {'username': 'gabriel'},
+    {'email': 'gabriel@exemplo.com'},
+])
+def test_a_tela_nao_conta_quem_ja_tem_conta(client, user, campo):
+    """
+    A resposta de quem já tem conta é a de quem acabou de pedir: mesmo destino,
+    mesmo recado, e nada no meio dizendo qual campo bateu. Sem isso, a tela
+    responde a quem só quer saber quem tem conta no sistema.
+    """
+    get_user_model().objects.filter(pk=user.pk).update(email='gabriel@exemplo.com')
+
+    existente = pedir(client, **campo)
+    # De outro IP: o primeiro pedido segurou a semana deste.
+    novo = client.post(reverse('app:access_request'), PEDIDO, REMOTE_ADDR='203.0.113.7')
+
+    assert existente.status_code == novo.status_code == 302
+    assert existente['Location'] == novo['Location']
 
 
 @pytest.mark.parametrize('campo, recado', [
     ({'username': 'gabriel'}, 'Um usuário com este nome de usuário já existe.'),
     ({'email': 'gabriel@exemplo.com'}, 'Já existe um usuário com este e-mail.'),
 ])
-def test_passado_o_teto_a_tela_nao_conta_quem_tem_conta(client, user, campo, recado):
+def test_a_tela_nao_repete_o_recado_do_cadastro(client, user, campo, recado):
+    """Os dois recados que o formulário dava, e que contavam quem tem conta."""
     get_user_model().objects.filter(pk=user.pk).update(email='gabriel@exemplo.com')
 
-    # Recusadas, mas contadas: é na recusa que a tela conta que a conta existe.
-    for _ in range(ACCESS_REQUEST_ATTEMPTS_LIMIT):
-        assert recado in pedir(client, **campo).content.decode()
+    # Do outro IP, o pedido com senha curta, que reabre a tela: é nela que o
+    # recado aparecia. A senha tem de reclamar igual para quem tem conta e para
+    # quem não tem — sem isso, a tela que volta conta o que o recado contava.
+    response = client.post(
+        reverse('app:access_request'),
+        {**PEDIDO, **campo, 'password1': '123', 'password2': '123'},
+        REMOTE_ADDR='203.0.113.7',
+    )
+    content = response.content.decode()
 
-    content = pedir(client, **campo).content.decode()
-
-    assert ACCESS_REQUEST_TOO_MANY_ATTEMPTS in content
+    assert response.status_code == 200
     assert recado not in content
+    assert 'muito curta' in content
+
+
+def test_pedido_de_quem_tem_conta_segura_o_ip(client, user):
+    """Insistir daqui custa o mesmo que um pedido de verdade: a semana inteira."""
+    pedir(client, username='gabriel')
+
+    pedido = AccessRequest.objects.get()
+    assert pedido.ip == '127.0.0.1'
+    assert pedido.user is None
+    assert 'sete dias' in pedir(client, username='outra', email='outra@exemplo.com').content.decode()
 
 
 def test_passado_o_teto_nem_o_pedido_valido_entra(client, db):
@@ -301,6 +344,15 @@ def test_pedido_recusado_nao_avisa(client, db, mailoutbox):
     superusuario()
 
     pedir(client, password1='123', password2='123')
+
+    assert mailoutbox == []
+
+
+def test_pedido_de_quem_tem_conta_nao_avisa_ninguem(client, user, mailoutbox):
+    """Não há cadastro novo para liberar, e o aviso diria quem tem conta."""
+    superusuario()
+
+    pedir(client, username='gabriel')
 
     assert mailoutbox == []
 

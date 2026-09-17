@@ -166,10 +166,19 @@ class AccessRequestView(CreateView):
         kwargs['ip'] = get_client_ip(self.request)
         return kwargs
 
+    # O CreateView monta o destino com os campos do cadastro criado, e aqui pode
+    # não haver cadastro: o pedido de quem já tem conta não cria nenhum.
+    def get_success_url(self):
+        return str(self.success_url)
+
     def form_valid(self, form):
         response = super().form_valid(form)
 
-        notify_access_request(self.request, self.object)
+        # Sem cadastro novo não há o que avisar. O pedido de quem já tem conta
+        # morre aqui, com a mesma resposta na tela: quem tem conta não precisa
+        # de outra, e de fora ninguém descobre quem tem.
+        if self.object is not None:
+            notify_access_request(self.request, self.object)
 
         messages.success(self.request,
             'Solicitação enviada! A conta só funcionará depois que algum administrador aprovar a solicitação, '
