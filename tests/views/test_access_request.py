@@ -236,3 +236,87 @@ def test_liberar_apaga_o_pedido_atendido(client, user, db):
     assert not AccessRequest.objects.filter(user=pedinte).exists()
     # O pedido de quem ainda espera continua segurando o IP dele.
     assert AccessRequest.objects.filter(pk=esperando.pk).exists()
+
+
+# Aviso aos superusuários ---------------------------------------------------------
+
+
+def superusuario(**campos):
+    defaults = {'username': 'chefe', 'password': SENHA, 'email': 'chefe@exemplo.com'}
+    return get_user_model().objects.create_superuser(**{**defaults, **campos})
+
+
+def test_pedido_avisa_os_superusuarios(client, db, mailoutbox):
+    superusuario()
+    superusuario(username='chefia', email='chefia@exemplo.com')
+
+    pedir(client)
+
+    assert len(mailoutbox) == 1
+    assert sorted(mailoutbox[0].to) == ['chefe@exemplo.com', 'chefia@exemplo.com']
+
+
+def test_o_aviso_diz_quem_pediu_e_onde_liberar(client, db, mailoutbox):
+    superusuario()
+
+    pedir(client)
+
+    aviso = mailoutbox[0]
+    assert 'solicitação de acesso' in aviso.subject
+    # O que o administrador precisa para decidir sem abrir o portal antes.
+    assert 'Mariana Souza' in aviso.body
+    assert 'mariana' in aviso.body
+    assert 'mariana@exemplo.com' in aviso.body
+    assert reverse('admin:app_user_changelist') in aviso.body
+
+
+def test_superusuario_sem_email_nao_entra_na_lista(client, db, mailoutbox):
+    superusuario()
+    superusuario(username='sem-email', email='')
+
+    pedir(client)
+
+    assert mailoutbox[0].to == ['chefe@exemplo.com']
+
+
+def test_quem_nao_e_superusuario_nao_recebe(client, user, mailoutbox):
+    """Ter e-mail cadastrado não basta: quem libera o acesso é o superusuário."""
+    get_user_model().objects.filter(pk=user.pk).update(email='gabriel@exemplo.com')
+
+    pedir(client)
+
+    assert mailoutbox == []
+
+
+def test_superusuario_desligado_nao_recebe(client, db, mailoutbox):
+    """Desligado não entra no portal, então não tem como atender o pedido."""
+    superusuario(is_active=False)
+
+    pedir(client)
+
+    assert mailoutbox == []
+
+
+def test_pedido_recusado_nao_avisa(client, db, mailoutbox):
+    superusuario()
+
+    pedir(client, password1='123', password2='123')
+
+    assert mailoutbox == []
+
+
+def test_falha_no_envio_nao_derruba_o_pedido(client, db, monkeypatch, mailoutbox):
+    """O cadastro é o que a pessoa pediu; o aviso é consequência, e não condição."""
+    superusuario()
+
+    def explode(*args, **kwargs):
+        raise OSError('servidor de e-mail mudo')
+
+    monkeypatch.setattr('app.utils.mail.send_mail', explode)
+
+    response = pedir(client)
+
+    assert response.status_code == 302
+    assert get_user_model().objects.filter(username='mariana').exists()
+    assert AccessRequest.objects.count() == 1
+    assert mailoutbox == []

@@ -11,6 +11,7 @@ from django.views.generic.edit import CreateView, FormView
 from django_otp import login as otp_login
 
 from ..forms import AccessRequestForm, LoginForm, LoginTokenForm, OtpSetupForm
+from ..utils.mail import notify_access_request
 from ..utils.otp import confirmed_device, pending_device, qr_of, secret_of
 from ..utils.request import get_client_ip
 
@@ -167,6 +168,9 @@ class AccessRequestView(CreateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
+
+        notify_access_request(self.request, self.object)
+
         messages.success(self.request,
             'Solicitação enviada! A conta só funcionará depois que algum administrador aprovar a solicitação, '
             'e até lá a conta ficará desabilitada.'
