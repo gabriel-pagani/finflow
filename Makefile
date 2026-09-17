@@ -3,7 +3,9 @@ MAKEFLAGS += --no-print-directory
 backup ?= yes
 
 build-system:
-	@$(MAKE) maybe-backup-system && docker compose -f deploy/docker-compose.yml up -d --build
+	@$(MAKE) maybe-backup-system \
+		&& docker compose -f deploy/docker-compose.yml up -d --build \
+		&& docker compose -f deploy/docker-compose.yml up -d --force-recreate nginx
 
 start-system:
 	@docker compose -f deploy/docker-compose.yml up -d
