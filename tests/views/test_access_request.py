@@ -5,12 +5,28 @@ Três coisas precisam valer ao mesmo tempo: o cadastro nasce desligado, ele não
 entra enquanto ninguém liberar, e o mesmo IP não pede de novo antes da janela.
 """
 from datetime import timedelta
+from uuid import uuid4
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 
+from app.forms import ACCESS_REQUEST_ATTEMPTS_LIMIT, ACCESS_REQUEST_TOO_MANY_ATTEMPTS
 from app.models import AccessRequest
+
+
+@pytest.fixture(autouse=True)
+def cache_isolado(settings):
+    """
+    A contagem de tentativas mora no cache, que no ambiente de teste é o Redis do
+    compose. Um LocMem com nome próprio por teste começa zerado sem que nada
+    precise ser limpo: a tentativa de um teste não sobra para o seguinte, nem
+    para a próxima rodada, nem vai parar no Redis.
+    """
+    settings.CACHES = {
+        'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': uuid4().hex},
+    }
 
 
 SENHA = 'trilha-funda-2026'
@@ -132,6 +148,44 @@ def test_email_ja_cadastrado_e_recusado(client, user):
 
     assert response.status_code == 200
     assert not get_user_model().objects.filter(username='mariana').exists()
+
+
+@pytest.mark.parametrize('campo, recado', [
+    ({'username': 'gabriel'}, 'Um usuário com este nome de usuário já existe.'),
+    ({'email': 'gabriel@exemplo.com'}, 'Já existe um usuário com este e-mail.'),
+])
+def test_passado_o_teto_a_tela_nao_conta_quem_tem_conta(client, user, campo, recado):
+    get_user_model().objects.filter(pk=user.pk).update(email='gabriel@exemplo.com')
+
+    # Recusadas, mas contadas: é na recusa que a tela conta que a conta existe.
+    for _ in range(ACCESS_REQUEST_ATTEMPTS_LIMIT):
+        assert recado in pedir(client, **campo).content.decode()
+
+    content = pedir(client, **campo).content.decode()
+
+    assert ACCESS_REQUEST_TOO_MANY_ATTEMPTS in content
+    assert recado not in content
+
+
+def test_passado_o_teto_nem_o_pedido_valido_entra(client, db):
+    for _ in range(ACCESS_REQUEST_ATTEMPTS_LIMIT):
+        pedir(client, password1='123', password2='123')
+
+    response = pedir(client)
+
+    assert response.status_code == 200
+    assert not get_user_model().objects.filter(username='mariana').exists()
+    assert not AccessRequest.objects.exists()
+
+
+def test_o_teto_de_tentativas_e_por_ip(client, db):
+    for _ in range(ACCESS_REQUEST_ATTEMPTS_LIMIT + 1):
+        pedir(client, password1='123', password2='123')
+
+    response = client.post(reverse('app:access_request'), PEDIDO, REMOTE_ADDR='203.0.113.7')
+
+    assert response.status_code == 302
+    assert get_user_model().objects.filter(username='mariana').exists()
 
 
 def test_quem_ja_entrou_nao_ve_a_tela(logged):

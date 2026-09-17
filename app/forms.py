@@ -1,7 +1,9 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction as db
+from django.forms.utils import ErrorDict
 from django.utils import timezone
 from django_otp import match_token
 
@@ -91,6 +93,32 @@ ACCESS_REQUEST_THROTTLED = (
     'Você já solicitou a criação de uma conta nos últimos sete dias. Aguarde algum administrador aprová-la.'
 )
 
+# Tentativas, e não pedidos: a recusa também conta. É nela que o formulário diz
+# se um usuário ou um e-mail já existe, e ela não grava pedido — contando só os
+# aceitos, quem só quer descobrir quem tem conta nunca chegaria ao teto.
+ACCESS_REQUEST_ATTEMPTS = 'access-request:attempts:{}'
+ACCESS_REQUEST_ATTEMPTS_LIMIT = 10
+ACCESS_REQUEST_ATTEMPTS_WINDOW = 60 * 60 * 24
+
+ACCESS_REQUEST_TOO_MANY_ATTEMPTS = (
+    'Muitas tentativas de solicitação a partir desta rede. Tente de novo amanhã.'
+)
+
+
+def count_attempt(ip):
+    """Soma a tentativa ao IP e diz se ela ainda cabe no teto da janela."""
+    key = ACCESS_REQUEST_ATTEMPTS.format(ip)
+    # O add só vale para a primeira tentativa da janela, e é ele que marca o
+    # prazo: o incr soma sem mexer no vencimento.
+    cache.add(key, 0, ACCESS_REQUEST_ATTEMPTS_WINDOW)
+    try:
+        attempts = cache.incr(key)
+    except ValueError:
+        # A chave venceu entre o add e o incr: a janela acabou de recomeçar.
+        cache.add(key, 1, ACCESS_REQUEST_ATTEMPTS_WINDOW)
+        attempts = 1
+    return attempts <= ACCESS_REQUEST_ATTEMPTS_LIMIT
+
 
 class AccessRequestForm(UserCreationForm):
     """
@@ -114,6 +142,17 @@ class AccessRequestForm(UserCreationForm):
 
         for field in self.fields.values():
             field.help_text = ''
+
+    # Antes de qualquer campo: a validação deles é que conta se o usuário ou o
+    # e-mail já existe, e quem passou do teto não pergunta mais nada.
+    def full_clean(self):
+        if self.is_bound and self.ip and not count_attempt(self.ip):
+            self._errors = ErrorDict()
+            self.cleaned_data = {}
+            self.add_error(None, ACCESS_REQUEST_TOO_MANY_ATTEMPTS)
+            return
+
+        super().full_clean()
 
     def clean(self):
         if self.ip and AccessRequest.recent(self.ip):
