@@ -23,6 +23,11 @@
 
         <div class="otp-qr">{{ qr }}</div>
 
+        <p class="login-aside">
+            Sem câmera? Digite a chave abaixo no aplicativo:<br>
+            <code class="otp-secret">{{ secret }}</code>
+        </p>
+
         <form method="post" action="{% url 'app:otp_setup' %}">
             {% csrf_token %}
 

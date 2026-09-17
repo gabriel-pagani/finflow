@@ -14,6 +14,7 @@ from django_otp import DEVICE_ID_SESSION_KEY
 from django_otp.oath import totp
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
+from app.utils.otp import secret_of
 from app.views.auth import PENDING, PENDING_TIMEOUT
 from tests.conftest import sign_in
 
@@ -197,7 +198,10 @@ def test_a_tela_de_cadastro_mostra_o_qr_code(client, user):
 
     # Desenhado aqui: o endereço com o segredo não passa por serviço de fora.
     assert '<svg' in corpo
-    assert TOTPDevice.objects.filter(user=user, confirmed=False).exists()
+    device = TOTPDevice.objects.get(user=user, confirmed=False)
+    # A chave digitada à mão é a mesma que vai dentro do QR Code.
+    assert f'secret={secret_of(device)}' in device.config_url
+    assert secret_of(device) in corpo
 
 
 def test_o_cadastro_nao_traz_menu_nem_assistente(client, user, use_assistant):

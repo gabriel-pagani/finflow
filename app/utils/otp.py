@@ -3,6 +3,8 @@ O segundo fator, que é um TOTP: o código de seis dígitos do aplicativo
 autenticador. O admin já exigia isso pelo OTPAdminSite; aqui é a mesma peça,
 para todo mundo, com o cadastro feito pela própria pessoa no primeiro login.
 """
+from base64 import b32encode
+
 import qrcode
 import qrcode.image.svg
 from django.utils.safestring import mark_safe
@@ -28,6 +30,12 @@ def pending_device(user):
     if device is None:
         device = TOTPDevice.objects.create(user=user, name=DEVICE_NAME, confirmed=False)
     return device
+
+
+# A chave para quem não consegue apontar a câmera e vai digitar à mão. O
+# aplicativo espera base32, e o que o banco guarda é hexadecimal.
+def secret_of(device):
+    return b32encode(device.bin_key).decode('ascii')
 
 
 # O QR Code sai como SVG desenhado aqui, e não como imagem de fora: o endereço

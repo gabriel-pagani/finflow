@@ -11,7 +11,7 @@ from django.views.generic.edit import CreateView, FormView
 from django_otp import login as otp_login
 
 from ..forms import AccessRequestForm, LoginForm, LoginTokenForm, OtpSetupForm
-from ..utils.otp import confirmed_device, pending_device, qr_of
+from ..utils.otp import confirmed_device, pending_device, qr_of, secret_of
 from ..utils.request import get_client_ip
 
 
@@ -137,7 +137,7 @@ class OtpSetupView(LoginRequiredMixin, FormView):
         return {**super().get_form_kwargs(), 'device': self.device}
 
     def get_context_data(self, **kwargs):
-        return super().get_context_data(qr=qr_of(self.device), **kwargs)
+        return super().get_context_data(qr=qr_of(self.device), secret=secret_of(self.device), **kwargs)
 
     def form_valid(self, form):
         self.device.confirmed = True
