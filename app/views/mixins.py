@@ -32,11 +32,21 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
             'category': [value for value in get.getlist('category') if value.isdigit() or value == UNCATEGORIZED],
         }
 
-    def get_base_transactions(self, filters):
-        queryset = Transaction.objects.filter(user=self.request.user).select_related('account', 'category')
+    # Tudo o que a página enxerga, antes de qualquer filtro escolhido: as
+    # transações do usuário nos métodos que ela analisa. É daqui que saem tanto
+    # os números quanto as opções de filtro, para que o filtro nunca ofereça o
+    # que a página não olha.
+    def get_scoped_transactions(self):
+        queryset = Transaction.objects.filter(user=self.request.user)
 
         if self.methods:
             queryset = queryset.filter(method__in=self.methods)
+
+        return queryset
+
+    def get_base_transactions(self, filters):
+        queryset = self.get_scoped_transactions().select_related('account', 'category')
+
         if filters['account']:
             queryset = queryset.filter(account_id__in=filters['account'])
 
@@ -62,11 +72,12 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filters'] = self.get_filters()
-        context['accounts'] = Account.objects.filter(transactions__user=self.request.user).distinct()
-        context['categories'] = Category.objects.filter(transactions__user=self.request.user).distinct()
+        scoped = self.get_scoped_transactions()
+        context['accounts'] = Account.objects.filter(pk__in=scoped.values('account_id'))
+        context['categories'] = Category.objects.filter(pk__in=scoped.values('category_id'))
         # Sem categoria também é uma escolha: sem esta opção, marcar categorias
         # deixaria de fora, sempre, o que não tem nenhuma.
-        uncategorized = Transaction.objects.filter(user=self.request.user, category__isnull=True).exists()
+        uncategorized = scoped.filter(category__isnull=True).exists()
         context['uncategorized_choices'] = [(UNCATEGORIZED, 'Categoria Não Identificada')] if uncategorized else []
         return context
 
