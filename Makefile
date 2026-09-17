@@ -15,14 +15,14 @@ restart-system:
 	@docker compose -f deploy/docker-compose.yml down && docker compose -f deploy/docker-compose.yml up -d
 
 backup-database:
-	@mkdir -p backups
-	@FILE="backups/finflow-$$(date +%Y%m%d-%H%M%S).sql"; \
+	@mkdir -p -m 700 backups
+	@umask 077; FILE="backups/finflow-$$(date +%Y%m%d-%H%M%S).sql"; \
 	docker compose -f deploy/docker-compose.yml exec -T postgres sh -c 'pg_dump -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" --no-owner --no-privileges' > "$$FILE.tmp" \
 		&& mv "$$FILE.tmp" "$$FILE" || { rm -f "$$FILE.tmp"; exit 1; }
 
 backup-media:
-	@mkdir -p backups
-	@FILE="backups/finflow-media-$$(date +%Y%m%d-%H%M%S).tar.gz"; \
+	@mkdir -p -m 700 backups
+	@umask 077; FILE="backups/finflow-media-$$(date +%Y%m%d-%H%M%S).tar.gz"; \
 	docker compose -f deploy/docker-compose.yml exec -T django tar czf - -C /app/media_root . > "$$FILE.tmp" \
 		&& mv "$$FILE.tmp" "$$FILE" || { rm -f "$$FILE.tmp"; exit 1; }
 
