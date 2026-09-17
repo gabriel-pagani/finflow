@@ -1,6 +1,5 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction as db
 from django.forms.utils import ErrorDict
@@ -8,11 +7,16 @@ from django.utils import timezone
 from django_otp import match_token
 
 from .models import AccessRequest, Card, Installment, Method, Transaction, Transfer, User
+from .utils import throttle
 
 
 CARD_REQUIRED_ERROR = 'Escolha o cartão usado na compra. Se você ainda não tem nenhum, cadastre um em Cartões.'
 
 INVALID_LOGIN_ERROR = 'Usuário e/ou senha inválidos!'
+
+LOGIN_THROTTLED_ERROR = (
+    'Muitas tentativas de login nesta conta. Espere uma hora e tente de novo.'
+)
 
 TOKEN_INVALID_ERROR = (
     'Código inválido. Confira se digitou o código que está no aplicativo agora; se ele acabou de virar, '
@@ -40,6 +44,17 @@ class LoginForm(AuthenticationForm):
         # falhou não é assunto de quem está tentando entrar.
         'invalid_login': INVALID_LOGIN_ERROR,
     }
+
+    # O backend recusa o palpite de quem estourou o teto, mas recusa como senha
+    # errada. O recado de que é o teto existe só aqui, na tela de quem usa o
+    # sistema: quem espera uma hora precisa saber o motivo, e saber que o teto
+    # estourou não conta nada sobre a conta que já não se soubesse.
+    def clean(self):
+        username = self.cleaned_data.get('username')
+        if username and throttle.login_blocked(username):
+            raise ValidationError(LOGIN_THROTTLED_ERROR)
+
+        return super().clean()
 
 
 class LoginTokenForm(forms.Form):
@@ -107,16 +122,7 @@ ACCESS_REQUEST_TOO_MANY_ATTEMPTS = (
 
 def count_attempt(ip):
     """Soma a tentativa ao IP e diz se ela ainda cabe no teto da janela."""
-    key = ACCESS_REQUEST_ATTEMPTS.format(ip)
-    # O add só vale para a primeira tentativa da janela, e é ele que marca o
-    # prazo: o incr soma sem mexer no vencimento.
-    cache.add(key, 0, ACCESS_REQUEST_ATTEMPTS_WINDOW)
-    try:
-        attempts = cache.incr(key)
-    except ValueError:
-        # A chave venceu entre o add e o incr: a janela acabou de recomeçar.
-        cache.add(key, 1, ACCESS_REQUEST_ATTEMPTS_WINDOW)
-        attempts = 1
+    attempts = throttle.count(ACCESS_REQUEST_ATTEMPTS.format(ip), ACCESS_REQUEST_ATTEMPTS_WINDOW)
     return attempts <= ACCESS_REQUEST_ATTEMPTS_LIMIT
 
 

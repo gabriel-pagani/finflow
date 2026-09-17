@@ -109,7 +109,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
-    'django.contrib.auth.backends.ModelBackend',
+    # O ModelBackend de sempre, com o teto de palpites por usuário somado ao do
+    # axes, que é por usuário e IP.
+    'app.backends.ThrottledModelBackend',
 ]
 
 AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
