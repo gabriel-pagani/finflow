@@ -13,7 +13,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import ListView
 from django.views.generic.edit import DeleteView
 
-from ..models import Account, Category, Nature, Transaction
+from ..models import Account, Category, Transaction
+from ..scopes import ANALYTIC_NATURES
 
 
 # Valor do filtro para as transações sem categoria. Não é um pk, então não
@@ -133,7 +134,7 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
         return queryset
 
     def get_analytic_transactions(self, filters):
-        return self.get_transactions(filters).filter(nature=Nature.REGULAR)
+        return self.get_transactions(filters).filter(nature__in=ANALYTIC_NATURES)
 
     # Os painéis das dimensões que só algumas páginas têm.
     def get_extra_panels(self, filters):

@@ -450,7 +450,7 @@ items   = [{"type": "function_call_output", "call_id": "call_a1", "output": "&lt
                "account": null, "category": [3], "uncategorized": null, "card": null,
                "type": ["OUT"], "method": null, "nature": ["REGULAR"], "origin": null,
                "min_value": null, "max_value": null, "search": null, "group_by": null}}</pre>
-        <p class="muted" style="font-size: 0.88rem">Todos os campos vêm preenchidos porque as ferramentas estão em <code>strict</code>. O <code>null</code> quer dizer “não filtre”. <code>nature: ["REGULAR"]</code> não é automático: o prompt pede isso para “quanto gastei”, e é aqui que você confere se o modelo seguiu.</p>
+        <p class="muted" style="font-size: 0.88rem">Todos os campos vêm preenchidos porque as ferramentas estão em <code>strict</code>. Na análise, <code>method: null</code> aplica os métodos da Visão Geral (<code>DEBIT</code> e <code>NOT_APPLICABLE</code>), evitando contar juntos a compra no crédito e o pagamento da fatura. <code>nature: null</code> usaria <code>REGULAR</code>; neste exemplo o modelo a enviou explicitamente.</p>
       </div></li>
 
       <li class="step" data-lane="django"><div class="rail"><span></span><span class="on"></span><span></span><span></span></div><div class="body">
@@ -465,6 +465,7 @@ items   = [{"type": "function_call_output", "call_id": "call_a1", "output": "&lt
                         "start": "2026-08-01", "end": "2026-08-31"},
              "category": [{"id": 3, "label": "Mercado"}],
              "type": [{"code": "OUT", "label": "Saída"}],
+             "method": [{"code": "DEBIT", "label": "Débito"}, {"code": "NOT_APPLICABLE", "label": "Não Se Aplica"}],
              "nature": [{"code": "REGULAR", "label": "Normal"}],
              "not_filtered": "Toda dimensão ausente deste objeto entrou inteira no recorte, ..."},
  "total": {"income": "0.00", "outcome": "812.40", "net": "-812.40", "count": 14}}</pre>

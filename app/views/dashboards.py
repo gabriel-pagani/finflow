@@ -4,7 +4,8 @@ from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 from django.views.generic import TemplateView
 
-from ..models import Method, Type
+from ..models import Type
+from ..scopes import FORECAST_METHODS, OVERVIEW_METHODS
 from ..utils.charts import month_label, to_float
 from .mixins import FilteredTransactionsMixin
 
@@ -45,7 +46,7 @@ def categories_series(transactions):
 
 class OverviewView(FilteredTransactionsMixin, TemplateView):
     template_name = 'app/overview.html'
-    methods = [Method.DEBIT, Method.NOT_APPLICABLE]
+    methods = OVERVIEW_METHODS
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -80,7 +81,7 @@ class OverviewView(FilteredTransactionsMixin, TemplateView):
 
 class ForecastView(FilteredTransactionsMixin, TemplateView):
     template_name = 'app/forecast.html'
-    methods = [Method.CREDIT]
+    methods = FORECAST_METHODS
 
     # A previsão olha para a frente: de hoje até daqui a um ano.
     def get_default_period(self, today):

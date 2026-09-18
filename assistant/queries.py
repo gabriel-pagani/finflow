@@ -6,6 +6,7 @@ from django.db.models import Case, CharField, Count, Q, Sum, Value, When
 from django.db.models.functions import TruncDay, TruncMonth, TruncWeek, TruncYear
 
 from app.models import Account, BusinessRule, Card, Category, Method, Nature, Transaction, Type
+from app.scopes import ANALYTIC_NATURES, OVERVIEW_METHODS
 
 
 UNCATEGORIZED = 'Categoria Não Identificada'
@@ -113,7 +114,7 @@ def read_choice(arguments, name, accepted, default):
 
 
 class Filters:
-    def __init__(self, user, arguments):
+    def __init__(self, user, arguments, *, default_methods=None, default_natures=None):
         self.user = user
 
         self.start = read_date(arguments, 'start')
@@ -134,6 +135,10 @@ class Filters:
         self.types = read_codes(arguments, 'type', Type.values)
         self.methods = read_codes(arguments, 'method', Method.values)
         self.natures = read_codes(arguments, 'nature', Nature.values)
+        if self.methods is None and default_methods is not None:
+            self.methods = list(default_methods)
+        if self.natures is None and default_natures is not None:
+            self.natures = list(default_natures)
         self.origins = read_codes(arguments, 'origin', tuple(ORIGINS))
 
         self.min_value = read_money(arguments, 'min_value')
@@ -215,7 +220,7 @@ class Filters:
         if self.search:
             applied['search'] = self.search
 
-        applied['not_filtered'] = 'Toda dimensão ausente deste objeto entrou inteira no recorte, inclusive todas as naturezas e métodos.'
+        applied['not_filtered'] = 'Toda dimensão ausente deste objeto entrou inteira no recorte.'
         return applied
 
 
@@ -315,7 +320,7 @@ def group(queryset, names):
 
 
 def analyze_transactions(user, arguments):
-    filters = Filters(user, arguments)
+    filters = Filters(user, arguments, default_methods=OVERVIEW_METHODS, default_natures=ANALYTIC_NATURES)
     names = read_axes(arguments)
     queryset = filters.queryset()
 

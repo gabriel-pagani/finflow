@@ -17,7 +17,7 @@ def nullable(schema):
     return schema
 
 
-FILTERS = {
+COMMON_FILTERS = {
     'start': {'type': 'string', 'description': 'Início do período pela data efetiva, inclusivo, AAAA-MM-DD. null, sem limite.'},
     'end': {'type': 'string', 'description': 'Fim do período pela data efetiva, inclusivo, AAAA-MM-DD. null, sem limite.'},
     'account': ids('Ids de conta.'),
@@ -25,12 +25,30 @@ FILTERS = {
     'uncategorized': {'type': 'boolean', 'description': 'true restringe às transações sem categoria; com category, soma as duas coisas. Para todas as categorias, deixe este campo e category null, e para quebrar por categoria use group_by.'},
     'card': ids('Ids de cartão.'),
     'type': codes(queries.Type.values, 'IN (entrada) e/ou OUT (saída). null, os dois.'),
-    'method': codes(queries.Method.values, 'null, todos os métodos, inclusive o crédito.'),
-    'nature': codes(queries.Nature.values, 'null, todas as naturezas. Receita e despesa no sentido das telas são REGULAR.'),
     'origin': codes(queries.ORIGINS, 'standalone (avulsa), installment (parcela) e/ou transfer (perna de transferência).'),
     'min_value': {'type': 'string', 'description': 'Valor mínimo de cada transação, com ponto: "100.00".'},
     'max_value': {'type': 'string', 'description': 'Valor máximo de cada transação, com ponto.'},
     'search': {'type': 'string', 'description': 'Trecho da descrição, sem diferenciar maiúsculas nem acentos.'},
+}
+
+ANALYSIS_FILTERS = {
+    **COMMON_FILTERS,
+    'method': codes(
+        queries.Method.values,
+        'null usa os métodos da Visão Geral: DEBIT e NOT_APPLICABLE, sem CREDIT, para não contar a compra no '
+        'cartão e o pagamento da fatura como dois gastos. Para crédito ou todos os métodos, liste-os explicitamente.',
+    ),
+    'nature': codes(
+        queries.Nature.values,
+        'null usa REGULAR, como os valores de entrada e saída da Visão Geral. Para incluir movimentos internos, '
+        'liste as naturezas explicitamente.',
+    ),
+}
+
+LIST_FILTERS = {
+    **COMMON_FILTERS,
+    'method': codes(queries.Method.values, 'null traz todos os métodos, como a lista de Transações.'),
+    'nature': codes(queries.Nature.values, 'null traz todas as naturezas, como a lista de Transações.'),
 }
 
 
@@ -84,9 +102,10 @@ TOOLS = [
         'analisar_transacoes',
         'Totais de entrada, saída, saldo do recorte (net) e contagem, calculados no banco, opcionalmente '
         'quebrados por até dois eixos. Períodos e eixos temporais usam sempre a data efetiva, como nas telas. '
-        'Use para toda soma, comparação, média ou ranking. Filtro null não filtra.',
+        'Por padrão segue a Visão Geral: natureza REGULAR e métodos DEBIT e NOT_APPLICABLE. Filtros explícitos '
+        'permitem analisar crédito, movimentos internos ou todos eles. Use para toda soma, comparação, média ou ranking.',
         {
-            **FILTERS,
+            **ANALYSIS_FILTERS,
             'group_by': codes(queries.AXES, f'Até {queries.MAX_AXES} eixos. Ex.: ["month", "category"].'),
         },
     ),
@@ -96,7 +115,7 @@ TOOLS = [
         'transfer_id da transferência). Traz a contagem do recorte inteiro. Não some a lista: para totais use '
         'analisar_transacoes. O período usa sempre a data efetiva, como na lista da tela. Filtro null não filtra.',
         {
-            **FILTERS,
+            **LIST_FILTERS,
             'order': {'type': 'string', 'enum': list(queries.ORDERS), 'description': 'recent (padrão), oldest, largest ou smallest.'},
             'limit': {'type': 'integer', 'description': f'De 1 a {queries.MAX_LIMIT}. Padrão {queries.DEFAULT_LIMIT}.'},
             'offset': {'type': 'integer', 'description': 'Deslocamento para paginar.'},

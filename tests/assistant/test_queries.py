@@ -37,12 +37,20 @@ def test_nao_soma_dinheiro_de_outro_usuario(user, other_user, make_transaction):
     assert balance(user, {})['total']['outcome'] == '10.00'
 
 
-def test_sem_filtro_de_natureza_entram_todas(user, account, other_account, make_transaction):
+def test_analise_padrao_segue_metodos_e_natureza_da_visao_geral(user, account, other_account, card, make_transaction):
     gravar(make_transaction, value=Decimal('10.00'))
+    gravar(make_transaction, method=Method.CREDIT, card=card, value=Decimal('10.00'))
     transferir(user, account, other_account, '500.00')
 
-    assert analyze_transactions(user, {})['total']['outcome'] == '510.00'
-    assert analyze_transactions(user, {'nature': [Nature.REGULAR]})['total']['outcome'] == '10.00'
+    payload = analyze_transactions(user, {})
+
+    assert payload['total'] == {'income': '0.00', 'outcome': '10.00', 'net': '-10.00', 'count': 1}
+    assert [item['code'] for item in payload['filters']['method']] == [Method.DEBIT, Method.NOT_APPLICABLE]
+    assert [item['code'] for item in payload['filters']['nature']] == [Nature.REGULAR]
+    assert list_transactions(user, {})['count'] == 4
+
+    complete = analyze_transactions(user, {'method': list(Method.values), 'nature': list(Nature.values)})
+    assert complete['total'] == {'income': '500.00', 'outcome': '520.00', 'net': '-20.00', 'count': 4}
 
 
 def test_quebra_soma_o_mesmo_total(user, account, make_transaction):
@@ -70,11 +78,11 @@ def test_periodo_e_agrupamento_seguem_a_data_efetiva_das_telas(user, card, make_
     compra = gravar(make_transaction, method=Method.CREDIT, card=card, occurred_at=date(2026, 8, 20))
     assert compra.effective_at.month == 9
 
-    agosto = {'start': '2026-08-01', 'end': '2026-08-31'}
+    agosto = {'start': '2026-08-01', 'end': '2026-08-31', 'method': [Method.CREDIT]}
     assert analyze_transactions(user, agosto)['total']['count'] == 0
     assert list_transactions(user, agosto)['count'] == 0
 
-    setembro = {'start': '2026-09-01', 'end': '2026-09-30', 'group_by': ['month']}
+    setembro = {'start': '2026-09-01', 'end': '2026-09-30', 'method': [Method.CREDIT], 'group_by': ['month']}
     payload = analyze_transactions(user, setembro)
     assert payload['total']['count'] == 1
     assert payload['groups'][0]['keys']['month']['code'] == '2026-09'
@@ -106,7 +114,7 @@ def test_origem_separa_parcela_de_avulsa(user, make_transaction, make_installmen
     gravar(make_transaction, value=Decimal('10.00'))
     make_installment(value=Decimal('90.00'), installments=3).save()
 
-    payload = analyze_transactions(user, {'group_by': ['origin']})
+    payload = analyze_transactions(user, {'method': list(Method.values), 'group_by': ['origin']})
 
     assert {row['keys']['origin']['code']: row['outcome'] for row in payload['groups']} == {'installment': '90.00', 'standalone': '10.00'}
 
@@ -123,7 +131,7 @@ def test_eco_do_recorte_traz_os_rotulos(user, account, make_transaction):
 
     assert payload['filters']['account'] == [{'id': account.pk, 'label': 'Nubank'}]
     assert payload['filters']['nature'] == [{'code': 'REGULAR', 'label': 'Normal'}]
-    assert 'method' not in payload['filters']
+    assert [item['code'] for item in payload['filters']['method']] == [Method.DEBIT, Method.NOT_APPLICABLE]
 
 
 @pytest.mark.parametrize('arguments', [
