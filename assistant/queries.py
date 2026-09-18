@@ -19,6 +19,13 @@ ORIGINS = {
 
 PERIOD_DATE_FIELD = 'effective_at'
 PERIOD_DATE_MEANING = 'data efetiva (no crédito, o vencimento da fatura), como nas telas'
+CREDIT_OVERLAP_WARNING = {
+    'code': 'credit_with_account_outflow',
+    'message': (
+        'O recorte mistura Crédito com Débito ou Não Se Aplica. A compra no cartão e o pagamento da fatura '
+        'podem representar o mesmo gasto, duplicando as saídas e distorcendo o saldo.'
+    ),
+}
 
 ORDERS = {
     'recent': ('-effective_at', '-id'),
@@ -325,6 +332,15 @@ def analyze_transactions(user, arguments):
     queryset = filters.queryset()
 
     payload = {'filters': filters.describe(), 'total': summarize(queryset)}
+
+    includes_outcome = filters.types is None or Type.OUT in filters.types
+    mixes_credit_and_account_outflow = (
+        filters.methods
+        and Method.CREDIT in filters.methods
+        and any(method in filters.methods for method in OVERVIEW_METHODS)
+    )
+    if includes_outcome and mixes_credit_and_account_outflow:
+        payload['warnings'] = [CREDIT_OVERLAP_WARNING]
 
     if names:
         groups = group(queryset, names)

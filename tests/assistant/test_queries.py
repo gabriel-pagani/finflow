@@ -45,12 +45,24 @@ def test_analise_padrao_segue_metodos_e_natureza_da_visao_geral(user, account, o
     payload = analyze_transactions(user, {})
 
     assert payload['total'] == {'income': '0.00', 'outcome': '10.00', 'net': '-10.00', 'count': 1}
+    assert 'warnings' not in payload
     assert [item['code'] for item in payload['filters']['method']] == [Method.DEBIT, Method.NOT_APPLICABLE]
     assert [item['code'] for item in payload['filters']['nature']] == [Nature.REGULAR]
     assert list_transactions(user, {})['count'] == 4
 
     complete = analyze_transactions(user, {'method': list(Method.values), 'nature': list(Nature.values)})
     assert complete['total'] == {'income': '500.00', 'outcome': '520.00', 'net': '-20.00', 'count': 4}
+    assert complete['warnings'] == [{
+        'code': 'credit_with_account_outflow',
+        'message': (
+            'O recorte mistura Crédito com Débito ou Não Se Aplica. A compra no cartão e o pagamento da fatura '
+            'podem representar o mesmo gasto, duplicando as saídas e distorcendo o saldo.'
+        ),
+    }]
+
+    credit = analyze_transactions(user, {'method': [Method.CREDIT]})
+    assert credit['total']['outcome'] == '10.00'
+    assert 'warnings' not in credit
 
 
 def test_quebra_soma_o_mesmo_total(user, account, make_transaction):

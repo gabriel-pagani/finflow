@@ -103,7 +103,8 @@ TOOLS = [
         'Totais de entrada, saída, saldo do recorte (net) e contagem, calculados no banco, opcionalmente '
         'quebrados por até dois eixos. Períodos e eixos temporais usam sempre a data efetiva, como nas telas. '
         'Por padrão segue a Visão Geral: natureza REGULAR e métodos DEBIT e NOT_APPLICABLE. Filtros explícitos '
-        'permitem analisar crédito, movimentos internos ou todos eles. Use para toda soma, comparação, média ou ranking.',
+        'permitem analisar crédito, movimentos internos ou todos eles. Quando crédito e saída da conta entram juntos, '
+        'o retorno traz warnings sobre a possível contagem em dobro. Use para toda soma, comparação, média ou ranking.',
         {
             **ANALYSIS_FILTERS,
             'group_by': codes(queries.AXES, f'Até {queries.MAX_AXES} eixos. Ex.: ["month", "category"].'),

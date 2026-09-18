@@ -470,6 +470,7 @@ items   = [{"type": "function_call_output", "call_id": "call_a1", "output": "&lt
              "not_filtered": "Toda dimensão ausente deste objeto entrou inteira no recorte, ..."},
  "total": {"income": "0.00", "outcome": "812.40", "net": "-812.40", "count": 14}}</pre>
         <p class="muted" style="font-size: 0.88rem">Mesmo caminho da rodada 1: evento <code>tool</code> (“Calculando...”), <code>Message #4</code> assistant com a chamada e <code>Message #5</code> tool com este JSON.</p>
+        <p class="muted" style="font-size: 0.88rem">Se uma análise incluir <code>CREDIT</code> junto de <code>DEBIT</code> ou <code>NOT_APPLICABLE</code>, o retorno ganha <code>warnings</code>: compra e pagamento da fatura podem ser o mesmo gasto. O prompt obriga o modelo a comunicar esse risco de duplicação das saídas e distorção do saldo.</p>
       </div></li>
 
       <li class="round"><div class="rail"><span></span><span></span><span></span><span></span></div><div class="label">Rodada 3 <small>a resposta</small></div></li>
