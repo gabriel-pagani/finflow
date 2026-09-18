@@ -41,9 +41,6 @@ maybe-backup-system:
 prune-attachments:
 	@docker compose -f deploy/docker-compose.yml exec -T django python manage.py prune_attachments $(args)
 
-reset-system-cache:
-	@docker compose -f deploy/docker-compose.yml exec redis redis-cli FLUSHDB
-
 create-superuser:
 	@docker compose -f deploy/docker-compose.yml exec django python manage.py createsuperuser
 	@docker compose -f deploy/docker-compose.yml exec -T django python manage.py shell < scripts/create_totp.py
