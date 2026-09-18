@@ -5,6 +5,7 @@ import pytest
 
 from app.models import Category, Method, Nature, Transfer, Type
 from assistant.queries import QueryError, analyze_transactions, balance, list_transactions, registry
+from assistant.tools import TOOLS
 
 
 def gravar(make_transaction, **fields):
@@ -65,13 +66,30 @@ def test_quebra_soma_o_mesmo_total(user, account, make_transaction):
     assert [row['keys']['month']['code'] for row in payload['groups']] == ['2026-08', '2026-08', '2026-09', '2026-09']
 
 
-def test_data_efetiva_e_data_da_compra_recortam_diferente(user, card, make_transaction):
+def test_periodo_e_agrupamento_seguem_a_data_efetiva_das_telas(user, card, make_transaction):
     compra = gravar(make_transaction, method=Method.CREDIT, card=card, occurred_at=date(2026, 8, 20))
     assert compra.effective_at.month == 9
 
     agosto = {'start': '2026-08-01', 'end': '2026-08-31'}
     assert analyze_transactions(user, agosto)['total']['count'] == 0
-    assert analyze_transactions(user, {**agosto, 'date_field': 'occurred_at'})['total']['count'] == 1
+    assert list_transactions(user, agosto)['count'] == 0
+
+    setembro = {'start': '2026-09-01', 'end': '2026-09-30', 'group_by': ['month']}
+    payload = analyze_transactions(user, setembro)
+    assert payload['total']['count'] == 1
+    assert payload['groups'][0]['keys']['month']['code'] == '2026-09'
+    assert payload['filters']['period']['date_field'] == 'effective_at'
+
+
+def test_ferramentas_nao_oferecem_data_da_compra_como_filtro():
+    properties = {
+        tool['name']: tool['parameters']['properties']
+        for tool in TOOLS
+        if tool['name'] in ('analisar_transacoes', 'listar_transacoes')
+    }
+
+    assert 'date_field' not in properties['analisar_transacoes']
+    assert 'date_field' not in properties['listar_transacoes']
 
 
 def test_sem_categoria_soma_com_as_categorias_pedidas(user, category, make_transaction):
@@ -127,7 +145,7 @@ def test_parametro_invalido_vira_erro_em_vez_de_ser_ignorado(user, arguments):
 
 def test_enchimento_do_modo_estrito_nao_filtra(user, make_transaction):
     make_transaction(value=Decimal('7.00')).save()
-    arguments = {name: None for name in ('date_field', 'start', 'end', 'account', 'category', 'uncategorized', 'card', 'type',
+    arguments = {name: None for name in ('start', 'end', 'account', 'category', 'uncategorized', 'card', 'type',
                                          'method', 'nature', 'origin', 'min_value', 'max_value', 'search', 'group_by')}
 
     payload = analyze_transactions(user, arguments)

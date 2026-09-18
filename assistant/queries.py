@@ -16,10 +16,8 @@ ORIGINS = {
     'transfer': ('Perna de transferência', Q(transfer__isnull=False)),
 }
 
-DATE_FIELDS = {
-    'effective_at': 'data efetiva (no crédito, o vencimento da fatura)',
-    'occurred_at': 'data da transação (no crédito, o dia da compra)',
-}
+PERIOD_DATE_FIELD = 'effective_at'
+PERIOD_DATE_MEANING = 'data efetiva (no crédito, o vencimento da fatura), como nas telas'
 
 ORDERS = {
     'recent': ('-effective_at', '-id'),
@@ -118,7 +116,6 @@ class Filters:
     def __init__(self, user, arguments):
         self.user = user
 
-        self.date_field = read_choice(arguments, 'date_field', tuple(DATE_FIELDS), 'effective_at')
         self.start = read_date(arguments, 'start')
         self.end = read_date(arguments, 'end')
         if self.start and self.end and self.start > self.end:
@@ -150,9 +147,9 @@ class Filters:
         queryset = Transaction.objects.filter(user=self.user)
 
         if self.start:
-            queryset = queryset.filter(**{f'{self.date_field}__gte': self.start})
+            queryset = queryset.filter(effective_at__gte=self.start)
         if self.end:
-            queryset = queryset.filter(**{f'{self.date_field}__lte': self.end})
+            queryset = queryset.filter(effective_at__lte=self.end)
         if self.accounts is not None:
             queryset = queryset.filter(account_id__in=self.accounts)
         if self.cards is not None:
@@ -192,8 +189,8 @@ class Filters:
     def describe(self):
         applied = {
             'period': {
-                'date_field': self.date_field,
-                'meaning': DATE_FIELDS[self.date_field],
+                'date_field': PERIOD_DATE_FIELD,
+                'meaning': PERIOD_DATE_MEANING,
                 'start': self.start.isoformat() if self.start else 'sem limite',
                 'end': self.end.isoformat() if self.end else 'sem limite',
             },
@@ -223,9 +220,9 @@ class Filters:
 
 
 def temporal_axis(truncate, key_format, label_format):
-    def build(date_field):
+    def build():
         return {
-            'annotate': {'_bucket': truncate(date_field)},
+            'annotate': {'_bucket': truncate(PERIOD_DATE_FIELD)},
             'fields': ('_bucket',),
             'key': lambda row: {'code': row['_bucket'].strftime(key_format), 'label': row['_bucket'].strftime(label_format)},
             'temporal': True,
@@ -234,7 +231,7 @@ def temporal_axis(truncate, key_format, label_format):
 
 
 def field_axis(fields, key):
-    def build(date_field):
+    def build():
         return {'annotate': {}, 'fields': fields, 'key': key, 'temporal': False}
     return build
 
@@ -253,7 +250,7 @@ AXES = {
     'type': field_axis(('type',), lambda row: labeled(row['type'], Type)),
     'method': field_axis(('method',), lambda row: labeled(row['method'], Method)),
     'nature': field_axis(('nature',), lambda row: labeled(row['nature'], Nature)),
-    'origin': lambda date_field: {
+    'origin': lambda: {
         'annotate': {'_origin': Case(
             When(installment__isnull=False, then=Value('installment')),
             When(transfer__isnull=False, then=Value('transfer')),
@@ -287,8 +284,8 @@ def read_axes(arguments):
     return raw
 
 
-def group(queryset, names, date_field):
-    axes = [AXES[name](date_field) for name in names]
+def group(queryset, names):
+    axes = [AXES[name]() for name in names]
 
     annotations, fields = {}, []
     for axis in axes:
@@ -325,7 +322,7 @@ def analyze_transactions(user, arguments):
     payload = {'filters': filters.describe(), 'total': summarize(queryset)}
 
     if names:
-        groups = group(queryset, names, filters.date_field)
+        groups = group(queryset, names)
         payload['group_by'] = names
         payload['groups'] = groups[:MAX_GROUPS]
         if len(groups) > MAX_GROUPS:

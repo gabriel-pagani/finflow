@@ -18,9 +18,8 @@ def nullable(schema):
 
 
 FILTERS = {
-    'date_field': {'type': 'string', 'enum': list(queries.DATE_FIELDS), 'description': 'Qual data recorta o período. effective_at (padrão) é a das telas: no crédito, o vencimento da fatura. occurred_at é o dia da compra.'},
-    'start': {'type': 'string', 'description': 'Início do período, inclusivo, AAAA-MM-DD. null, sem limite.'},
-    'end': {'type': 'string', 'description': 'Fim do período, inclusivo, AAAA-MM-DD. null, sem limite.'},
+    'start': {'type': 'string', 'description': 'Início do período pela data efetiva, inclusivo, AAAA-MM-DD. null, sem limite.'},
+    'end': {'type': 'string', 'description': 'Fim do período pela data efetiva, inclusivo, AAAA-MM-DD. null, sem limite.'},
     'account': ids('Ids de conta.'),
     'category': ids('Ids de categoria.'),
     'uncategorized': {'type': 'boolean', 'description': 'true restringe às transações sem categoria; com category, soma as duas coisas. Para todas as categorias, deixe este campo e category null, e para quebrar por categoria use group_by.'},
@@ -84,7 +83,8 @@ TOOLS = [
     function(
         'analisar_transacoes',
         'Totais de entrada, saída, saldo do recorte (net) e contagem, calculados no banco, opcionalmente '
-        'quebrados por até dois eixos. Use para toda soma, comparação, média ou ranking. Filtro null não filtra.',
+        'quebrados por até dois eixos. Períodos e eixos temporais usam sempre a data efetiva, como nas telas. '
+        'Use para toda soma, comparação, média ou ranking. Filtro null não filtra.',
         {
             **FILTERS,
             'group_by': codes(queries.AXES, f'Até {queries.MAX_AXES} eixos. Ex.: ["month", "category"].'),
@@ -94,7 +94,7 @@ TOOLS = [
         'listar_transacoes',
         'Transações uma a uma, com ids, datas, rótulos e a origem (installment_id do parcelamento ou '
         'transfer_id da transferência). Traz a contagem do recorte inteiro. Não some a lista: para totais use '
-        'analisar_transacoes. Filtro null não filtra.',
+        'analisar_transacoes. O período usa sempre a data efetiva, como na lista da tela. Filtro null não filtra.',
         {
             **FILTERS,
             'order': {'type': 'string', 'enum': list(queries.ORDERS), 'description': 'recent (padrão), oldest, largest ou smallest.'},

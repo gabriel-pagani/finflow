@@ -446,7 +446,7 @@ items   = [{"type": "function_call_output", "call_id": "call_a1", "output": "&lt
         <p class="where"><span class="lane">OpenAI</span></p>
         <h4>O histórico já traz as mensagens #1, #2 e #3. O modelo pede o cálculo</h4>
 <pre>{"type": "function_call", "call_id": "call_b7", "name": "analisar_transacoes",
- "arguments": {"date_field": null, "start": "2026-08-01", "end": "2026-08-31",
+ "arguments": {"start": "2026-08-01", "end": "2026-08-31",
                "account": null, "category": [3], "uncategorized": null, "card": null,
                "type": ["OUT"], "method": null, "nature": ["REGULAR"], "origin": null,
                "min_value": null, "max_value": null, "search": null, "group_by": null}}</pre>
@@ -461,7 +461,7 @@ items   = [{"type": "function_call_output", "call_id": "call_a1", "output": "&lt
           <li>A consulta sempre começa em <code>Transaction.objects.filter(user=self.user)</code>, e a soma é um <code>Sum</code> no Postgres.</li>
           <li><code>describe()</code> devolve o recorte que de fato valeu, para o modelo conferir antes de narrar.</li>
         </ul>
-<pre>{"filters": {"period": {"date_field": "effective_at", "meaning": "data efetiva (no crédito, o vencimento da fatura)",
+<pre>{"filters": {"period": {"date_field": "effective_at", "meaning": "data efetiva (no crédito, o vencimento da fatura), como nas telas",
                         "start": "2026-08-01", "end": "2026-08-31"},
              "category": [{"id": 3, "label": "Mercado"}],
              "type": [{"code": "OUT", "label": "Saída"}],
