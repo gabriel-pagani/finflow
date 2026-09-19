@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from ..models import Type
 from ..scopes import FORECAST_METHODS, OVERVIEW_METHODS
 from ..utils.charts import month_label, to_float
-from .mixins import FilteredTransactionsMixin
+from .filtering import FilteredTransactionsMixin
 
 
 INCOME_COLOR = '#5aa469'

@@ -5,7 +5,8 @@ from django.views.generic.edit import CreateView, UpdateView
 
 from ..forms.finance import InstallmentForm, TransactionForm, TransferForm
 from ..models import BusinessRule, Card, Installment, Method, Nature, Transaction, Transfer, Type
-from .mixins import FilteredTransactionsMixin, ModalDeleteView, ModalWriteMixin, OwnedListView, build_panel, distinct_values
+from .filtering import FilteredTransactionsMixin, build_panel, distinct_values
+from .mixins import ModalDeleteView, ModalWriteMixin, OwnedListView
 
 
 # As combinações que cada conta aceita, para o modal só oferecer o que o
