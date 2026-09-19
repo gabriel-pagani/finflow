@@ -1,6 +1,6 @@
 from django.views.generic.edit import CreateView, UpdateView
 
-from ..forms import CardForm
+from ..forms.finance import CardForm
 from ..models import Card
 from .mixins import ModalDeleteView, ModalWriteMixin, OwnedListView
 from .transactions import form_options

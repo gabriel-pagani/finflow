@@ -8,7 +8,7 @@ from django.db.models.deletion import ProtectedError, RestrictedError
 from django.forms.models import model_to_dict
 from django.utils import timezone
 
-from app.forms import CardForm, InstallmentForm, TransactionForm, TransferForm
+from app.forms.finance import CardForm, InstallmentForm, TransactionForm, TransferForm
 from app.models import Card, Installment, Method, Nature, Transaction, Transfer
 from app.utils.dates import add_months
 from app.utils.formatting import format_to_money

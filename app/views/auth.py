@@ -10,7 +10,8 @@ from django.utils.functional import cached_property
 from django.views.generic.edit import CreateView, FormView
 from django_otp import login as otp_login
 
-from ..forms import AccessRequestForm, LoginForm, LoginTokenForm, OtpSetupForm
+from ..forms.access import AccessRequestForm
+from ..forms.auth import LoginForm, LoginTokenForm, OtpSetupForm
 from ..utils.mail import notify_access_request
 from ..utils.otp import confirmed_device, pending_device, qr_of, secret_of
 from ..utils.request import get_client_ip

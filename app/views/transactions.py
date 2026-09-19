@@ -3,7 +3,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Value
 from django.views.generic.edit import CreateView, UpdateView
 
-from ..forms import InstallmentForm, TransactionForm, TransferForm
+from ..forms.finance import InstallmentForm, TransactionForm, TransferForm
 from ..models import BusinessRule, Card, Installment, Method, Nature, Transaction, Transfer, Type
 from .mixins import FilteredTransactionsMixin, ModalDeleteView, ModalWriteMixin, OwnedListView, build_panel, distinct_values
 
