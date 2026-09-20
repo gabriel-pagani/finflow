@@ -31,6 +31,9 @@ backup-media:
 backup-system:
 	@$(MAKE) backup-database && $(MAKE) backup-media
 
+upload-backups:
+	@scripts/upload_backups.sh
+
 maybe-backup-system:
 	@case "$(backup)" in \
 		yes|true|on|1) $(MAKE) backup-system ;; \
