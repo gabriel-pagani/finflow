@@ -269,9 +269,9 @@ table.wrap td:first-child { white-space: normal; min-width: 180px; }
 <div class="page">
 
 <header>
-  <p class="eyebrow">finflow-v2 · app <code>assistant</code> · lido do código em 15/09/2026</p>
+  <p class="eyebrow">finflow-v2 · app <code>assistant</code> · lido do código em 27/09/2026</p>
   <h1>O assistente por dentro</h1>
-  <p class="lede">O que acontece, na ordem, do Enter até a resposta: o que o navegador faz, o que o Django decide, o que vai para a OpenAI e o que fica gravado no banco. Tudo aqui foi conferido no código, e o mesmo conteúdo fica no projeto em <code>assistant/docs/ARQUITETURA.html</code>.</p>
+  <p class="lede">O que acontece, na ordem, do Enter até a resposta: o que o navegador faz, o que o Django decide, o que vai para a OpenAI e o que fica gravado no banco. Tudo aqui foi conferido no código, e o mesmo conteúdo fica no projeto em <code>assistant/docs/index.html</code>.</p>
   <div class="ideas">
     <div class="idea">
       <b>O banco é a memória</b>
@@ -951,7 +951,8 @@ Complemento: setembro"}]</pre>
         <tr><td>client.py</td><td>O laço de rodadas (<code>converse</code>), a montagem do histórico, a transcrição e a leitura do stream.</td></tr>
         <tr><td>prompt.py</td><td>As regras dadas ao modelo, com o nome do usuário e a data de hoje.</td></tr>
         <tr><td>tools.py</td><td>Os 8 schemas enviados à API e o despachante <code>run()</code>.</td></tr>
-        <tr><td>queries.py</td><td>As 4 ferramentas de leitura: filtros, agregação, listagem, saldo e cadastro.</td></tr>
+        <tr><td>queries.py</td><td>As 4 ferramentas de leitura: agregação, listagem, saldo e cadastro.</td></tr>
+        <tr><td>query_filters.py</td><td>A validação, aplicação e descrição dos filtros usados pelas consultas.</td></tr>
         <tr><td>proposals.py</td><td>As 4 ferramentas de escrita: montar a proposta, o card, a busca de transação parecida, confirmar, descartar e o aviso interno.</td></tr>
         <tr><td>attachments.py</td><td>A checagem pelos bytes, a gravação, a referência <code>attachment:N</code> e a conversão para base64.</td></tr>
         <tr><td>commands.py · forms.py</td><td>Resolver <code>/nome</code>, expandir as instruções e validar comandos com limite.</td></tr>
@@ -961,7 +962,7 @@ Complemento: setembro"}]</pre>
         <tr><td>templates/assistant/panel.html · page.html</td><td>O painel (cabeçalho, lista, compositor e modal de comandos) e a página que o embute.</td></tr>
         <tr><td>static/…/assistant.js</td><td>O envio, a leitura do stream, o Markdown, os cards, a foto, o áudio e as sugestões de comando.</td></tr>
         <tr><td>static/…/css/</td><td>A aparência do chat (<code>assistant.css</code>) e da linha do tempo do admin (<code>admin.css</code>).</td></tr>
-        <tr><td>docs/ARQUITETURA.html</td><td>Este documento.</td></tr>
+        <tr><td>docs/index.html</td><td>Este documento.</td></tr>
       </tbody>
     </table>
   </div>
@@ -1073,7 +1074,7 @@ make prune-attachments args="--dry-run"        <span class="c"># só conta o que
     <div class="sub">
       <h3>Uma ferramenta de leitura</h3>
       <ol>
-        <li>Escreva a função em <code>queries.py</code> recebendo <code>(user, arguments)</code> e levantando <code>QueryError</code> com uma mensagem que ensine o formato certo.</li>
+        <li>Escreva a função em <code>queries.py</code> recebendo <code>(user, arguments)</code> e levantando <code>QueryError</code> com uma mensagem que ensine o formato certo. Validações e filtros reutilizáveis ficam em <code>query_filters.py</code>.</li>
         <li>Declare o schema em <code>TOOLS</code>, no <code>tools.py</code>, com <code>function(...)</code>.</li>
         <li>Registre a função no dicionário <code>readers</code> de <code>tools.run</code>.</li>
         <li>Acrescente a frase de status no <code>STATUS</code> do <code>assistant.js</code>.</li>
@@ -1119,6 +1120,7 @@ make run-tests args="tests/assistant -q"        <span class="c"># só o assisten
         <tr><td>test_admin.py</td><td>A seção Assistente, o admin só de leitura, a linha do tempo (chamada junto do retorno, recusa, situação da proposta, comando, aviso interno, resumo de uma linha) e o limite atual no uso diário.</td></tr>
         <tr><td>test_attachments.py</td><td>Assinatura pelos bytes, limites, caminho no disco, entrega protegida e esquecimento das fotos antigas.</td></tr>
         <tr><td>test_client.py</td><td>O laço: rodadas, limite de 8, chamada repetida que falhou e histórico.</td></tr>
+        <tr><td>test_limits.py</td><td>Os tetos de custo, tamanho e histórico, os limites de anexo e uma resposta por vez para cada usuário.</td></tr>
         <tr><td>test_commands.py</td><td>Gerenciar comandos (dono, nome, repetição, faixas de permissão, quem perde a faixa, tamanho) e chamá-los: o que o modelo lê e o que o chat mostra.</td></tr>
         <tr><td>test_proposals.py</td><td>Validação, snapshot, expiração, confirmação e recusa, e a transação parecida: o que avisa, o que não avisa e que o aviso não barra.</td></tr>
         <tr><td>test_queries.py</td><td>Filtros, agregação, eixos, saldo e cadastro.</td></tr>
