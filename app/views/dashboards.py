@@ -33,13 +33,14 @@ def by_month(transactions, *keys):
 def categories_series(transactions):
     rows = (
         transactions
+        .filter(category__isnull=False)
         .values('category__description')
         .annotate(total=Sum('value'))
         .order_by('-total')
     )
 
     return [
-        {'name': row['category__description'] or 'Categoria Não Identificada', 'value': to_float(row['total'])}
+        {'name': row['category__description'], 'value': to_float(row['total'])}
         for row in rows
     ]
 

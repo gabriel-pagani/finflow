@@ -241,10 +241,20 @@ def test_filtro_junta_categoria_e_nao_identificada(logged, category, debit_rule,
     assert list(response.context['object_list']) == [sem_categoria]
 
 
-def test_grafico_de_categorias_respeita_a_nao_identificada(logged, category, debit_rule, make_transaction):
-    make_transaction(category=category).save()
-    make_transaction(value='30.00').save()
+@pytest.mark.parametrize('route', ['app:overview', 'app:forecast'])
+def test_grafico_de_categorias_exclui_a_nao_identificada(logged, route, category, card, debit_rule, make_transaction):
+    make_transaction(category=category, **seen_by(route, card)).save()
+    make_transaction(value='30.00', **seen_by(route, card)).save()
 
-    response = logged.get(reverse('app:overview'), {'start': '2026-01-01', 'end': '2026-12-31', 'category': 'none'})
+    response = logged.get(reverse(route), PERIODO)
 
-    assert response.context['chart_categories'] == [{'name': 'Categoria Não Identificada', 'value': 30.0}]
+    assert response.context['chart_categories'] == [{'name': str(category), 'value': 10.0}]
+    assert sum(response.context['chart_months']['series'][-1]['data']) == 40.0
+    if route == 'app:overview':
+        assert response.context['cards']['outcome'] == 40.0
+    else:
+        assert response.context['total'] == 40.0
+
+    response = logged.get(reverse(route), {**PERIODO, 'category': 'none'})
+
+    assert response.context['chart_categories'] == []
