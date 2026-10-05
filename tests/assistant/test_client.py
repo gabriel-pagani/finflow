@@ -100,3 +100,16 @@ def test_historico_nao_comeca_por_resposta_de_ferramenta_orfa(user):
 
     assert items[0] == {'role': 'user', 'content': '0'}
     assert len(items) == HISTORY_LIMIT - 1
+
+
+def test_observacao_atualizada_chega_ao_modelo(allowed, user, fake_openai):
+    for observation in ('Uso Nubank por padrão.', 'Uso Itaú por padrão.', ''):
+        user.observations = observation
+        user.save(update_fields=['observations'])
+        fake_openai.turns.append(fake_openai.text_turn('Ok.'))
+        eventos(allowed.post(reverse('assistant:stream'), {'message': 'Oi'}))
+        instructions = fake_openai.calls[-1]['instructions']
+        assert f'Observação do usuário (preferências pessoais):\n{observation or "Nenhuma."}\n' in instructions
+        assert 'O pedido atual prevalece.' in instructions
+        if observation != 'Uso Nubank por padrão.':
+            assert 'Uso Nubank por padrão.' not in instructions

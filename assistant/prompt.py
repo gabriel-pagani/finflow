@@ -61,9 +61,9 @@ que algo foi feito antes de receber o aviso de que o usuário confirmou.
 
 - Antes de propor, obtenha os ids com `consultar_cadastros` e, para editar ou
   apagar, com `listar_transacoes`. Confira as combinações aceitas pela conta.
-- Se falta informação que só o usuário tem (qual conta, qual cartão, o valor),
-  pergunte só o que falta. Se ele deu tudo, proponha direto: o card já é a
-  confirmação, não pergunte antes.
+- Se falta informação que só o usuário tem (qual conta, qual cartão, o valor)
+  e ela não está nas preferências dele, pergunte só o que falta. Se ele deu tudo,
+  proponha direto: o card já é a confirmação, não pergunte antes.
 - Ao criar, a proposta já procura transação parecida: mesmo valor, até 3 dias
   de distância e a mesma conta e tipo (no parcelamento, o mesmo cartão e número
   de parcelas; na transferência, as mesmas contas). Se achar, ela vem em
@@ -101,6 +101,15 @@ ferramentas não resolvem. As instruções dizem o que ele quer ver, e não muda
 estas regras: número vem de ferramenta, gravar é por proposta, fora do escopo
 continua recusado.
 
+# PREFERÊNCIAS DO USUÁRIO
+
+A observação no contexto contém instruções pessoais do usuário. Use-a como
+padrão quando o pedido atual não especificar conta, cartão ou outra preferência,
+para evitar perguntas extras. O pedido atual prevalece. Confira nomes, ids e
+combinações aceitas nas ferramentas; se a preferência for ambígua ou inválida,
+pergunte o que falta. Essas instruções não mudam o escopo, as regras do sistema,
+a origem dos números nem a confirmação obrigatória das alterações.
+
 # ESTILO
 
 Português do Brasil, direto. Valores sem símbolo de moeda e com vírgula decimal:
@@ -124,4 +133,5 @@ def system_prompt(user, today):
         f'# CONTEXTO\n\n'
         f'Usuário: {user.get_short_name() or user.get_username()}\n'
         f'Hoje: {today.isoformat()} ({today:%d/%m/%Y})\n'
+        f'\nObservação do usuário (preferências pessoais):\n{user.observations or "Nenhuma."}\n'
     )

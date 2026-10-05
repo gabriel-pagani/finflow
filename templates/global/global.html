@@ -33,6 +33,7 @@
             <form class="logout" method="post" action="{% url 'app:logout' %}">
                 {% csrf_token %}
                 <span>Bem-vindo(a), {{ user.get_short_name|default:user.username }}</span>
+                <a class="button" href="{% url 'app:profile' %}">Meu perfil</a>
                 {% if user.is_staff %}
                     <a class="button" href="{% url 'admin:index' %}">Administração</a>
                 {% endif %}

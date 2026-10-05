@@ -10,6 +10,7 @@ urlpatterns = [
     path('login/token/', views.LoginTokenView.as_view(), name='login_token'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('access-request/', views.AccessRequestView.as_view(), name='access_request'),
+    path('profile/', views.ProfileView.as_view(), name='profile'),
     path('two-factor/', views.OtpSetupView.as_view(), name='otp_setup'),
     path('', views.OverviewView.as_view(), name='overview'),
     path('prevision/', views.ForecastView.as_view(), name='forecast'),

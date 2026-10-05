@@ -1,0 +1,25 @@
+.profile-card {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.profile-card form p {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.profile-card textarea {
+    width: 100%;
+    padding: 10px;
+    font: inherit;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    resize: vertical;
+}
+
+.profile-card .helptext {
+    color: var(--muted);
+}
