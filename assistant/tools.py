@@ -95,7 +95,7 @@ TOOLS = [
     function(
         'consultar_cadastros',
         'Contas (com as combinações de tipo e método que cada uma aceita), categorias, cartões do usuário '
-        '(com fechamento, vencimento e a data em que uma compra de hoje seria cobrada) e os códigos de tipo, '
+        '(com fechamento, vencimento, se é o principal ou está cancelado e a data em que uma compra de hoje seria cobrada) e os códigos de tipo, '
         'método e natureza. Chame antes de usar qualquer id.',
     ),
     function(
@@ -136,6 +136,8 @@ TOOLS = [
         'last_digits': {'type': 'string', 'description': 'Os quatro últimos dígitos.'},
         'closing_day': {'type': 'integer', 'description': 'Dia do fechamento da fatura, de 1 a 31.'},
         'due_day': {'type': 'integer', 'description': 'Dia do vencimento da fatura, de 1 a 31.'},
+        'is_main': {'type': 'boolean', 'description': 'Cartão principal, usado quando o pedido não diz qual. Só um por usuário, e nunca cancelado.'},
+        'is_cancelled': {'type': 'boolean', 'description': 'Cartão cancelado: some das opções de novas compras.'},
     }),
     proposal('propor_transacao', Kind.TRANSACTION, f'Cria, edita ou apaga uma transação avulsa pelo id dela. Parcela e perna de transferência não passam por aqui. {EDIT_RULE}', {
         'occurred_at': OCCURRED_AT,

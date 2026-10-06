@@ -1,5 +1,6 @@
 from django.urls import reverse
 
+from app.forms.finance import InstallmentForm, TransactionForm
 from app.models import Card
 
 
@@ -37,3 +38,34 @@ def test_cartao_repetido_e_recusado(logged, account, card, credit_rule):
 
     assert Card.objects.count() == 1
     assert any('Esse cartão já foi cadastrado.' == str(message) for message in response.context['messages'])
+
+
+def test_segundo_cartao_principal_e_recusado(logged, account, card, credit_rule):
+    Card.objects.filter(pk=card.pk).update(is_main=True)
+
+    response = logged.post(reverse('app:card_create'), {
+        'account': account.pk, 'last_digits': '4321', 'closing_day': '5', 'due_day': '12', 'is_main': 'on',
+    }, follow=True)
+
+    assert Card.objects.count() == 1
+    assert any('Já existe um cartão principal' in str(message) for message in response.context['messages'])
+
+
+def test_cartao_cancelado_nao_pode_ser_principal(logged, account, credit_rule):
+    response = logged.post(reverse('app:card_create'), {
+        'account': account.pk, 'last_digits': '4321', 'closing_day': '5', 'due_day': '12',
+        'is_main': 'on', 'is_cancelled': 'on',
+    }, follow=True)
+
+    assert not Card.objects.exists()
+    assert any('cancelado não pode ser o principal' in str(message) for message in response.context['messages'])
+
+
+def test_cartao_cancelado_sai_das_opcoes_mas_fica_na_compra_que_o_usa(user, card, make_transaction):
+    compra = make_transaction(card=card, method='CREDIT')
+    compra.save()
+    Card.objects.filter(pk=card.pk).update(is_cancelled=True)
+
+    assert card not in TransactionForm(user=user).fields['card'].queryset
+    assert card not in InstallmentForm(user=user).fields['card'].queryset
+    assert card in TransactionForm(user=user, instance=compra).fields['card'].queryset

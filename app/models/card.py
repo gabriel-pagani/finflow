@@ -16,6 +16,8 @@ class Card(models.Model):
     last_digits = models.CharField(max_length=4, verbose_name='Últimos Quatro Dígitos')
     closing_day = models.PositiveSmallIntegerField(verbose_name='Dia de Fechamento')
     due_day = models.PositiveSmallIntegerField(verbose_name='Dia de Vencimento')
+    is_cancelled = models.BooleanField(default=False, verbose_name='Cancelado')
+    is_main = models.BooleanField(default=False, verbose_name='Principal')
 
     TYPE = Type.OUT
     METHOD = Method.CREDIT
@@ -75,6 +77,17 @@ class Card(models.Model):
                 condition=models.Q(closing_day__range=(1, 31)) & models.Q(due_day__range=(1, 31)),
                 name='card_days_within_month',
                 violation_error_message='Os dias de fechamento e vencimento devem estar entre 1 e 31.',
+            ),
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(is_main=True),
+                name='card_unique_main_per_user',
+                violation_error_message='Já existe um cartão principal. Desmarque-o antes de escolher outro.',
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(is_main=True, is_cancelled=True),
+                name='card_main_not_cancelled',
+                violation_error_message='Um cartão cancelado não pode ser o principal.',
             ),
         ]
         verbose_name = 'Cartão'

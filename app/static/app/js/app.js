@@ -502,7 +502,9 @@ function setupRecordCrud(root) {
     function fill(data) {
         form.querySelectorAll('[name]').forEach((input) => {
             const key = input.name.replace(/_(.)/g, (match, letter) => letter.toUpperCase());
-            if (key in data) input.value = data[key];
+            if (!(key in data)) return;
+            if (input.type === 'checkbox') input.checked = data[key] === 'true';
+            else input.value = data[key];
         });
     }
 

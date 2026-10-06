@@ -261,6 +261,8 @@ def registry(user, today):
                 'last_digits': card.last_digits,
                 'closing_day': card.closing_day,
                 'due_day': card.due_day,
+                'is_main': card.is_main,
+                'is_cancelled': card.is_cancelled,
                 'purchase_today_charged_at': card.charge_date(today).isoformat(),
             }
             for card in Card.objects.filter(user=user).select_related('account')

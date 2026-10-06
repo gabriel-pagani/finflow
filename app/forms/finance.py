@@ -1,6 +1,7 @@
 """Formulários financeiros compartilhados pelas telas e pelo assistente."""
 
 from django import forms
+from django.db.models import Q
 from django.utils import timezone
 
 from ..models import Card, Installment, Method, Transaction, Transfer
@@ -26,7 +27,10 @@ class OwnedForm(forms.ModelForm):
 
         if 'card' in self.fields:
             card = self.fields['card']
-            card.queryset = Card.objects.filter(user=user).select_related('account')
+            # O cancelado sai das opções, mas continua valendo para o registro
+            # que já o usa: editar a compra antiga não pode obrigar a trocar
+            # de cartão.
+            card.queryset = Card.objects.filter(Q(is_cancelled=False) | Q(pk=self.instance.card_id), user=user).select_related('account')
             card.empty_label = None
             card.error_messages['required'] = CARD_REQUIRED_ERROR
 
@@ -48,7 +52,7 @@ class OwnedForm(forms.ModelForm):
 class CardForm(OwnedForm):
     class Meta:
         model = Card
-        fields = ('account', 'last_digits', 'closing_day', 'due_day',)
+        fields = ('account', 'last_digits', 'closing_day', 'due_day', 'is_main', 'is_cancelled',)
         widgets = {
             'last_digits': forms.TextInput(attrs={'inputmode': 'numeric', 'maxlength': '4', 'pattern': r'\d{4}'}),
             'closing_day': forms.NumberInput(attrs={'min': '1', 'max': '31', 'step': '1'}),

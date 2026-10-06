@@ -74,6 +74,8 @@ def display(model, name, value):
         return 'Categoria Não Identificada'
     if value in (None, ''):
         return EMPTY
+    if isinstance(value, bool):
+        return 'Sim' if value else 'Não'
     if field.choices:
         return str(dict(field.flatchoices).get(value, value))
     if isinstance(value, Decimal):

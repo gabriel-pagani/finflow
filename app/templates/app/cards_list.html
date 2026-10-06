@@ -16,6 +16,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>Situação</th>
                     <th>Conta</th>
                     <th>Final</th>
                     <th class="right">Fechamento</th>
@@ -39,9 +40,12 @@
                         data-last-digits="{{ card.last_digits }}"
                         data-closing-day="{{ card.closing_day|unlocalize }}"
                         data-due-day="{{ card.due_day|unlocalize }}"
+                        data-is-main="{{ card.is_main|yesno:'true,false' }}"
+                        data-is-cancelled="{{ card.is_cancelled|yesno:'true,false' }}"
                         data-label="{{ card }}"
                         tabindex="0" role="button"
                         title="Clique para editar">
+                        <td>{% if card.is_cancelled %}Cancelado{% elif card.is_main %}Principal{% else %}Ativo{% endif %}</td>
                         <td>{{ card.account }}</td>
                         <td>•••• •••• •••• {{ card.last_digits }}</td>
                         <td class="right">Dia {{ card.closing_day|unlocalize }}</td>
@@ -52,7 +56,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="5">Nenhum cartão cadastrado. Cadastre um para lançar compras no crédito.</td></tr>
+                    <tr><td colspan="6">Nenhum cartão cadastrado. Cadastre um para lançar compras no crédito.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
