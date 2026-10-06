@@ -11,10 +11,39 @@
 {% block content %}
     <section class="card profile-card">
         <h1>Meu perfil</h1>
+
+        <h2>Dados da conta</h2>
         <form method="post">
             {% csrf_token %}
-            {{ form.as_p }}
-            <button type="submit">Salvar</button>
+            <input type="hidden" name="section" value="account">
+            {{ forms.account.as_p }}
+            <button type="submit">Salvar dados</button>
         </form>
+
+        <h2>Senha</h2>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="section" value="password">
+            {{ forms.password.as_p }}
+            <button type="submit">Alterar senha</button>
+        </form>
+
+        <h2>Assistente</h2>
+        {% if assistant.allowed %}
+            <dl class="profile-info">
+                <dt>Mensagens hoje</dt>
+                <dd>{{ assistant.messages_used }} de {% if assistant.messages_limit is None %}ilimitadas{% else %}{{ assistant.messages_limit }}{% endif %}</dd>
+                <dt>Comandos salvos</dt>
+                <dd>{{ assistant.commands_used }} de {% if assistant.commands_limit is None %}ilimitados{% else %}{{ assistant.commands_limit }}{% endif %}</dd>
+            </dl>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="section" value="observations">
+                {{ forms.observations.as_p }}
+                <button type="submit">Salvar observação</button>
+            </form>
+        {% else %}
+            <p class="profile-info">Sua conta não tem acesso ao assistente. Peça a um administrador para liberá-lo.</p>
+        {% endif %}
     </section>
 {% endblock %}
