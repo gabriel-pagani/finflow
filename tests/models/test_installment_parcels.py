@@ -24,11 +24,11 @@ def test_a_soma_das_parcelas_fecha_o_valor_total(make_installment):
 
 
 @pytest.mark.parametrize('value, installments, esperado', [
-    (Decimal('1000.00'), 3, [Decimal('333.33'), Decimal('333.33'), Decimal('333.34')]),
-    (Decimal('100.00'), 7, [Decimal('14.28')] * 6 + [Decimal('14.32')]),
+    (Decimal('1000.00'), 3, [Decimal('333.34'), Decimal('333.33'), Decimal('333.33')]),
+    (Decimal('100.00'), 7, [Decimal('14.32')] + [Decimal('14.28')] * 6),
     (Decimal('500.00'), 2, [Decimal('250.00'), Decimal('250.00')]),
 ])
-def test_a_sobra_dos_centavos_cai_na_ultima_parcela(make_installment, value, installments, esperado):
+def test_a_sobra_dos_centavos_cai_na_primeira_parcela(make_installment, value, installments, esperado):
     parcelamento = make_installment(value=value, installments=installments)
     parcelamento.save()
     assert [t.value for t in parcelamento.transactions.order_by('parcel')] == esperado

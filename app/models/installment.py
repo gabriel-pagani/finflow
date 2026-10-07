@@ -50,11 +50,11 @@ class Installment(models.Model):
             raise ValidationError(errors)
 
     def parcel_values(self):
-        """Divide o total em parcelas iguais, com a sobra dos centavos na última."""
+        """Divide o total em parcelas iguais, com a sobra dos centavos na primeira."""
         base_value = (self.value / self.installments).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
-        last_value = self.value - base_value * (self.installments - 1)
+        first_value = self.value - base_value * (self.installments - 1)
 
-        return [base_value] * (self.installments - 1) + [last_value]
+        return [first_value] + [base_value] * (self.installments - 1)
 
     def generate_transactions(self):
         self.transactions.all().delete()

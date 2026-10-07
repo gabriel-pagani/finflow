@@ -73,7 +73,7 @@ def test_parcelamento_mostra_a_divisao_e_as_datas(user, account, card, conversat
                         value='1000.00', installments=3, occurred_at='2026-09-04')
 
     summary = rows(proposal.summary)
-    assert summary['Parcelas']['value'] == '2x de 333,33 + 1x de 333,34'
+    assert summary['Parcelas']['value'] == '1x de 333,34 + 2x de 333,33'
     assert summary['1ª Parcela em']['value'] == card.charge_date(date(2026, 9, 4)).strftime('%d/%m/%Y')
     assert summary['Última Parcela em']['value'] == card.charge_date(date(2026, 11, 4)).strftime('%d/%m/%Y')
 

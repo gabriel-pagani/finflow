@@ -133,7 +133,7 @@ def parcel_rows(form):
     if values[0] == values[-1]:
         split = f'{count}x de {format_to_money(values[0])}'
     else:
-        split = f'{count - 1}x de {format_to_money(values[0])} + 1x de {format_to_money(values[-1])}'
+        split = f'1x de {format_to_money(values[0])} + {count - 1}x de {format_to_money(values[-1])}'
 
     first = installment.card.charge_date(installment.occurred_at)
     last = installment.card.charge_date(add_months(installment.occurred_at, count - 1))
