@@ -137,7 +137,7 @@ class HistoryView(AssistantView):
         # Uma lista só, em ordem de tempo: o card volta ao lado da frase que o
         # pediu, e já resolvido volta sem botão, dizendo o que houve.
         blocks = [
-            (message.created_at, {'kind': 'message', 'role': message.role, 'content': message.content, 'attachment': self.attachment(message)})
+            (message.created_at, {'kind': 'message', 'role': message.role, 'content': message.content, 'attachment': self.attachment(message), 'created_at': message.created_at.isoformat()})
             for message in messages
         ] + [
             (proposal.created_at, {'kind': 'proposal', 'id': proposal.pk, 'summary': proposal.summary, 'state': proposal.state, 'result': proposal.result})

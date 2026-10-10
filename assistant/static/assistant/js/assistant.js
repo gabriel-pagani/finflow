@@ -168,7 +168,8 @@ function setupAssistant(root) {
         return html.join('');
     }
 
-    function bubble(role, text, media) {
+    // Sem `at` é mensagem que acabou de nascer, e vale a hora do aparelho.
+    function bubble(role, text, media, at) {
         const node = document.createElement('div');
         node.className = `assistant-message ${role}`;
 
@@ -186,10 +187,20 @@ function setupAssistant(root) {
         }
 
         if (media) node.appendChild(mediaNode(media));
+        if (role === 'user' || role === 'assistant') node.appendChild(timeNode(at));
 
         list.appendChild(node);
         scroll();
         return node;
+    }
+
+    function timeNode(at) {
+        const date = at ? new Date(at) : new Date();
+        const time = document.createElement('time');
+        time.className = 'assistant-time';
+        time.dateTime = date.toISOString();
+        time.textContent = date.toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});
+        return time;
     }
 
     function mediaNode(media) {
@@ -222,8 +233,10 @@ function setupAssistant(root) {
     // O acumulado é reprocessado a cada delta: uma marcação pode chegar aberta
     // num pedaço e fechada no seguinte.
     function appendDelta(node, text) {
+        const time = node.querySelector('.assistant-time');
         node.dataset.raw += text;
         node.innerHTML = renderMarkdown(node.dataset.raw);
+        node.appendChild(time);
         scroll();
     }
 
@@ -545,7 +558,7 @@ function setupAssistant(root) {
         if (block.kind === 'proposal') {
             proposalCard(block.id, block.summary, block.state, block.result);
         } else {
-            bubble(block.role, block.content, block.attachment);
+            bubble(block.role, block.content, block.attachment, block.created_at);
         }
     }
 

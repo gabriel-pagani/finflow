@@ -30,7 +30,9 @@ def test_consulta_volta_para_o_modelo_antes_da_resposta(allowed, user, make_tran
 
     conversa = Conversation.objects.get(user=user)
     assert list(conversa.messages.values_list('role', flat=True)) == [Role.USER, Role.ASSISTANT, Role.TOOL, Role.ASSISTANT]
-    assert allowed.get(reverse('assistant:history')).json()['blocks'] == [
+    blocks = allowed.get(reverse('assistant:history')).json()['blocks']
+    assert all(block.pop('created_at') for block in blocks)
+    assert blocks == [
         {'kind': 'message', 'role': 'user', 'content': 'Quanto gastei?', 'attachment': None},
         {'kind': 'message', 'role': 'assistant', 'content': 'Você gastou 42,00.', 'attachment': None},
     ]

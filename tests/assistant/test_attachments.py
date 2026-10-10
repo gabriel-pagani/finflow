@@ -142,7 +142,7 @@ def test_foto_sem_legenda_aparece_no_historico(allowed, conversation):
 
     blocks = allowed.get(reverse('assistant:history')).json()['blocks']
 
-    assert blocks == [{'kind': 'message', 'role': 'user', 'content': '', 'attachment': {'kind': 'image', 'url': reverse('assistant:attachment', args=[attachment.pk])}}]
+    assert blocks == [{'kind': 'message', 'role': 'user', 'content': '', 'attachment': {'kind': 'image', 'url': reverse('assistant:attachment', args=[attachment.pk])}, 'created_at': attachment.message.created_at.isoformat()}]
 
 
 def test_anexo_e_entregue_ao_dono_pelo_nginx(allowed, conversation):

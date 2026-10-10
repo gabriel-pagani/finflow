@@ -106,6 +106,18 @@
     white-space: pre-wrap;
 }
 
+.assistant-message .assistant-time {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.75em;
+    opacity: 0.6;
+    text-align: right;
+}
+
+.assistant-message .text[hidden] + .assistant-time {
+    margin-top: 0;
+}
+
 .assistant-message .assistant-photo {
     display: block;
     max-width: 100%;
