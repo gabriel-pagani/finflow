@@ -12,54 +12,42 @@
             <button type="button" data-new="card">Novo Cartão</button>
         </div>
 
-        <div class="table-scroll">
-        <table>
-            <thead>
-                <tr>
-                    <th>Situação</th>
-                    <th>Conta</th>
-                    <th>Final</th>
-                    <th class="right">Fechamento</th>
-                    <th class="right">Vencimento</th>
-                    <th class="right">Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for card in object_list %}
-                    {% comment %}
-                    unlocalize nos números: com USE_THOUSAND_SEPARATOR o pk 1294
-                    sairia como "1.294" e a URL montada pelo JS não casaria com a
-                    rota <int:pk>. Vale também para os dias, que voltam para
-                    dentro do formulário na edição.
-                    {% endcomment %}
-                    <tr class="row-editable"
-                        data-row="card"
-                        data-editable
-                        data-id="{{ card.pk|unlocalize }}"
-                        data-account="{{ card.account_id|unlocalize }}"
-                        data-last-digits="{{ card.last_digits }}"
-                        data-closing-day="{{ card.closing_day|unlocalize }}"
-                        data-due-day="{{ card.due_day|unlocalize }}"
-                        data-is-main="{{ card.is_main|yesno:'true,false' }}"
-                        data-is-cancelled="{{ card.is_cancelled|yesno:'true,false' }}"
-                        data-label="{{ card }}"
-                        tabindex="0" role="button"
-                        title="Clique para editar">
-                        <td>{% if card.is_cancelled %}Cancelado{% elif card.is_main %}Principal{% else %}Ativo{% endif %}</td>
-                        <td>{{ card.account }}</td>
-                        <td>•••• •••• •••• {{ card.last_digits }}</td>
-                        <td class="right">Dia {{ card.closing_day|unlocalize }}</td>
-                        <td class="right">Dia {{ card.due_day|unlocalize }}</td>
-                        <td class="right nowrap">
-                            <button type="button" class="icon-button" title="Editar">Editar</button>
-                            <button type="button" class="icon-button danger" data-row-delete title="Remover">Remover</button>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="6">Nenhum cartão cadastrado. Cadastre um para lançar compras no crédito.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="credit-cards">
+            {% for card in object_list %}
+                {% comment %}
+                unlocalize nos números: com USE_THOUSAND_SEPARATOR o pk 1294
+                sairia como "1.294" e a URL montada pelo JS não casaria com a
+                rota <int:pk>. Vale também para os dias, que voltam para
+                dentro do formulário na edição.
+                {% endcomment %}
+                <article class="credit-card{% if card.is_cancelled %} is-cancelled{% elif card.is_main %} is-main{% endif %}"
+                         data-row="card"
+                         data-editable
+                         data-id="{{ card.pk|unlocalize }}"
+                         data-account="{{ card.account_id|unlocalize }}"
+                         data-last-digits="{{ card.last_digits }}"
+                         data-closing-day="{{ card.closing_day|unlocalize }}"
+                         data-due-day="{{ card.due_day|unlocalize }}"
+                         data-is-main="{{ card.is_main|yesno:'true,false' }}"
+                         data-is-cancelled="{{ card.is_cancelled|yesno:'true,false' }}"
+                         data-label="{{ card }}"
+                         tabindex="0" role="button"
+                         title="Clique para editar">
+                    <div class="credit-card-top">
+                        <span class="credit-card-account">{{ card.account }}</span>
+                        <span class="credit-card-status">{% if card.is_cancelled %}Cancelado{% elif card.is_main %}Principal{% else %}Ativo{% endif %}</span>
+                    </div>
+                    <span class="credit-card-chip" aria-hidden="true"></span>
+                    <span class="credit-card-number">•••• •••• •••• {{ card.last_digits }}</span>
+                    <div class="credit-card-bottom">
+                        <span><small>Fechamento</small>Dia {{ card.closing_day|unlocalize }}</span>
+                        <span><small>Vencimento</small>Dia {{ card.due_day|unlocalize }}</span>
+                        <button type="button" class="credit-card-remove" data-row-delete title="Remover">Remover</button>
+                    </div>
+                </article>
+            {% empty %}
+                <p>Nenhum cartão cadastrado. Cadastre um para lançar compras no crédito.</p>
+            {% endfor %}
         </div>
 
         {% include 'app/pagination.html' %}

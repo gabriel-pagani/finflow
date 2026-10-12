@@ -760,3 +760,112 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Cartões: cada registro desenhado como o cartão físico, na proporção ISO
+   (85,6 × 54 mm). As cores ficam fixas porque imitam o plástico, não o tema. */
+.credit-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    align-content: start;
+    gap: 20px;
+    /* rola dentro do card, como a tabela, para a paginação ficar visível */
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 6px;
+}
+
+.credit-card {
+    aspect-ratio: 85.6 / 54;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #1e3a5f, #3b6ea5);
+    color: #fff;
+    box-shadow: 0 6px 16px rgb(0 0 0 / 0.18);
+    /* o número escala com a largura do cartão em vez de estourar */
+    container-type: inline-size;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.credit-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 22px rgb(0 0 0 / 0.24);
+}
+
+.credit-card:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.credit-card.is-main {
+    background: linear-gradient(135deg, #2b2b2b, #6b5a2e);
+}
+
+.credit-card.is-cancelled {
+    background: linear-gradient(135deg, #6b6b6b, #9a9a9a);
+    opacity: 0.75;
+}
+
+.credit-card-top,
+.credit-card-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.credit-card-account {
+    font-size: 18px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.credit-card-status {
+    padding: 2px 8px;
+    border: 1px solid rgb(255 255 255 / 0.5);
+    border-radius: 10px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.credit-card-chip {
+    width: 42px;
+    height: 32px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #e8d18a, #b8963e);
+}
+
+.credit-card-number {
+    font-family: ui-monospace, monospace;
+    font-size: clamp(14px, 6.5cqi, 22px);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+}
+
+.credit-card-bottom small {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.credit-card-remove {
+    margin-left: auto;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid rgb(255 255 255 / 0.5);
+    background: transparent;
+    color: #fff;
+    font-size: 12px;
+}
+
+.credit-card-remove:hover {
+    background: rgb(255 255 255 / 0.15);
+}
