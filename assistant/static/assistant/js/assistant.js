@@ -199,7 +199,7 @@ function setupAssistant(root) {
         const time = document.createElement('time');
         time.className = 'assistant-time';
         time.dateTime = date.toISOString();
-        time.textContent = date.toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});
+        time.textContent = date.toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'}).replace(',', '');
         return time;
     }
 
