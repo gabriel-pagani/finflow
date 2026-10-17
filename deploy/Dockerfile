@@ -1,5 +1,5 @@
 # STAGE 1
-FROM python:3.12-slim-trixie AS builder
+FROM python:3.14-slim-trixie AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY ../requirements.txt .
 RUN pip install --upgrade pip && pip install --prefix=/install -r requirements.txt
 
 # STAGE 2
-FROM python:3.12-slim-trixie AS production
+FROM python:3.14-slim-trixie AS production
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
