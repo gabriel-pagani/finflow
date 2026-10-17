@@ -11,7 +11,7 @@ gunicorn==26.2.0
 openai==3.26.0
 packaging==26.3
 psycopg2==2.9.12
-pycparser==3.0
+pycparser==3.11
 redis==8.1.0
 sqlparse==0.6.0
 tzdata==2026.5
