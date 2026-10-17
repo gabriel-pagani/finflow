@@ -10,7 +10,7 @@ qrcode==8.2
 gunicorn==26.2.0
 openai==3.26.0
 packaging==26.3
-psycopg2==2.9.12
+psycopg2==2.9.13
 pycparser==3.0
 redis==8.1.0
 sqlparse==0.6.0
