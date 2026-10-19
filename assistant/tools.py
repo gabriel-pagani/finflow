@@ -131,6 +131,17 @@ TOOLS = [
             'until': {'type': 'string', 'description': 'Saldo até esta data efetiva, AAAA-MM-DD. null, sem limite.'},
         },
     ),
+    function(
+        'consultar_saldo_investido',
+        'Saldo investido nas categorias pedidas: saídas são aportes e entradas são resgates, somados em ordem de '
+        'data efetiva, só Débito e Não Se Aplica. Quando os resgates superam os aportes, tudo foi resgatado com '
+        'rendimento e o saldo volta a zero. since é a data do primeiro aporte desde a última vez que zerou.',
+        {
+            'category': ids('Ids das categorias de investimento. Obrigatório.'),
+            'account': ids('Ids de conta. null, todas num único saldo.'),
+            'until': {'type': 'string', 'description': 'Até esta data efetiva, AAAA-MM-DD. null, sem limite.'},
+        },
+    ),
     proposal('propor_cartao', Kind.CARD, f'Cria, edita ou apaga um cartão do usuário. {EDIT_RULE}', {
         'account': {'type': 'integer', 'description': 'Id da conta do cartão; ela precisa aceitar saída em Crédito.'},
         'last_digits': {'type': 'string', 'description': 'Os quatro últimos dígitos.'},
@@ -185,6 +196,7 @@ def run(name, arguments, *, user, today, conversation):
         'analisar_transacoes': lambda: queries.analyze_transactions(user, arguments),
         'listar_transacoes': lambda: queries.list_transactions(user, arguments),
         'consultar_saldo': lambda: queries.balance(user, arguments),
+        'consultar_saldo_investido': lambda: queries.invested(user, arguments),
     }
 
     reader = readers.get(name)

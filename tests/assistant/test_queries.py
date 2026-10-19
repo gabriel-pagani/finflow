@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from app.models import Category, Method, Nature, Transfer, Type
-from assistant.queries import QueryError, analyze_transactions, balance, list_transactions, registry
+from assistant.queries import QueryError, analyze_transactions, balance, invested, list_transactions, registry
 from assistant.tools import TOOLS
 
 
@@ -221,6 +221,24 @@ def test_saldo_segue_a_visao_geral(user, account, other_account, card, make_tran
     por_conta = {row['label']: row['net'] for row in payload['accounts']}
     assert por_conta == {'Nubank': '-110.00', 'Itaú': '100.00'}
     assert payload['total']['net'] == '-10.00'
+
+
+def test_saldo_investido_zera_quando_o_resgate_supera_os_aportes(user, other_account, card, make_transaction):
+    investimentos = Category.objects.create(description='Investimentos')
+    for dia, tipo, valor in [(1, Type.OUT, '100.00'), (2, Type.IN, '150.00'), (3, Type.OUT, '200.00'), (4, Type.IN, '50.00')]:
+        metodo = Method.DEBIT if tipo == Type.OUT else Method.NOT_APPLICABLE
+        gravar(make_transaction, category=investimentos, type=tipo, method=metodo, value=Decimal(valor), occurred_at=date(2026, 8, dia))
+    gravar(make_transaction, category=investimentos, method=Method.CREDIT, card=card, value=Decimal('999.00'))
+    gravar(make_transaction, value=Decimal('999.00'))
+    gravar(make_transaction, account=other_account, category=investimentos, value=Decimal('30.00'))
+
+    payload = invested(user, {'category': [investimentos.pk]})
+
+    assert (payload['invested'], payload['since']) == ('180.00', '2026-08-03')
+    assert invested(user, {'category': [investimentos.pk], 'account': [other_account.pk]})['invested'] == '30.00'
+    assert invested(user, {'category': [investimentos.pk], 'until': '2026-08-02'})['invested'] == '0.00'
+    with pytest.raises(QueryError):
+        invested(user, {})
 
 
 def test_cadastro_traz_combinacoes_e_so_os_proprios_cartoes(user, card, other_user_card):

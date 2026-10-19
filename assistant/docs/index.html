@@ -951,7 +951,7 @@ Complemento: setembro"}]</pre>
         <tr><td>client.py</td><td>O laço de rodadas (<code>converse</code>), a montagem do histórico, a transcrição e a leitura do stream.</td></tr>
         <tr><td>prompt.py</td><td>As regras dadas ao modelo, com o nome do usuário e a data de hoje.</td></tr>
         <tr><td>tools.py</td><td>Os 8 schemas enviados à API e o despachante <code>run()</code>.</td></tr>
-        <tr><td>queries.py</td><td>As 4 ferramentas de leitura: agregação, listagem, saldo e cadastro.</td></tr>
+        <tr><td>queries.py</td><td>As 5 ferramentas de leitura: agregação, listagem, saldo, saldo investido e cadastro.</td></tr>
         <tr><td>query_filters.py</td><td>A validação, aplicação e descrição dos filtros usados pelas consultas.</td></tr>
         <tr><td>proposals.py</td><td>As 4 ferramentas de escrita: montar a proposta, o card, a busca de transação parecida, confirmar, descartar e o aviso interno.</td></tr>
         <tr><td>attachments.py</td><td>A checagem pelos bytes, a gravação, a referência <code>attachment:N</code> e a conversão para base64.</td></tr>
@@ -1123,7 +1123,7 @@ make run-tests args="tests/assistant -q"        <span class="c"># só o assisten
         <tr><td>test_limits.py</td><td>Os tetos de custo, tamanho e histórico, os limites de anexo e uma resposta por vez para cada usuário.</td></tr>
         <tr><td>test_commands.py</td><td>Gerenciar comandos (dono, nome, repetição, faixas de permissão, quem perde a faixa, tamanho) e chamá-los: o que o modelo lê e o que o chat mostra.</td></tr>
         <tr><td>test_proposals.py</td><td>Validação, snapshot, expiração, confirmação e recusa, e a transação parecida: o que avisa, o que não avisa e que o aviso não barra.</td></tr>
-        <tr><td>test_queries.py</td><td>Filtros, agregação, eixos, saldo e cadastro.</td></tr>
+        <tr><td>test_queries.py</td><td>Filtros, agregação, eixos, saldo, saldo investido e cadastro.</td></tr>
         <tr><td>test_tools.py</td><td>O contrato dos schemas.</td></tr>
         <tr><td>test_usage.py</td><td>A cota do dia: o limite padrão, todos os tipos de envio contando igual, recusas que não gastam, Limpar que não devolve, o dia seguinte, outro usuário e as faixas.</td></tr>
         <tr><td>test_prune_attachments.py</td><td>Vencidos, órfãos, folga de 24 h e <code>--dry-run</code>.</td></tr>

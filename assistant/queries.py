@@ -242,6 +242,43 @@ def balance(user, arguments):
     }
 
 
+def invested(user, arguments):
+    categories = read_ids(arguments, 'category', Category.objects.all())
+    if categories is None:
+        raise QueryError('"category" é obrigatório: informe as categorias de investimento.')
+    accounts = read_ids(arguments, 'account', Account.objects.all())
+    until = read_date(arguments, 'until')
+
+    queryset = Transaction.objects.filter(user=user, method__in=OVERVIEW_METHODS, category_id__in=categories)
+    if accounts is not None:
+        queryset = queryset.filter(account_id__in=accounts)
+    if until:
+        queryset = queryset.filter(effective_at__lte=until)
+
+    # Resgatar mais do que o aportado quer dizer que tudo saiu junto com um
+    # rendimento desconhecido: o saldo volta a zero e o histórico anterior deixa
+    # de contar, senão esse rendimento abateria os aportes seguintes.
+    total, since = Decimal('0'), None
+    for kind, value, effective_at in queryset.order_by('effective_at', 'id').values_list('type', 'value', 'effective_at'):
+        total += value if kind == Type.OUT else -value
+        if total <= 0:
+            total, since = Decimal('0'), None
+        elif since is None:
+            since = effective_at
+
+    return {
+        'scope': (
+            'Saídas são aportes e entradas são resgates, em ordem de data efetiva, só Débito e Não Se Aplica. '
+            'Sempre que os resgates superam os aportes, o saldo volta a zero.'
+        ),
+        'categories': list(categories.values()),
+        'accounts': list(accounts.values()) if accounts is not None else 'todas, num único saldo',
+        'until': until.isoformat() if until else 'sem limite de data',
+        'invested': money(total),
+        'since': since.isoformat() if since else None,
+    }
+
+
 def registry(user, today):
     allowed = {}
     for rule in BusinessRule.objects.all():
