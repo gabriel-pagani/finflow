@@ -52,11 +52,12 @@ function setupAssistant(root) {
         propor_transacao: 'Montando a proposta...',
         propor_parcelamento: 'Montando a proposta...',
         propor_transferencia: 'Montando a proposta...',
+        descartar_proposta: 'Descartando a proposta...',
     };
 
     const OUTCOMES = {
         confirmed: (result, action) => `${action === 'delete' ? 'Apagado' : 'Feito'}: ${result}`,
-        cancelled: () => 'Descartado. Nada foi gravado.',
+        cancelled: (result) => `${result || 'Descartado.'} Nada foi gravado.`,
         failed: (result) => `Não foi gravado: ${result}`,
         expired: () => 'Expirou sem confirmação. Nada foi gravado.',
     };
@@ -250,6 +251,7 @@ function setupAssistant(root) {
     function proposalCard(id, summary, state, result) {
         const card = document.createElement('div');
         card.className = `assistant-proposal action-${summary.action}`;
+        card.dataset.proposal = id;
 
         const title = document.createElement('h4');
         title.textContent = summary.title;
@@ -303,7 +305,10 @@ function setupAssistant(root) {
             scroll();
         }
 
-        list.appendChild(card);
+        // A proposta que o assistente descartou já está na tela: o card dela é
+        // trocado ali mesmo, em vez de nascer outro embaixo.
+        const shown = list.querySelector(`[data-proposal="${id}"]`);
+        if (shown) shown.replaceWith(card); else list.appendChild(card);
 
         if (state !== 'open') {
             finish(state, result);
@@ -386,7 +391,7 @@ function setupAssistant(root) {
             status(STATUS[event.name] || 'Trabalhando...');
         } else if (event.type === 'proposal') {
             clearStatus();
-            proposalCard(event.id, event.summary, event.state, '');
+            proposalCard(event.id, event.summary, event.state, event.result);
             state.reply = null;
         } else if (event.type === 'error') {
             clearStatus();

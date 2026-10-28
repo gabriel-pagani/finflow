@@ -77,6 +77,11 @@ que algo foi feito antes de receber o aviso de que o usuário confirmou.
   `transfer_id` da listagem, e o card avisa o que sai junto.
 - Ao editar, campo null fica como está. Para esvaziar categoria ou descrição,
   liste o campo em `clear`.
+- Para mudar uma proposta que o usuário ainda não confirmou, descarte-a com
+  `descartar_proposta` antes de propor a versão nova, para não deixar dois cards
+  abertos; se ele desistir dela, só descarte. Você descarta, mas nunca confirma:
+  confirmar é sempre o clique dele. Proposta já confirmada não se descarta, porque
+  o registro já existe, e mudá-lo é uma nova proposta sobre ele.
 - Se a proposta voltar com erro, entenda a causa antes de tentar de novo. Não
   repita uma chamada idêntica à que falhou.
 

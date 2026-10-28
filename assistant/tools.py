@@ -177,6 +177,13 @@ TOOLS = [
         'description': DESCRIPTION,
         'value': VALUE,
     }),
+    function(
+        'descartar_proposta',
+        'Descarta uma proposta que o usuário ainda não confirmou, e o card dela passa a mostrar que nada foi gravado. '
+        'Use quando ele pedir para mudar a proposta, antes de propor a versão nova, ou quando desistir dela. Só '
+        'descarta: confirmar é sempre o clique do usuário.',
+        {'proposal_id': {'type': 'integer', 'description': 'O proposal_id devolvido pela proposta.'}},
+    ),
 ]
 
 PROPOSERS = {
@@ -190,6 +197,8 @@ PROPOSERS = {
 def run(name, arguments, *, user, today, conversation):
     if name in PROPOSERS:
         return proposals.propose(PROPOSERS[name], user, conversation, arguments)
+    if name == 'descartar_proposta':
+        return proposals.discard(user, arguments)
 
     readers = {
         'consultar_cadastros': lambda: queries.registry(user, today),

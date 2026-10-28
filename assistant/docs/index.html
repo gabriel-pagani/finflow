@@ -804,6 +804,7 @@ Complemento: setembro"}]</pre>
       <h3><i style="background: var(--good)"></i>Garantido pelo código</h3>
       <ul class="claims">
         <li><b>Nada é gravado sem o seu clique.</b><span>As ferramentas <code>propor_*</code> só criam <code>Proposal</code>. <code>Transaction</code> e <code>Card</code> são gravados apenas em <code>proposals.apply</code>, chamado só pelo POST de confirmação.</span></li>
+        <li><b>O assistente descarta, mas nunca confirma.</b><span><code>descartar_proposta</code> só troca <code>pending</code> por <code>cancelled</code>, num UPDATE que confere a situação: o que você já confirmou não volta atrás. Nenhuma ferramenta confirma.</span></li>
         <li><b>O que se grava é o que o card mostrou.</b><span>O <code>payload</code> fica guardado e é validado de novo pelo mesmo form da tela. Em editar e apagar, se o registro mudou desde a proposta, a confirmação é recusada.</span></li>
         <li><b>Cada um vê só o que é seu.</b><span>Transações, cartões, propostas, conversas e anexos são sempre filtrados pelo usuário da requisição. O modelo não escolhe o usuário. Contas e categorias são compartilhadas por desenho.</span></li>
         <li><b>A regra de negócio é a mesma da tela.</b><span>A proposta usa <code>CardForm</code>, <code>TransactionForm</code>, <code>InstallmentForm</code> e <code>TransferForm</code>. Apagar testa o <code>delete()</code> real e desfaz.</span></li>
@@ -822,6 +823,7 @@ Complemento: setembro"}]</pre>
         <li><b>Que “quanto gastei” use <code>nature: REGULAR</code>.</b><span>Sem esse filtro entram transferências e ajustes de saldo, e o número fica diferente do da Visão Geral.</span></li>
         <li><b>Que ele diga qual recorte usou.</b><span>Por exemplo, data efetiva ou data da compra no crédito.</span></li>
         <li><b>Que não diga “feito” antes da confirmação.</b><span>O retorno da proposta avisa com “NADA foi gravado”, mas a frase quem escreve é o modelo.</span></li>
+        <li><b>Que descarte a proposta antiga quando você pede uma mudança.</b><span>Se ele não descartar, os dois cards ficam abertos, e confirmar o antigo grava a versão que você quis mudar.</span></li>
         <li><b>Que avise na frase que a transação pode ser repetida.</b><span>O card avisa de qualquer jeito. A frase e o “não insistir” se você disser que é outra dependem do modelo.</span></li>
         <li><b>Que pergunte o que falta em vez de chutar.</b><span>Isso vale para a conta, o valor ilegível numa foto e o nome mal transcrito num áudio.</span></li>
         <li><b>Que recuse assuntos fora do escopo e trate o texto dentro de imagens como dado.</b><span>Não há filtro no código para isso.</span></li>
@@ -841,7 +843,7 @@ Complemento: setembro"}]</pre>
     <li><h4>Confirmar não acorda o modelo</h4><p>O aviso interno é gravado no clique, mas o modelo só o lê na sua próxima mensagem. Até lá, nada muda na conversa.</p></li>
     <li><h4>Uma falha no meio deixa rastro parcial</h4><p>Se a OpenAI falhar na rodada 2, a sua mensagem e a rodada 1 ficam gravadas sem resposta. Na mensagem seguinte, o modelo vê a pergunta anterior sem resposta.</p></li>
     <li><h4>Nem todo erro aparece no admin</h4><p>Uma transcrição que falhou não grava nada. Uma exceção numa ferramenta vira “A ferramenta falhou” para o modelo, e o traceback vai para o log (“Ferramenta … falhou na conversa …”). Uma exceção fora disso gera “Stream da conversa … morreu”. Para depurar, olhe também o log do container.</p></li>
-    <li><h4>Descartar funciona depois de expirar</h4><p><code>cancel()</code> só verifica se a proposta está <code>pending</code>, e não a idade. Um card que ficou aberto na tela por mais de 1 hora ainda aceita Descartar e registra “Descartada”. Confirmar, não.</p></li>
+    <li><h4>Descartar funciona depois de expirar</h4><p><code>cancel()</code> e <code>discard()</code> só verificam se a proposta está <code>pending</code>, e não a idade. Um card que ficou aberto na tela por mais de 1 hora ainda aceita Descartar, pelo botão ou pelo assistente, e registra “Descartada”. Confirmar, não.</p></li>
     <li><h4>O aviso de repetida é tirado na hora da proposta</h4><p>A busca roda só quando a proposta é criada, e não de novo no clique. Se uma transação igual for gravada pela tela enquanto o card está aberto, ele não avisa. Na proposta de transação, a busca olha todas as transações da conta, inclusive parcelas e pernas de transferência, e compara a data da compra, e não a data efetiva.</p></li>
     <li><h4>Limpar apaga tudo</h4><p><code>ResetView</code> apaga a <code>Conversation</code>, e com ela, em cascata, as mensagens, as propostas (inclusive as pendentes) e os anexos, com os arquivos. As transações já confirmadas continuam, e a cota do dia não volta.</p></li>
     <li><h4>A cota conta o envio, e não a resposta</h4><p>Uma mensagem aceita na barreira de entrada gasta a cota mesmo que o modelo falhe ou o áudio não se transcreva, porque a chamada à API já aconteceu. Quem não tem limite também é contado. O dia vira à meia-noite de São Paulo (<code>timezone.localdate()</code>).</p></li>
@@ -950,10 +952,10 @@ Complemento: setembro"}]</pre>
         <tr><td>urls.py</td><td>As 11 rotas do assistente.</td></tr>
         <tr><td>client.py</td><td>O laço de rodadas (<code>converse</code>), a montagem do histórico, a transcrição e a leitura do stream.</td></tr>
         <tr><td>prompt.py</td><td>As regras dadas ao modelo, com o nome do usuário e a data de hoje.</td></tr>
-        <tr><td>tools.py</td><td>Os 8 schemas enviados à API e o despachante <code>run()</code>.</td></tr>
+        <tr><td>tools.py</td><td>Os 10 schemas enviados à API e o despachante <code>run()</code>.</td></tr>
         <tr><td>queries.py</td><td>As 5 ferramentas de leitura: agregação, listagem, saldo, saldo investido e cadastro.</td></tr>
         <tr><td>query_filters.py</td><td>A validação, aplicação e descrição dos filtros usados pelas consultas.</td></tr>
-        <tr><td>proposals.py</td><td>As 4 ferramentas de escrita: montar a proposta, o card, a busca de transação parecida, confirmar, descartar e o aviso interno.</td></tr>
+        <tr><td>proposals.py</td><td>As 4 ferramentas de escrita e o descarte pelo assistente: montar a proposta, o card, a busca de transação parecida, confirmar, descartar e o aviso interno.</td></tr>
         <tr><td>attachments.py</td><td>A checagem pelos bytes, a gravação, a referência <code>attachment:N</code> e a conversão para base64.</td></tr>
         <tr><td>commands.py · forms.py</td><td>Resolver <code>/nome</code>, expandir as instruções e validar comandos com limite.</td></tr>
         <tr><td>models.py</td><td><code>Conversation</code>, <code>Message</code>, <code>Attachment</code>, <code>Proposal</code>, <code>Command</code> e <code>DailyUsage</code>, a cota do dia com as faixas de permissão.</td></tr>
@@ -1122,7 +1124,7 @@ make run-tests args="tests/assistant -q"        <span class="c"># só o assisten
         <tr><td>test_client.py</td><td>O laço: rodadas, limite de 8, chamada repetida que falhou e histórico.</td></tr>
         <tr><td>test_limits.py</td><td>Os tetos de custo, tamanho e histórico, os limites de anexo e uma resposta por vez para cada usuário.</td></tr>
         <tr><td>test_commands.py</td><td>Gerenciar comandos (dono, nome, repetição, faixas de permissão, quem perde a faixa, tamanho) e chamá-los: o que o modelo lê e o que o chat mostra.</td></tr>
-        <tr><td>test_proposals.py</td><td>Validação, snapshot, expiração, confirmação e recusa, e a transação parecida: o que avisa, o que não avisa e que o aviso não barra.</td></tr>
+        <tr><td>test_proposals.py</td><td>Validação, snapshot, expiração, confirmação e recusa, o descarte pelo assistente e a transação parecida: o que avisa, o que não avisa e que o aviso não barra.</td></tr>
         <tr><td>test_queries.py</td><td>Filtros, agregação, eixos, saldo, saldo investido e cadastro.</td></tr>
         <tr><td>test_tools.py</td><td>O contrato dos schemas.</td></tr>
         <tr><td>test_usage.py</td><td>A cota do dia: o limite padrão, todos os tipos de envio contando igual, recusas que não gastam, Limpar que não devolve, o dia seguinte, outro usuário e as faixas.</td></tr>

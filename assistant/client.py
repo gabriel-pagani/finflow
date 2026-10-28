@@ -258,7 +258,7 @@ def converse(conversation, user, text, upload=None, command=None):
             )
 
             if proposal is not None:
-                yield {'type': 'proposal', 'id': proposal.pk, 'summary': proposal.summary, 'state': proposal.state}
+                yield {'type': 'proposal', 'id': proposal.pk, 'summary': proposal.summary, 'state': proposal.state, 'result': proposal.result}
 
     logger.warning('Conversa %s excedeu %s rodadas de ferramenta.', conversation.pk, MAX_ROUNDS)
     yield {'type': 'error', 'message': 'Não consegui fechar uma resposta para isso. Tente perguntar de outro jeito.'}

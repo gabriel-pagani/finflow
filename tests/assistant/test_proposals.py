@@ -1,3 +1,4 @@
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -7,7 +8,7 @@ from django.utils import timezone
 
 from app.models import BusinessRule, Card, Category, Installment, Method, Transaction, Transfer, Type
 from assistant.models import Conversation, Message, Proposal, Role, Status
-from assistant.proposals import ProposalError, cancel, confirm, propose
+from assistant.proposals import ProposalError, cancel, confirm, discard, propose
 
 
 @pytest.fixture
@@ -359,6 +360,89 @@ def test_desfecho_chega_ao_modelo_sem_aparecer_no_chat(user, account, debit_rule
     assert (note.role, note.visible) == (Role.USER, False)
     assert 'Nada foi gravado' in note.content
     assert not Transaction.objects.exists()
+
+
+# Descarte pelo assistente -----------------------------------------------------
+
+def gravado(registro):
+    registro.save()
+    return registro
+
+
+def registros():
+    return [list(model.objects.order_by('pk').values()) for model in (Card, Transaction, Installment, Transfer)]
+
+
+# Toda proposta que existe; parcelamento e transferência não se editam. `f` busca
+# a fixture pelo nome, e cada caso só grava o que usa: o cartão de um parcelamento
+# já gravado não se deixaria apagar.
+PROPOSTAS = [
+    pytest.param(lambda f: ('card', {'action': 'create', 'account': f('card').account_id, 'last_digits': '4321', 'closing_day': 10, 'due_day': 20}), id='criar cartao'),
+    pytest.param(lambda f: ('card', {'action': 'update', 'id': f('card').pk, 'closing_day': 10}), id='editar cartao'),
+    pytest.param(lambda f: ('card', {'action': 'delete', 'id': f('card').pk}), id='apagar cartao'),
+    pytest.param(lambda f: ('transaction', {'action': 'create', 'account': f('debit_rule').account_id, 'type': 'OUT', 'method': 'DEBIT', 'value': '10.00'}), id='criar transacao'),
+    pytest.param(lambda f: ('transaction', {'action': 'update', 'id': gravado(f('make_transaction')()).pk, 'value': '20.00'}), id='editar transacao'),
+    pytest.param(lambda f: ('transaction', {'action': 'delete', 'id': gravado(f('make_transaction')()).pk}), id='apagar transacao'),
+    pytest.param(lambda f: ('installment', {'action': 'create', 'account': f('card').account_id, 'card': f('card').pk, 'value': '1000.00', 'installments': 3}), id='criar parcelamento'),
+    pytest.param(lambda f: ('installment', {'action': 'delete', 'id': gravado(f('make_installment')()).pk}), id='apagar parcelamento'),
+    pytest.param(lambda f: ('transfer', {'action': 'create', 'origin': f('transfer_out_rule').account_id, 'destination': f('transfer_in_rule').account_id, 'value': '250.00'}), id='criar transferencia'),
+    pytest.param(lambda f: ('transfer', {'action': 'delete', 'id': gravado(f('make_transfer')()).pk}), id='apagar transferencia'),
+]
+
+
+@pytest.mark.parametrize('montar', PROPOSTAS)
+def test_assistente_descarta_qualquer_proposta_sem_mexer_nos_registros(request, user, conversation, montar):
+    kind, arguments = montar(request.getfixturevalue)
+    antes = registros()
+    proposal = proposta(kind, user, conversation, **arguments)
+
+    response, discarded = discard(user, {'proposal_id': proposal.pk})
+
+    assert response['ok'] is True
+    assert (discarded.state, discarded.result) == ('cancelled', 'Descartado pelo assistente.')
+    # O apagar descartado deixa junto as parcelas e as pernas da transferência.
+    assert registros() == antes
+    # Quem conta ao modelo é o retorno da ferramenta, e não o recado do clique.
+    assert not Message.objects.exists()
+
+
+def test_assistente_nao_desfaz_o_que_o_usuario_confirmou(user, account, debit_rule, conversation):
+    proposal = proposta('transaction', user, conversation, action='create', account=account.pk, type='OUT', method='DEBIT', value='10.00')
+    confirm(proposal)
+
+    response, discarded = discard(user, {'proposal_id': proposal.pk})
+
+    assert discarded is None
+    assert 'confirmada' in response['error']
+    proposal.refresh_from_db()
+    assert proposal.status == Status.CONFIRMED
+    assert Transaction.objects.count() == 1
+
+
+def test_assistente_nao_descarta_proposta_de_outro_usuario(user, other_user, account, debit_rule):
+    conversa = Conversation.objects.create(user=other_user)
+    proposal = proposta('transaction', other_user, conversa, action='create', account=account.pk, type='OUT', method='DEBIT', value='10.00')
+
+    response, _ = discard(user, {'proposal_id': proposal.pk})
+
+    assert 'Não existe' in response['error']
+    proposal.refresh_from_db()
+    assert proposal.status == Status.PENDING
+
+
+def test_descarte_pelo_chat_atualiza_o_card_que_ja_esta_na_tela(allowed, user, account, debit_rule, conversation, fake_openai):
+    proposal = proposta('transaction', user, conversation, action='create', account=account.pk, type='OUT', method='DEBIT', value='10.00')
+    fake_openai.turns.extend([
+        fake_openai.tool_turn('descartar_proposta', f'{{"proposal_id": {proposal.pk}}}'),
+        fake_openai.text_turn('Pronto, descartei.'),
+    ])
+
+    stream = allowed.post(reverse('assistant:stream'), {'message': 'Esquece essa'})
+    body = b''.join(stream.streaming_content).decode()
+    events = [json.loads(chunk.removeprefix('data: ')) for chunk in body.split('\n\n') if chunk]
+
+    card = next(event for event in events if event['type'] == 'proposal')
+    assert (card['id'], card['state'], card['result']) == (proposal.pk, 'cancelled', 'Descartado pelo assistente.')
 
 
 # Rotas ------------------------------------------------------------------------

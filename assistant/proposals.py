@@ -398,3 +398,31 @@ def cancel(proposal):
     if proposal.status != Status.PENDING:
         raise ProposalError('Esta proposta não está mais aberta.')
     resolve(proposal, Status.CANCELLED, '')
+
+
+# O assistente só descarta: confirmar é sempre o clique do usuário. A conferência
+# e a troca vão no mesmo UPDATE, e o que o clique já confirmou não volta atrás.
+# Sem o recado do resolve(): o retorno da ferramenta já conta ao modelo, e o
+# recado cairia entre a chamada e o retorno dela.
+# ponytail: o confirm() não trava a linha. Um descarte no meio da gravação do
+# clique é sobrescrito pelo Confirmada, e o modelo só sabe pelo recado seguinte;
+# select_for_update no confirm() se isso aparecer.
+def discard(user, arguments):
+    pk = arguments.get('proposal_id')
+    discarded = Proposal.objects.filter(user=user, pk=pk, status=Status.PENDING).update(
+        status=Status.CANCELLED, result='Descartado pelo assistente.', resolved_at=timezone.now(),
+    )
+
+    proposal = Proposal.objects.filter(user=user, pk=pk).first()
+    if proposal is None:
+        return {'ok': False, 'error': f'Não existe proposta com id {pk} para este usuário.'}, None
+    if not discarded:
+        return {'ok': False, 'error': f'A proposta {pk} já está {proposal.get_status_display().lower()} e não se descarta mais.'}, None
+
+    return {
+        'ok': True,
+        'status': 'descartada',
+        'proposal_id': proposal.pk,
+        'summary': proposal.summary,
+        'message': 'Nada foi gravado, e o card já mostra ao usuário que a proposta foi descartada.',
+    }, proposal
