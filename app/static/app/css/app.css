@@ -596,8 +596,7 @@
     padding: 0;
 }
 
-/* Recado fora do formulário: o convite a pedir conta, na entrada, e o aviso de
-   que a conta nasce desligada, no pedido. */
+/* Recado fora do formulário, nas telas de entrada. */
 .login-aside {
     color: var(--muted);
     text-align: center;

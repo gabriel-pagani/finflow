@@ -273,13 +273,6 @@ def test_sessao_aberta_antes_do_segundo_fator_e_encerrada(client, user):
     assert '_auth_user_id' not in client.session
 
 
-def test_o_pedido_de_conta_continua_aberto(client, user):
-    client.force_login(user)
-
-    # Não é redirecionado para o cadastro: é uma das telas de fora do sistema.
-    assert client.get(reverse('app:access_request'))['Location'] == reverse('app:overview')
-
-
 def test_sair_funciona_no_meio_do_cadastro(client, user):
     client.force_login(user)
 

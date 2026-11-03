@@ -4,18 +4,17 @@ Executado pelo alvo protect-login do Makefile, num contêiner avulso do django:
 ele lê o deploy/.env como está agora e fala com a API da Cloudflare pela rede.
 O sistema no ar não é tocado, e nada aqui depende do Django.
 
-O motivo de a regra viver lá e não aqui: os tetos deste repositório contam por
-IP — o limit_req do nginx e o teto do pedido de conta — e o do axes conta por
-usuário e IP. Quem tem uma lista de endereços recomeça todos eles em cada
-endereço novo. O desafio na borda não conta nada: cada tentativa precisa
+O motivo de a regra viver lá e não aqui: o limit_req do nginx conta por IP, e
+o axes por usuário e IP. Quem tem uma lista de endereços recomeça os dois em
+cada endereço novo. O desafio na borda não conta nada: cada tentativa precisa
 resolvê-lo antes de chegar aqui, e resolver custa mais do que trocar de IP. O
 teto único do app.utils.throttle é o que segura o resto.
 
 O desafio é o administrado (managed challenge), que para o navegador de verdade
 é quase sempre invisível: o cookie de liberação sai no GET da tela e o POST do
-formulário passa com ele. As telas cobertas são a da senha, a do código, a do
-pedido de conta e a do portal de administração — esta última é a única porta de
-entrada que nem o nginx enxerga, porque o limit_req dele só vale para o /login/.
+formulário passa com ele. As telas cobertas são a da senha, a do código e a do
+portal de administração — esta última é a única porta de entrada que nem o
+nginx enxerga, porque o limit_req dele só vale para o /login/.
 
 Rodar de novo é seguro: a regra é procurada pela descrição e alterada sozinha,
 por endpoint próprio, sem reescrever as outras regras da zona. Para desfazer:
@@ -71,7 +70,6 @@ def request(method, path, payload=None, missing_ok=False):
 def expression():
     paths = ' or '.join([
         'starts_with(http.request.uri.path, "/login")',
-        'starts_with(http.request.uri.path, "/access-request")',
         f'starts_with(http.request.uri.path, "/{panel}/login")',
     ])
 

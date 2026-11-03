@@ -20,11 +20,10 @@ class RequireOTPMiddleware:
         self.get_response = get_response
 
         self.setup_path = reverse('app:otp_setup')
-        # A entrada, a saída e o pedido de conta ficam abertos, senão não há
-        # como entrar nem sair da tela de cadastro.
+        # A entrada e a saída ficam abertas, senão não há como entrar nem sair
+        # da tela de cadastro.
         self.open_paths = {
-            self.setup_path, reverse('app:login'), reverse('app:login_token'),
-            reverse('app:logout'), reverse('app:access_request'),
+            self.setup_path, reverse('app:login'), reverse('app:login_token'), reverse('app:logout'),
         }
         # O portal tem o segundo fator dele, no próprio login; capturá-lo aqui
         # mandaria o administrador para a tela errada.

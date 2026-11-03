@@ -1,5 +1,5 @@
 from .profile import ProfileView
-from .auth import AccessRequestView, LoginTokenView, LoginView, LogoutView, OtpSetupView
+from .auth import LoginTokenView, LoginView, LogoutView, OtpSetupView
 from .cards import CardCreateView, CardDeleteView, CardUpdateView, CardsListView
 from .dashboards import ForecastView, OverviewView
 from .transactions import (
@@ -13,7 +13,6 @@ from .transactions import (
 
 
 __all__ = [
-    'AccessRequestView',
     'CardCreateView',
     'CardDeleteView',
     'CardUpdateView',

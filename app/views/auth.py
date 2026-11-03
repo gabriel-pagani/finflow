@@ -7,14 +7,11 @@ from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.functional import cached_property
-from django.views.generic.edit import CreateView, FormView
+from django.views.generic.edit import FormView
 from django_otp import login as otp_login
 
-from ..forms.access import AccessRequestForm
 from ..forms.auth import LoginForm, LoginTokenForm, OtpSetupForm
-from ..utils.mail import notify_access_request
 from ..utils.otp import confirmed_device, pending_device, qr_of, secret_of
-from ..utils.request import get_client_ip
 
 
 # Entre a senha e o código o usuário fica guardado na sessão, e só isso: a
@@ -151,38 +148,3 @@ class OtpSetupView(LoginRequiredMixin, FormView):
         messages.success(self.request, 'Verificação em duas etapas ativada. A partir do próximo login, o código será pedido junto da senha.')
         return super().form_valid(form)
 
-
-class AccessRequestView(CreateView):
-    form_class = AccessRequestForm
-    template_name = 'app/access_request.html'
-    success_url = reverse_lazy('app:login')
-
-    def dispatch(self, request, *args, **kwargs):
-        if request.user.is_authenticated:
-            return redirect('app:overview')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['ip'] = get_client_ip(self.request)
-        return kwargs
-
-    # O CreateView monta o destino com os campos do cadastro criado, e aqui pode
-    # não haver cadastro: o pedido de quem já tem conta não cria nenhum.
-    def get_success_url(self):
-        return str(self.success_url)
-
-    def form_valid(self, form):
-        response = super().form_valid(form)
-
-        # Sem cadastro novo não há o que avisar. O pedido de quem já tem conta
-        # morre aqui, com a mesma resposta na tela: quem tem conta não precisa
-        # de outra, e de fora ninguém descobre quem tem.
-        if self.object is not None:
-            notify_access_request(self.request, self.object)
-
-        messages.success(self.request,
-            'Solicitação enviada! A conta só funcionará depois que algum administrador aprovar a solicitação, '
-            'e até lá a conta ficará desabilitada.'
-        )
-        return response

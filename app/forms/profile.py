@@ -9,14 +9,13 @@ class AccountForm(forms.ModelForm):
         model = User
         fields = ('first_name', 'last_name', 'username', 'email',)
 
-    # Os mesmos obrigatórios do pedido de acesso, que é onde o cadastro nasce.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['first_name'].required = True
         self.fields['email'].required = True
         self.fields['username'].help_text = ''
 
-    # O unique do banco diferencia maiúscula; o login e o pedido de acesso não.
+    # O unique do banco diferencia maiúscula; o login não.
     def clean_username(self):
         username = self.cleaned_data['username']
         if User.objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists():

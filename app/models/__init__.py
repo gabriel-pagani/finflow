@@ -1,4 +1,3 @@
-from .access_request import AccessRequest
 from .account import Account
 from .business_rule import BusinessRule
 from .card import Card
@@ -12,7 +11,6 @@ from .user import User
 
 
 __all__ = [
-    'AccessRequest',
     'Account',
     'BusinessRule',
     'Card',
