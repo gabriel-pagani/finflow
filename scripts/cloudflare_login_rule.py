@@ -9,7 +9,7 @@ IP — o limit_req do nginx e o teto do pedido de conta — e o do axes conta po
 usuário e IP. Quem tem uma lista de endereços recomeça todos eles em cada
 endereço novo. O desafio na borda não conta nada: cada tentativa precisa
 resolvê-lo antes de chegar aqui, e resolver custa mais do que trocar de IP. O
-teto por usuário do app.utils.throttle é o que segura o resto.
+teto único do app.utils.throttle é o que segura o resto.
 
 O desafio é o administrado (managed challenge), que para o navegador de verdade
 é quase sempre invisível: o cookie de liberação sai no GET da tela e o POST do

@@ -109,8 +109,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
-    # O ModelBackend de sempre, com o teto de palpites por usuário somado ao do
-    # axes, que é por usuário e IP.
+    # O ModelBackend de sempre, com o teto de palpites do sistema inteiro somado
+    # ao do axes, que é por usuário e IP.
     'app.backends.ThrottledModelBackend',
 ]
 

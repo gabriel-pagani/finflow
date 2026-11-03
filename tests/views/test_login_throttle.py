@@ -1,9 +1,10 @@
 """
-O teto de palpites de senha por usuário.
+O teto de palpites de senha do sistema inteiro.
 
-O axes tranca o par usuário e IP, e quem troca de endereço recomeça o contador
-dele: cinco palpites por IP, sem fim, no mesmo usuário. O teto testado aqui
-conta só o usuário, e é o que enxerga o ataque que vem de muitas redes.
+O axes tranca o par usuário e IP, e quem troca de endereço ou de usuário
+recomeça o contador dele: cinco palpites por par, sem fim. O teto testado aqui
+conta todo palpite numa chave só, e é o que enxerga o ataque que vem de muitas
+redes ou mira muitos usuários.
 """
 from uuid import uuid4
 
@@ -38,7 +39,7 @@ def teto_baixo(monkeypatch):
 
 
 # Um IP por palpite: o teto do axes, que é por par, nunca chega a valer, e o que
-# recusar a tentativa só pode ser o teto por usuário.
+# recusar a tentativa só pode ser o teto do sistema.
 REDES = ['198.51.100.1', '198.51.100.2', '198.51.100.3', '198.51.100.4', '198.51.100.5']
 
 
@@ -78,19 +79,20 @@ def test_o_acerto_zera_a_conta(client, user):
     assert entrar(client).status_code == 302
 
 
-def test_o_teto_e_do_usuario_errado_e_nao_da_rede(client, user, other_user):
+def test_o_teto_tranca_tambem_os_outros_usuarios(client, user, other_user):
     errar(client, throttle.LOGIN_FAILURES_LIMIT)
 
     response = entrar(client, username='mariana', ip=REDES[0])
 
-    assert response.status_code == 302
-    assert '_auth_user_id' in client.session
+    assert LOGIN_THROTTLED_ERROR in response.content.decode()
+    assert '_auth_user_id' not in client.session
 
 
-def test_o_teto_nao_olha_a_caixa_do_usuario(client, user):
-    errar(client, throttle.LOGIN_FAILURES_LIMIT, username='GaBrIeL')
+def test_o_teto_vale_mesmo_trocando_de_usuario(client, user):
+    for vez, ip in enumerate(REDES[:throttle.LOGIN_FAILURES_LIMIT]):
+        entrar(client, username=f'chute{vez}', password='chute', ip=ip)
 
-    response = entrar(client)
+    response = entrar(client, ip=REDES[3])
 
     assert LOGIN_THROTTLED_ERROR in response.content.decode()
 

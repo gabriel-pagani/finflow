@@ -11,7 +11,7 @@ from ..utils import throttle
 INVALID_LOGIN_ERROR = 'Usuário e/ou senha inválidos!'
 
 LOGIN_THROTTLED_ERROR = (
-    'Muitas tentativas de login nesta conta. Espere uma hora e tente de novo.'
+    'Muitas tentativas de login. Espere uma hora e tente de novo.'
 )
 
 TOKEN_INVALID_ERROR = (
@@ -46,8 +46,7 @@ class LoginForm(AuthenticationForm):
     # sistema: quem espera uma hora precisa saber o motivo, e saber que o teto
     # estourou não conta nada sobre a conta que já não se soubesse.
     def clean(self):
-        username = self.cleaned_data.get('username')
-        if username and throttle.login_blocked(username):
+        if throttle.login_blocked():
             raise ValidationError(LOGIN_THROTTLED_ERROR)
 
         return super().clean()

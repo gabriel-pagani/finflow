@@ -7,17 +7,17 @@ ninguém precisa limpar nada depois.
 from django.core.cache import cache
 
 
-# O teto de palpites de senha por usuário, contados de qualquer rede.
+# O teto de palpites de senha do sistema inteiro, contados de qualquer rede e
+# para qualquer usuário.
 #
-# O axes tranca o par usuário e IP: quem tem uma lista de endereços recomeça o
-# contador em cada um e nunca chega ao teto dele. Este conta só o usuário, e por
-# isso vê o ataque distribuído como uma coisa só.
+# O axes tranca o par usuário e IP: quem tem uma lista de endereços, ou de
+# usuários, recomeça o contador em cada par e nunca chega ao teto dele. Este
+# conta todo palpite errado numa chave só, e por isso vê o ataque distribuído
+# como uma coisa só, mude o atacante o que mudar.
 #
-# O número é folgado de propósito, e o acerto zera a conta: o teto está aqui
-# para o palpite automático, e não para quem esqueceu a senha. Teto baixo por
-# usuário daria a qualquer um o poder de trancar a conta de quem ele quisesse,
-# de onde quisesse, só errando a senha.
-LOGIN_FAILURES = 'login:failures:{}'
+# O sistema tem um usuário só, e o preço é dele: quem estoura o teto, de onde
+# for, tranca a entrada de todo mundo por uma hora. O acerto zera a conta.
+LOGIN_FAILURES = 'login:failures'
 LOGIN_FAILURES_LIMIT = 50
 LOGIN_FAILURES_WINDOW = 60 * 60
 
@@ -35,20 +35,14 @@ def count(key, window):
         return 1
 
 
-def login_key(username):
-    # Sem olhar a caixa, como o cadastro do Django, que recusa usuário que só
-    # difere de maiúscula: senão 'Gabriel' e 'gabriel' teriam contas separadas.
-    return LOGIN_FAILURES.format(username.strip().casefold())
+def login_blocked():
+    """Diz se o sistema já recebeu palpites errados demais, somando todas as fontes."""
+    return cache.get(LOGIN_FAILURES, 0) >= LOGIN_FAILURES_LIMIT
 
 
-def login_blocked(username):
-    """Diz se este usuário já errou a senha demais, somando todas as redes."""
-    return cache.get(login_key(username), 0) >= LOGIN_FAILURES_LIMIT
+def login_failure():
+    count(LOGIN_FAILURES, LOGIN_FAILURES_WINDOW)
 
 
-def login_failure(username):
-    count(login_key(username), LOGIN_FAILURES_WINDOW)
-
-
-def login_success(username):
-    cache.delete(login_key(username))
+def login_success():
+    cache.delete(LOGIN_FAILURES)
