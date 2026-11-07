@@ -642,7 +642,7 @@ content = "O usuário confirmou a proposta 17 (Criar transação) e ela FOI grav
         <p class="where"><span class="lane">Navegador</span><code>fileInput change → shrink()</code></p>
         <h4>A foto é reduzida antes de subir</h4>
         <ul>
-          <li>No celular, <code>capture="environment"</code> abre direto a câmera traseira.</li>
+          <li>No celular, o <code>accept="image/*"</code> sem <code>capture</code> deixa escolher entre a câmera e a galeria.</li>
           <li><code>shrink()</code> desenha a imagem num canvas com lado máximo de 1600 px e exporta em JPEG com qualidade 0,82. Isso também converte o HEIC do iPhone, quando o navegador consegue desenhá-lo.</li>
           <li>A imagem fica numa faixa acima do campo e é enviada como <code>file</code> = <code>foto.jpg</code>. Uma mensagem leva um anexo só.</li>
         </ul>
