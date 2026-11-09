@@ -167,13 +167,13 @@ function addSelectAll(root, empty) {
 /* Filtros ao vivo ---------------------------------------------------------- */
 
 // Cada mexida no filtro pergunta ao servidor o que ainda tem transação sob as
-// outras escolhas, e os painéis encolhem na hora. O que muda é só a lista de
-// opções: os números e os gráficos continuam esperando o Aplicar, para a página
-// não se reescrever inteira a cada clique.
+// outras escolhas, e os painéis encolhem na hora. O filtro em si se aplica
+// sozinho: datas e descrição logo depois da mexida, e um painel de opções só
+// quando ele fecha, para a página não recarregar a cada caixa marcada.
 //
 // Quem responde é a própria URL da tela, então o recorte das opções é o mesmo
-// que a tela usaria — e, se a ida falhar, os painéis ficam como estão e o
-// Aplicar corrige tudo.
+// que a tela usaria — e, se a ida falhar, os painéis ficam como estão e a
+// aplicação corrige tudo.
 function setupFilterSync(form) {
     let pending = null;
     let latest = 0;
@@ -204,11 +204,33 @@ function setupFilterSync(form) {
         });
     }
 
+    let applying = null;
+    let dirty = false;
+
+    function apply() {
+        clearTimeout(applying);
+        form.requestSubmit();
+    }
+
     // A espera junta o "selecionar todas", que muda várias caixas de uma vez,
-    // numa ida só.
-    form.addEventListener('change', () => {
+    // numa ida só. A da aplicação é maior porque o campo de data dispara a
+    // cada pedaço digitado, e o ano pela metade não pode virar filtro.
+    form.addEventListener('change', (event) => {
         clearTimeout(pending);
         pending = setTimeout(refresh, 150);
+
+        if (event.target.closest('details[open]')) {
+            dirty = true;
+        } else {
+            clearTimeout(applying);
+            applying = setTimeout(apply, 700);
+        }
+    });
+
+    form.querySelectorAll('[data-multiselect] details').forEach((details) => {
+        details.addEventListener('toggle', () => {
+            if (!details.open && dirty) apply();
+        });
     });
 }
 
