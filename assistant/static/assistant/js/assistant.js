@@ -302,7 +302,6 @@ function setupAssistant(root) {
             outcome.className = `outcome ${finalState}`;
             outcome.textContent = OUTCOMES[finalState](finalResult, summary.action);
             card.appendChild(outcome);
-            scroll();
         }
 
         // A proposta que o assistente descartou já está na tela: o card dela é
@@ -310,8 +309,11 @@ function setupAssistant(root) {
         const shown = list.querySelector(`[data-proposal="${id}"]`);
         if (shown) shown.replaceWith(card); else list.appendChild(card);
 
+        // Só o card que chega desce a conversa: o que a pessoa acabou de
+        // confirmar ou descartar fica onde está, com as outras propostas.
         if (state !== 'open') {
             finish(state, result);
+            scroll();
             return;
         }
 
