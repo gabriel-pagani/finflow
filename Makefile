@@ -4,7 +4,9 @@ backup ?= yes
 
 build-system:
 	@$(MAKE) maybe-backup-system \
-		&& docker compose -f deploy/docker-compose.yml up -d --build \
+		&& docker compose -f deploy/docker-compose.yml pull --ignore-buildable \
+		&& docker compose -f deploy/docker-compose.yml build --pull \
+		&& docker compose -f deploy/docker-compose.yml up -d \
 		&& docker compose -f deploy/docker-compose.yml up -d --force-recreate nginx
 
 start-system:
