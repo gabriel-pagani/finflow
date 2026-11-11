@@ -82,3 +82,15 @@ jobs:
 
       - name: Run tests
         run: pytest -vv
+
+  deploy:
+    needs: tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, finflow]
+    concurrency: deploy
+    steps:
+      - name: Update code and rebuild
+        working-directory: ${{ vars.DEPLOY_PATH }}
+        run: |
+          git pull --ff-only
+          make build-system
