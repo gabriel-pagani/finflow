@@ -50,7 +50,7 @@ class TransactionsListView(FilteredTransactionsMixin, OwnedListView):
     template_name = 'app/transactions_list.html'
 
     def get_filters(self):
-        get = self.request.GET
+        get = self.filter_params
         filters = super().get_filters()
         filters['type'] = [value for value in get.getlist('type') if value in Type.values]
         filters['method'] = [value for value in get.getlist('method') if value in Method.values]

@@ -4,8 +4,10 @@ from datetime import date
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import JsonResponse, QueryDict
+from django.shortcuts import redirect
 from django.utils import timezone
+from django.utils.functional import cached_property
 
 from ..models import Account, Category, Transaction
 from ..scopes import ANALYTIC_NATURES
@@ -74,8 +76,21 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
     def get_default_period(self, today):
         return today.replace(month=1, day=1), today.replace(month=12, day=31)
 
+    # De onde saem os filtros: a URL, ou o filtro padrão da tela quando a URL
+    # não traz nenhum. O padrão entra por aqui, e não por redirecionamento, para
+    # o endereço da tela continuar limpo. A página e o pedido de opções não são
+    # filtro: sem isso a página 2 perderia o padrão.
+    @cached_property
+    def filter_params(self):
+        params = self.request.GET.copy()
+        for param in ('page', OPTIONS_PARAM):
+            params.pop(param, None)
+        if not params:
+            return QueryDict(self.request.user.saved_filters.get(self.saved_filters_key, ''))
+        return params
+
     def get_filters(self):
-        get = self.request.GET
+        get = self.filter_params
         start, end = self.get_default_period(timezone.localdate())
 
         return {
@@ -166,8 +181,49 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
             return JsonResponse({'panels': self.get_filter_panels(self.get_filters())})
         return super().get(request, *args, **kwargs)
 
+    @property
+    def saved_filters_key(self):
+        return self.request.resolver_match.view_name
+
+    # O filtro como ele é guardado: sem o que não é filtro, sem campo vazio e
+    # sem a data igual à do período padrão, para o padrão continuar andando —
+    # "o ano corrente" não pode congelar num ano.
+    def clean_query(self, query):
+        start, end = self.get_default_period(timezone.localdate())
+        defaults = {'start': start, 'end': end}
+        cleaned = QueryDict(mutable=True)
+        for param, values in query.lists():
+            if param in ('page', OPTIONS_PARAM, 'csrfmiddlewaretoken'):
+                continue
+            if param in defaults and parse_date(values[-1]) in (None, defaults[param]):
+                continue
+            values = [value for value in values if value]
+            if values:
+                cleaned.setlist(param, values)
+        return cleaned.urlencode()
+
+    # Se o filtro aplicado é o padrão da tela: é o que pinta o botão de salvar.
+    def is_saved_filter(self):
+        saved = self.request.user.saved_filters.get(self.saved_filters_key)
+        return saved is not None and sorted(QueryDict(saved).lists()) == sorted(QueryDict(self.clean_query(self.filter_params)).lists())
+
+    # Um botão só: salva o filtro em uso ou, se ele já é o padrão, remove o
+    # padrão. Quem diz qual dos dois é o próprio botão, que o JS troca para
+    # salvar assim que o filtro muda. Em qualquer caso volta ao endereço limpo.
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if request.POST.get('action') == 'save':
+            user.saved_filters[self.saved_filters_key] = self.clean_query(QueryDict(request.POST.get('query', '')))
+        else:
+            user.saved_filters.pop(self.saved_filters_key, None)
+        user.save(update_fields=['saved_filters'])
+
+        return redirect(request.path)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filters'] = self.get_filters()
         context['panels'] = self.get_filter_panels(context['filters'])
+        context['filter_query'] = self.filter_params.urlencode()
+        context['is_saved_filter'] = self.is_saved_filter()
         return context

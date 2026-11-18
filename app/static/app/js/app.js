@@ -212,10 +212,25 @@ function setupFilterSync(form) {
         form.requestSubmit();
     }
 
+    // O botão do filtro padrão guarda o filtro que está no formulário, e não o
+    // da última aplicação; e, mexeu no filtro, ele deixa de ser o padrão e o
+    // botão passa a salvar.
+    const savedForm = document.querySelector('[data-saved-filter-form]');
+    const savedButton = form.querySelector('[data-saved-filter]');
+
     // A espera junta o "selecionar todas", que muda várias caixas de uma vez,
     // numa ida só. A da aplicação é maior porque o campo de data dispara a
     // cada pedaço digitado, e o ano pela metade não pode virar filtro.
     form.addEventListener('change', (event) => {
+        if (savedForm) savedForm.elements.query.value = new URLSearchParams(new FormData(form));
+        if (savedButton) {
+            savedButton.value = 'save';
+            savedButton.classList.remove('saved');
+            savedButton.title = 'Salvar como padrão';
+            savedButton.setAttribute('aria-label', 'Salvar como padrão');
+            savedButton.setAttribute('aria-pressed', 'false');
+        }
+
         clearTimeout(pending);
         pending = setTimeout(refresh, 150);
 

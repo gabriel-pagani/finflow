@@ -86,6 +86,16 @@
     gap: 8px;
 }
 
+.filters-actions .icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.filters-actions .saved .icon {
+    fill: currentColor;
+}
+
 /* Multiselect */
 .multiselect {
     display: flex;

@@ -1,3 +1,11 @@
+{% comment %}
+O filtro padrão sai num formulário à parte: dentro do GET o token do CSRF iria
+parar na URL. Ele guarda o filtro em uso: o JS copia o formulário a cada mudança.
+{% endcomment %}
+<form id="saved-filters" method="post" hidden data-saved-filter-form>
+    {% csrf_token %}
+    <input type="hidden" name="query" value="{{ filter_query }}">
+</form>
 <form class="card filters" method="get" data-filters>
     <h2>Filtros</h2>
     <div class="filters-grid">
@@ -32,8 +40,21 @@
         {% endif %}
 
         <div class="filters-actions">
-            <button type="submit">Aplicar</button>
-            <a class="button" href="{{ request.path }}">Limpar</a>
+            <button type="submit" title="Aplicar" aria-label="Aplicar">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+            <a class="button" href="{{ request.path }}" title="Limpar" aria-label="Limpar">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </a>
+            {% comment %}
+            Preenchido: o filtro em uso é o padrão da tela, e clicar remove.
+            Só o contorno: clicar salva o filtro em uso como padrão.
+            {% endcomment %}
+            <button type="submit" form="saved-filters" name="action" data-saved-filter
+                    {% if is_saved_filter %}value="remove" class="saved" title="Remover padrão" aria-label="Remover padrão" aria-pressed="true"
+                    {% else %}value="save" title="Salvar como padrão" aria-label="Salvar como padrão" aria-pressed="false"{% endif %}>
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            </button>
         </div>
     </div>
 </form>

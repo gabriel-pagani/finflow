@@ -6,6 +6,8 @@ from django.db.models.functions import Lower
 class User(AbstractUser):
     email = models.EmailField(blank=True, null=True, verbose_name='Endereço de email')
     observations = models.TextField(blank=True, default='', verbose_name='Observações')
+    # O filtro que cada tela abre sozinha: nome da rota -> querystring.
+    saved_filters = models.JSONField(blank=True, default=dict, verbose_name='Filtros padrão')
 
     def clean(self):
         super().clean()
