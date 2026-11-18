@@ -226,4 +226,7 @@ class FilteredTransactionsMixin(LoginRequiredMixin):
         context['panels'] = self.get_filter_panels(context['filters'])
         context['filter_query'] = self.filter_params.urlencode()
         context['is_saved_filter'] = self.is_saved_filter()
+        context['default_start'], context['default_end'] = (
+            day.isoformat() for day in self.get_default_period(timezone.localdate())
+        )
         return context

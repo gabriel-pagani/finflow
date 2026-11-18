@@ -180,6 +180,20 @@ function setupFilterSync(form) {
 
     const endpoint = form.getAttribute('action') || window.location.pathname;
 
+    // Campo vazio e data igual à do período padrão ficam fora da URL: o
+    // servidor já cai neles sozinho, e na URL a data congelaria — escolher uma
+    // categoria não pode prender o período. Vale também para o new FormData
+    // dos filtros ao vivo e do filtro padrão, que disparam este mesmo evento.
+    form.addEventListener('formdata', (event) => {
+        const data = event.formData;
+        for (const name of new Set(data.keys())) {
+            const fallback = form.elements[name]?.dataset?.default;
+            const values = data.getAll(name).filter((value) => value !== '' && value !== fallback);
+            data.delete(name);
+            values.forEach((value) => data.append(name, value));
+        }
+    });
+
     async function refresh() {
         const params = new URLSearchParams(new FormData(form));
         params.set('only', 'filters');

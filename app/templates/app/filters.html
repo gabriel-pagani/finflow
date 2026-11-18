@@ -16,11 +16,11 @@ parar na URL. Ele guarda o filtro em uso: o JS copia o formulário a cada mudan�
         {% endcomment %}
         <label class="filter-date">
             Início
-            <input type="date" name="start" value="{{ filters.start }}">
+            <input type="date" name="start" value="{{ filters.start }}" data-default="{{ default_start }}">
         </label>
         <label class="filter-date">
             Fim
-            <input type="date" name="end" value="{{ filters.end }}">
+            <input type="date" name="end" value="{{ filters.end }}" data-default="{{ default_end }}">
         </label>
 
         {% comment %}

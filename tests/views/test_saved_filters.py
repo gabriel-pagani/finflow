@@ -109,3 +109,14 @@ def test_campo_vazio_nao_entra_no_filtro_salvo(logged, user, account):
     user.refresh_from_db()
     assert user.saved_filters == {'app:transactions_list': f'account={account.pk}'}
 
+
+@pytest.mark.parametrize('route', ['app:overview', 'app:forecast', 'app:transactions_list'])
+def test_datas_levam_o_periodo_padrao_para_o_js_tirar_da_url(logged, route):
+    # Com a data já preenchida, escolher uma categoria mandava o período para a
+    # URL, e ele congelava. O JS só deixa de fora o que bate com o data-default.
+    response = logged.get(reverse(route), {'start': '2020-01-01'})
+    start, end = response.context['default_start'], response.context['default_end']
+
+    assert f'value="2020-01-01" data-default="{start}"'.encode() in response.content
+    assert f'data-default="{end}"'.encode() in response.content
+
