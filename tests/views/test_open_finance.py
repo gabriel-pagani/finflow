@@ -7,7 +7,7 @@ from django.contrib.messages import get_messages
 from django.urls import reverse
 from django.utils import timezone
 
-from app.models import BankAccount, BankConnection, BankTransaction, Installment, Method, Transaction, Type
+from app.models import BankAccount, BankConnection, BankTransaction, Card, Installment, Method, Transaction, Type
 from app.pluggy import PluggyError
 from app.views import open_finance
 
@@ -16,9 +16,9 @@ Status = BankTransaction.Status
 
 
 @pytest.fixture
-def connection(user):
+def connection(user, account):
     # Recém-buscada: a tela não vai à Pluggy, a não ser que o teste peça.
-    return BankConnection.objects.create(user=user, item_id='item-1', since=date(2026, 11, 1), synced_at=timezone.now())
+    return BankConnection.objects.create(user=user, account=account, item_id='item-1', since=date(2026, 11, 1), synced_at=timezone.now())
 
 
 @pytest.fixture
@@ -149,6 +149,17 @@ def test_preenche_cartao_pelo_final_conta_do_cartao_e_categoria_do_historico(log
     assert item['kind'] == 'transaction'
 
 
+def test_transacoes_sao_sempre_da_conta_da_conexao(logged, bank_account, card_account, account, other_account, user, syncs):
+    # Cartão de outra conta com o mesmo final não puxa a compra para lá.
+    Card.objects.create(user=user, account=other_account, last_digits='1234', closing_day=5, due_day=12)
+    debit = bank_row(bank_account)
+    credit = bank_row(card_account, 't2', method=Method.CREDIT, card_digits='1234')
+
+    items = {item['row']: item for item in open_finance.review_rows(user)}
+
+    assert (items[debit]['account'], items[credit]['account'], items[credit]['card']) == (account.pk, account.pk, '')
+
+
 def test_compra_parcelada_aparece_uma_vez_com_o_total(logged, card_account, card, syncs):
     # A 1ª parcela leva a sobra dos centavos, como no parcelamento do FinFlow.
     parcel_row(card_account, 1, '100.02')
@@ -189,9 +200,6 @@ def test_lancar_cria_a_transacao_com_o_que_foi_ajustado(logged, bank_account, ac
     assert (transaction.value, transaction.description, transaction.category) == (Decimal('45.00'), 'Pão', category)
     row.refresh_from_db()
     assert (row.status, row.transaction) == (Status.APPROVED, transaction)
-    # A conta escolhida fica lembrada para as próximas desta conta do banco.
-    bank_account.refresh_from_db()
-    assert bank_account.account == account
     assert open_finance.review_rows(row.user) == []
 
 

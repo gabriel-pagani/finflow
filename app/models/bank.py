@@ -19,7 +19,9 @@ class BankConnection(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bank_connections', verbose_name='Usuário')
     item_id = models.CharField(max_length=64, unique=True, verbose_name='Id da Conexão na Pluggy')
-    description = models.CharField(max_length=100, blank=True, verbose_name='Descrição')
+    # Tudo o que a conexão traz é desta conta, inclusive as compras no cartão.
+    # Nula só nas conexões cadastradas antes do campo existir.
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, null=True, related_name='bank_connections', verbose_name='Conta')
     # O banco devolve até um ano de histórico, quase todo já lançado à mão:
     # só entra na revisão o que aconteceu a partir daqui.
     since = models.DateField(default=timezone.localdate, verbose_name='Importar a partir de')
@@ -30,10 +32,10 @@ class BankConnection(models.Model):
         return not self.synced_at or timezone.now() - self.synced_at > self.STALE_AFTER
 
     def __str__(self):
-        return self.description or self.item_id
+        return f'{self.account} ({self.item_id})' if self.account else self.item_id
 
     class Meta:
-        ordering = ['description', 'item_id']
+        ordering = ['account__description', 'item_id']
         verbose_name = 'Conexão Bancária'
         verbose_name_plural = 'Conexões Bancárias'
 
@@ -47,8 +49,6 @@ class BankAccount(models.Model):
     external_id = models.CharField(max_length=64, unique=True, verbose_name='Id na Pluggy')
     kind = models.CharField(max_length=20, choices=Kind.choices, verbose_name='Tipo')
     name = models.CharField(max_length=200, blank=True, verbose_name='Nome')
-    # Aprendida na primeira aprovação: dali em diante a revisão já vem com ela.
-    account = models.ForeignKey(Account, on_delete=models.SET_NULL, blank=True, null=True, related_name='+', verbose_name='Conta no FinFlow')
 
     def __str__(self):
         return self.name or self.external_id

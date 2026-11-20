@@ -13,7 +13,7 @@ from django.views.generic.edit import CreateView
 
 from ..forms.finance import InstallmentForm, TransactionForm
 from ..models import Card, Installment, Method, Transaction
-from ..models.bank import BankAccount, BankConnection, BankTransaction
+from ..models.bank import BankConnection, BankTransaction
 from ..pluggy import PluggyError, sync
 from .mixins import ModalWriteMixin
 from .transactions import form_options
@@ -59,13 +59,13 @@ def installment_total(row):
 
 def review_rows(user):
     """Uma linha por lançamento: a compra parcelada aparece uma vez só."""
-    cards = {card.last_digits: card for card in Card.objects.filter(user=user, is_cancelled=False).select_related('account')}
+    cards = {(card.account_id, card.last_digits): card for card in Card.objects.filter(user=user, is_cancelled=False)}
     rows, seen = [], set()
 
     pending = (
         BankTransaction.objects
         .filter(user=user, status=BankTransaction.Status.PENDING)
-        .select_related('bank_account__account', 'bank_account__connection')
+        .select_related('bank_account__connection__account')
         # A parcela mais baixa representa a compra: é ela que traz o horário
         # da compra. A ordem da tela sai do sort no fim.
         .order_by('parcel', '-id')
@@ -77,8 +77,8 @@ def review_rows(user):
                 continue
             seen.add(key)
 
-        card = cards.get(row.card_digits) if row.method == Method.CREDIT else None
-        account = card.account if card else row.bank_account.account
+        account = row.bank_account.connection.account
+        card = cards.get((account.pk if account else None, row.card_digits)) if row.method == Method.CREDIT else None
         description = row.purchase_key.split('|', 2)[2] if row.purchase_key else row.description
 
         item = {
@@ -157,13 +157,6 @@ class OpenFinanceTransactionApproveView(ModalWriteMixin, CreateView):
                 self.row.group().update(status=BankTransaction.Status.APPROVED, installment=self.object)
             else:
                 self.row.group().update(status=BankTransaction.Status.APPROVED, transaction=self.object)
-
-            # A conta escolhida passa a vir preenchida nas próximas desta conta
-            # do banco. No cartão quem diz a conta é o cartão, pelo final.
-            bank_account = self.row.bank_account
-            if bank_account.kind == BankAccount.Kind.BANK and bank_account.account_id != self.object.account_id:
-                bank_account.account = self.object.account
-                bank_account.save(update_fields=['account'])
         return response
 
 
