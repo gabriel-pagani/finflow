@@ -183,6 +183,12 @@ OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.6-luna')
 
 OPENAI_TRANSCRIBE_MODEL = os.getenv('OPENAI_TRANSCRIBE_MODEL', 'gpt-4o-transcribe')
 
+PLUGGY_CLIENT_ID = os.getenv('PLUGGY_CLIENT_ID', '')
+
+PLUGGY_CLIENT_SECRET = os.getenv('PLUGGY_CLIENT_SECRET', '')
+
+PLUGGY_WEBHOOK_SECRET = os.getenv('PLUGGY_WEBHOOK_SECRET', '')
+
 ASSISTANT_ATTACHMENT_RETENTION_DAYS = int(os.getenv('ASSISTANT_ATTACHMENT_RETENTION_DAYS', '30'))
 
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')

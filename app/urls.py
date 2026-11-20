@@ -23,4 +23,5 @@ urlpatterns = [
     path('card/add/', views.CardCreateView.as_view(), name='card_create'),
     path('card/<int:pk>/change/', views.CardUpdateView.as_view(), name='card_update'),
     path('card/<int:pk>/delete/', views.CardDeleteView.as_view(), name='card_delete'),
+    path('pluggy/webhook/', views.PluggyWebhookView.as_view(), name='pluggy_webhook'),
 ]
