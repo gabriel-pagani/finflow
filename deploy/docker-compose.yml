@@ -99,6 +99,12 @@ services:
       timeout: 5s
       retries: 12
     mem_limit: 4g
+    # O app roda como usuário comum numa porta alta e não usa nenhuma capability.
+    # Sem elas e sem setuid, quem rodasse código aqui não vira root no container.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     networks:
       - backend
       - frontend
