@@ -23,8 +23,8 @@ urlpatterns = [
     path('card/add/', views.CardCreateView.as_view(), name='card_create'),
     path('card/<int:pk>/change/', views.CardUpdateView.as_view(), name='card_update'),
     path('card/<int:pk>/delete/', views.CardDeleteView.as_view(), name='card_delete'),
-    path('imports/', views.ImportsView.as_view(), name='imports'),
-    path('import/<int:pk>/approve/', views.ImportApproveView.as_view(), name='import_approve'),
-    path('import/<int:pk>/discard/', views.ImportDiscardView.as_view(), name='import_discard'),
+    path('open-finance/', views.OpenFinanceView.as_view(), name='open_finance'),
+    path('open-finance/transaction/<int:pk>/approve/', views.OpenFinanceTransactionApproveView.as_view(), name='open_finance_transaction_approve'),
+    path('open-finance/transaction/<int:pk>/discard/', views.OpenFinanceTransactionDiscardView.as_view(), name='open_finance_transaction_discard'),
     path('pluggy/webhook/', views.PluggyWebhookView.as_view(), name='pluggy_webhook'),
 ]

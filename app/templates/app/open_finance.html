@@ -67,7 +67,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="5">Nada novo do banco para revisar.</td></tr>
+                    <tr><td colspan="5">Nada novo para revisar.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -108,11 +108,11 @@
     <div data-record-urls
          data-kind="transaction"
          data-update-title="Lançar Transação"
-         data-update-url="{% url 'app:import_approve' 0 %}"
-         data-delete-url="{% url 'app:import_discard' 0 %}"></div>
+         data-update-url="{% url 'app:open_finance_transaction_approve' 0 %}"
+         data-delete-url="{% url 'app:open_finance_transaction_discard' 0 %}"></div>
     <div data-record-urls
          data-kind="installment"
          data-update-title="Lançar Parcelamento"
-         data-update-url="{% url 'app:import_approve' 0 %}"
-         data-delete-url="{% url 'app:import_discard' 0 %}"></div>
+         data-update-url="{% url 'app:open_finance_transaction_approve' 0 %}"
+         data-delete-url="{% url 'app:open_finance_transaction_discard' 0 %}"></div>
 {% endblock %}

@@ -105,8 +105,8 @@ def review_rows(user):
     return rows
 
 
-class ImportsView(LoginRequiredMixin, TemplateView):
-    template_name = 'app/imports.html'
+class OpenFinanceView(LoginRequiredMixin, TemplateView):
+    template_name = 'app/open_finance.html'
 
     def get(self, request, *args, **kwargs):
         sync_connections(request)
@@ -123,7 +123,7 @@ class ImportsView(LoginRequiredMixin, TemplateView):
             messages.success(request, f'{new} transações novas do banco.')
         elif new == 0:
             messages.success(request, 'Nada novo no banco.')
-        return redirect('app:imports')
+        return redirect('app:open_finance')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -135,8 +135,8 @@ class ImportsView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class ImportApproveView(ModalWriteMixin, CreateView):
-    list_route = 'app:imports'
+class OpenFinanceTransactionApproveView(ModalWriteMixin, CreateView):
+    list_route = 'app:open_finance'
 
     @cached_property
     def row(self):
@@ -167,9 +167,9 @@ class ImportApproveView(ModalWriteMixin, CreateView):
         return response
 
 
-class ImportDiscardView(LoginRequiredMixin, View):
+class OpenFinanceTransactionDiscardView(LoginRequiredMixin, View):
     def post(self, request, pk):
         row = get_object_or_404(BankTransaction, pk=pk, user=request.user, status=BankTransaction.Status.PENDING)
         row.group().update(status=BankTransaction.Status.DISCARDED)
         messages.success(request, 'Transação descartada.')
-        return redirect('app:imports')
+        return redirect('app:open_finance')
