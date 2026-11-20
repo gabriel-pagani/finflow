@@ -19,7 +19,7 @@ services:
       timeout: 5s
       retries: 12
     networks:
-      - network
+      - backend
     restart: unless-stopped
 
   redis:
@@ -40,7 +40,7 @@ services:
       timeout: 5s
       retries: 12
     networks:
-      - network
+      - backend
     restart: unless-stopped
 
   django:
@@ -100,7 +100,8 @@ services:
       retries: 12
     mem_limit: 4g
     networks:
-      - network
+      - backend
+      - frontend
     restart: unless-stopped
 
   # Scripts de manutenção (make protect-login, make create-app-role) precisam
@@ -116,7 +117,8 @@ services:
     profiles:
       - tools
     networks:
-      - network
+      - backend
+      - frontend
 
   tests:
     build:
@@ -140,7 +142,7 @@ services:
     profiles:
       - tests
     networks:
-      - network
+      - backend
 
   nginx:
     image: nginx:1.30-alpine
@@ -159,7 +161,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - network
+      - frontend
     restart: unless-stopped
 
   cloudflare:
@@ -171,7 +173,7 @@ services:
       nginx:
         condition: service_healthy
     networks:
-      - network   
+      - frontend
     restart: unless-stopped
 
 volumes:
@@ -180,5 +182,9 @@ volumes:
   postgres_data:
   redis_data:
 
+# O túnel e o nginx ficam só na frontend: não alcançam o banco nem o Redis.
+# A backend é interna (sem saída); o django sai para a internet pela frontend.
 networks:
-  network:
+  backend:
+    internal: true
+  frontend:
