@@ -7,8 +7,12 @@ services:
       - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-    env_file:
-      - .env
+    # Cada serviço recebe só o que usa. Variável sem valor vem do .env ao lado
+    # e, se não estiver lá, fica de fora (o padrão do settings continua valendo).
+    environment:
+      - POSTGRES_DB
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER"]
       interval: 5s
@@ -45,8 +49,35 @@ services:
     volumes:
       - static_volume:/app/static_root
       - media_volume:/app/media_root
-    env_file:
-      - .env
+    # Sem a senha do superusuário do Postgres (o app entra com o usuário restrito)
+    # e sem os tokens da Cloudflare: quem invadisse o app não leva o túnel.
+    environment:
+      - SECRET_KEY
+      - DEBUG
+      - ALLOWED_HOSTS
+      - CSRF_TRUSTED_ORIGINS
+      - POSTGRES_DB
+      - POSTGRES_APP_USER
+      - POSTGRES_APP_PASSWORD
+      - POSTGRES_HOST
+      - POSTGRES_PORT
+      - REDIS_URL
+      - ADMIN_PANEL_PATH
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_TRANSCRIBE_MODEL
+      - ASSISTANT_ATTACHMENT_RETENTION_DAYS
+      - EMAIL_BACKEND
+      - EMAIL_HOST
+      - EMAIL_PORT
+      - EMAIL_HOST_USER
+      - EMAIL_HOST_PASSWORD
+      - EMAIL_USE_TLS
+      - EMAIL_TIMEOUT
+      - DEFAULT_FROM_EMAIL
+      - PLUGGY_CLIENT_ID
+      - PLUGGY_CLIENT_SECRET
+      - PLUGGY_WEBHOOK_SECRET
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,6 +96,21 @@ services:
     networks:
       - network
     restart: unless-stopped
+
+  # Scripts de manutenção (make protect-login, make create-app-role) precisam
+  # de segredos que o app não recebe; só sobem quando chamados.
+  tools:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+      target: production
+    image: ${PROJECT_NAME:-finflow}-django
+    env_file:
+      - .env
+    profiles:
+      - tools
+    networks:
+      - network
 
   tests:
     build:
