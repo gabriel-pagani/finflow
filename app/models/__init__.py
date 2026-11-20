@@ -1,4 +1,5 @@
 from .account import Account
+from .bank import BankAccount, BankConnection, BankTransaction
 from .business_rule import BusinessRule
 from .card import Card
 from .category import Category
@@ -12,6 +13,9 @@ from .user import User
 
 __all__ = [
     'Account',
+    'BankAccount',
+    'BankConnection',
+    'BankTransaction',
     'BusinessRule',
     'Card',
     'Category',

@@ -276,6 +276,34 @@
     margin-right: 6px;
 }
 
+/* Buscar agora no Open Finance: só o ícone, que gira enquanto o banco responde. */
+.refresh-button .icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+[aria-busy="true"] .refresh-button .icon {
+    animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Na importação: a categoria que o banco deu, como dica, e o aviso de que já
+   existe uma transação parecida lançada (amarelo: quem decide é o usuário). */
+.row-hint,
+.row-similar {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.row-similar {
+    color: #a16207;
+}
+
 /* Grid de três colunas: a contagem fica à esquerda e os controles no centro
    do card. */
 .pagination {

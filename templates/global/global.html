@@ -27,6 +27,7 @@
                 <a href="{% url 'app:forecast' %}"{% if route == 'forecast' %} class="active"{% endif %}>Previsão</a>
                 <a href="{% url 'app:transactions_list' %}"{% if 'transaction' in route or 'installment' in route or 'transfer' in route %} class="active"{% endif %}>Transações</a>
                 <a href="{% url 'app:cards_list' %}"{% if 'card' in route %} class="active"{% endif %}>Cartões</a>
+                {% if user.bank_connections.exists %}<a href="{% url 'app:imports' %}"{% if 'import' in route %} class="active"{% endif %}>Open Finance</a>{% endif %}
                 {% if perms.assistant.use_assistant %}<a href="{% url 'assistant:page' %}"{% if request.resolver_match.app_name == 'assistant' %} class="active"{% endif %}>Assistente</a>{% endif %}
             </nav>
             {% endwith %}

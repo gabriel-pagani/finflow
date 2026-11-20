@@ -5,6 +5,9 @@ import time
 import pytest
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
+
+from app.models import BankConnection
 
 
 SECRET = 'whsec_' + 'a' * 64
@@ -63,3 +66,16 @@ def test_sem_segredo_configurado_recusa_tudo(client, settings):
 @pytest.mark.django_db
 def test_get_nao_e_permitido(client):
     assert client.get(reverse('app:pluggy_webhook')).status_code == 405
+
+
+@pytest.mark.django_db
+def test_aviso_marca_a_conexao_para_buscar_de_novo(client, user):
+    connection = BankConnection.objects.create(user=user, item_id='item-1', synced_at=timezone.now())
+    other = BankConnection.objects.create(user=user, item_id='item-2', synced_at=timezone.now())
+    body = b'{"event":"transactions/created","itemId":"item-1"}'
+
+    assert post(client, body, **{'X-Pluggy-Signature': sign(body)}).status_code == 200
+
+    connection.refresh_from_db()
+    other.refresh_from_db()
+    assert connection.synced_at is None and other.synced_at is not None

@@ -1,0 +1,118 @@
+{% extends 'app/app.html' %}
+{% load l10n %}
+
+{% block title %}Open Finance - FinFlow{% endblock %}
+
+{% block body_class %}page-fill{% endblock %}
+
+{% block content %}
+    <section class="card fill-height">
+        <div class="card-header">
+            <h1>Open Finance</h1>
+            <form method="post" data-busy-on-submit>
+                {% csrf_token %}
+                <button type="submit" class="refresh-button" title="Buscar agora no banco" aria-label="Buscar agora no banco">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/></svg>
+                </button>
+            </form>
+        </div>
+
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Origem</th>
+                    <th>Descrição</th>
+                    <th class="right">Valor</th>
+                    <th class="right">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in rows %}
+                    {% comment %}
+                    A linha abre o modal de transação (ou de parcelamento) já
+                    preenchido com o que veio do banco e com a conta, o cartão e
+                    a categoria sugeridos; salvar lança. Os nomes dos data-*
+                    seguem os campos do formulário, que o app.js preenche pelo
+                    nome. unlocalize nos ids pelo mesmo motivo da listagem.
+                    {% endcomment %}
+                    <tr data-row="{{ item.kind }}"
+                        data-id="{{ item.row.pk|unlocalize }}"
+                        data-label="{{ item.description }}"
+                        class="row-editable"
+                        data-editable
+                        data-occurred-at="{{ item.occurred_at|date:'Y-m-d' }}"
+                        data-account="{{ item.account|unlocalize }}"
+                        data-card="{{ item.card|unlocalize }}"
+                        data-category="{{ item.category|unlocalize }}"
+                        data-description="{{ item.description }}"
+                        data-value="{{ item.value|stringformat:'.2f' }}"
+                        {% if item.kind == 'installment' %}data-installments="{{ item.installments|unlocalize }}"
+                        {% else %}data-type="{{ item.row.type }}" data-method="{{ item.row.method }}" data-nature="REGULAR"{% endif %}
+                        tabindex="0" role="button"
+                        title="Clique para revisar e lançar">
+                        <td>{{ item.occurred_at|date:'d/m/Y' }}</td>
+                        <td>{{ item.row.bank_account.connection }} · {{ item.row.bank_account.get_kind_display }}{% if item.row.card_digits %} final {{ item.row.card_digits }}{% endif %}</td>
+                        <td>
+                            {{ item.description|default:'-' }}
+                            {% if item.kind == 'installment' %}<span class="row-origin">{{ item.installments }}x</span>{% endif %}
+                            {% if item.row.bank_category %}<span class="row-hint">{{ item.row.bank_category }}</span>{% endif %}
+                            {% if item.similar %}<span class="row-similar">Parecida com {{ item.similar.occurred_at|date:'d/m/Y' }} · {{ item.similar.description|default:item.similar }}</span>{% endif %}
+                        </td>
+                        <td class="right {% if item.row.type == 'IN' %}cell-income{% else %}cell-outcome{% endif %}">{% if item.row.type == 'OUT' %}-{% endif %}{{ item.value|floatformat:2 }}</td>
+                        <td class="right nowrap">
+                            <button type="button" class="icon-button" title="Revisar e lançar">Lançar</button>
+                            <button type="button" class="icon-button danger" data-row-delete title="Descartar">Descartar</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5">Nada novo do banco para revisar.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </section>
+
+    {{ form_options|json_script:"data-form-options" }}
+
+    {% include 'app/form_modal.html' with kind='transaction' title='Lançar Transação' form=form deletable=False submit='Lançar' %}
+    {% include 'app/form_modal.html' with kind='installment' title='Lançar Parcelamento' form=installment_form deletable=False submit='Lançar' %}
+
+    {% comment %}O app.js procura o modal de descarte de cada tipo de linha em "<tipo>-delete".{% endcomment %}
+    <dialog class="modal" data-modal="transaction-delete">
+        <form method="post" data-delete-form>
+            {% csrf_token %}
+            <h2>Descartar</h2>
+            <p class="modal-text">Descartar <strong data-delete-label></strong>? Ela não volta para a revisão.</p>
+            <div class="modal-actions">
+                <button type="button" class="secondary" data-modal-close>Cancelar</button>
+                <button type="submit" class="danger">Descartar</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog class="modal" data-modal="installment-delete">
+        <form method="post" data-delete-form>
+            {% csrf_token %}
+            <h2>Descartar</h2>
+            <p class="modal-text">Descartar <strong data-delete-label></strong>? Ela não volta para a revisão.</p>
+            <div class="modal-actions">
+                <button type="button" class="secondary" data-modal-close>Cancelar</button>
+                <button type="submit" class="danger">Descartar</button>
+            </div>
+        </form>
+    </dialog>
+{% endblock %}
+
+{% block config %}
+    <div data-record-urls
+         data-kind="transaction"
+         data-update-title="Lançar Transação"
+         data-update-url="{% url 'app:import_approve' 0 %}"
+         data-delete-url="{% url 'app:import_discard' 0 %}"></div>
+    <div data-record-urls
+         data-kind="installment"
+         data-update-title="Lançar Parcelamento"
+         data-update-url="{% url 'app:import_approve' 0 %}"
+         data-delete-url="{% url 'app:import_discard' 0 %}"></div>
+{% endblock %}

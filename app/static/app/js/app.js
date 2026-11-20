@@ -9,7 +9,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-record-urls]').forEach(setupRecordCrud);
     document.querySelectorAll('[data-bar-chart]').forEach(setupBarChart);
     document.querySelectorAll('[data-donut-chart]').forEach(setupDonutChart);
+    document.querySelectorAll('[data-busy-on-submit]').forEach(setupBusyForm);
 });
+
+// Formulário que demora (a busca no banco leva alguns segundos): marca como
+// ocupado para o CSS animar o botão e trava um segundo clique no meio.
+function setupBusyForm(form) {
+    form.addEventListener('submit', (event) => {
+        if (form.getAttribute('aria-busy') === 'true') {
+            event.preventDefault();
+            return;
+        }
+        form.setAttribute('aria-busy', 'true');
+    });
+}
 
 function readJsonScript(id) {
     const node = document.getElementById(id);

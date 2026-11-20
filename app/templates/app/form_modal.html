@@ -5,6 +5,7 @@ Modal de formulário, compartilhado pelos três tipos de transação. Recebe:
   action     URL do POST (a de transação é trocada pelo JS ao abrir em edição)
   form       formulário a renderizar
   deletable  mostra o botão Excluir, escondido até o modal abrir em edição
+  submit     texto do botão de envio (padrão: Salvar)
 
 O tipo vai em data-modal="{{ kind }}" em vez de um data-attribute próprio por
 modal: como atributo é valor, o Django o escapa normalmente, enquanto um nome
@@ -37,7 +38,7 @@ de atributo interpolado sairia como texto.
                 <button type="button" class="danger modal-action-delete" data-modal-delete hidden>Excluir</button>
             {% endif %}
             <button type="button" class="secondary" data-modal-close>Cancelar</button>
-            <button type="submit">Salvar</button>
+            <button type="submit">{{ submit|default:'Salvar' }}</button>
         </div>
     </form>
 </dialog>

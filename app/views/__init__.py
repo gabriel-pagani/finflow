@@ -2,6 +2,7 @@ from .profile import ProfileView
 from .auth import LoginTokenView, LoginView, LogoutView, OtpSetupView
 from .cards import CardCreateView, CardDeleteView, CardUpdateView, CardsListView
 from .dashboards import ForecastView, OverviewView
+from .imports import ImportApproveView, ImportDiscardView, ImportsView
 from .pluggy import PluggyWebhookView
 from .transactions import (
     InstallmentCreateView,
@@ -19,6 +20,9 @@ __all__ = [
     'CardUpdateView',
     'CardsListView',
     'ForecastView',
+    'ImportApproveView',
+    'ImportDiscardView',
+    'ImportsView',
     'InstallmentCreateView',
     'LoginTokenView',
     'LoginView',
