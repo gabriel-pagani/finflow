@@ -26,7 +26,12 @@ services:
     image: redis:8-alpine
     expose:
       - "6379"
-    command: redis-server --appendonly yes --save ""
+    # A senha vai pelo ambiente, e não pela linha de comando, para não aparecer no
+    # docker inspect; o REDISCLI_AUTH também serve ao redis-cli do healthcheck. O
+    # exec do entrypoint mantém o Redis rodando como o usuário redis, e não root.
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?defina REDIS_PASSWORD no deploy/.env}
+    command: ["sh", "-c", "exec docker-entrypoint.sh redis-server --requirepass \"$$REDISCLI_AUTH\" --appendonly yes --save ''"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -62,6 +67,7 @@ services:
       - POSTGRES_HOST
       - POSTGRES_PORT
       - REDIS_URL
+      - REDIS_PASSWORD
       - ADMIN_PANEL_PATH
       - OPENAI_API_KEY
       - OPENAI_MODEL
