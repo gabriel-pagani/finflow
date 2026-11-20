@@ -389,8 +389,11 @@ function linkFields(form, options) {
 
     // Cartão com transações não troca de conta nem de final: na edição dele a
     // conta fica só com a que ele já tem. O id em edição vem do CRUD da tela.
+    // A linha marcada com data-account-locked (a do Open Finance, cuja conta é
+    // a da conexão) também prende a conta.
     const lastDigits = form.querySelector('[name="last_digits"]');
-    const locked = () => Boolean(modal) && modal.dataset.modal === 'card' && options.locked_cards.includes(form.dataset.editing);
+    const lockedCard = () => Boolean(modal) && modal.dataset.modal === 'card' && options.locked_cards.includes(form.dataset.editing);
+    const locked = () => lockedCard() || 'accountLocked' in form.dataset;
 
     // Valor vazio não recorta nada: é o campo que ainda não foi escolhido.
     function fits(combination, name) {
@@ -494,7 +497,7 @@ function linkFields(form, options) {
         }
 
         if (card) restrict(card, cardsFor());
-        if (lastDigits) lastDigits.readOnly = locked();
+        if (lastDigits) lastDigits.readOnly = lockedCard();
         showCard();
     }
 
@@ -577,6 +580,7 @@ function setupRecordCrud(root) {
         title.textContent = createTitle;
         form.reset();
         delete form.dataset.editing;
+        delete form.dataset.accountLocked;
         editingRow = null;
         if (modalDelete) modalDelete.hidden = true;
         form.dispatchEvent(new Event(SYNC_OPTIONS));
@@ -588,6 +592,8 @@ function setupRecordCrud(root) {
         title.textContent = updateTitle;
         editingRow = row;
         form.dataset.editing = row.dataset.id;
+        if ('accountLocked' in row.dataset) form.dataset.accountLocked = '';
+        else delete form.dataset.accountLocked;
         if (modalDelete) modalDelete.hidden = false;
         fill(row.dataset);
         form.dispatchEvent(new Event(SYNC_OPTIONS));

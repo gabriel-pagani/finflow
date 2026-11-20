@@ -44,6 +44,7 @@
                         data-editable
                         data-occurred-at="{{ item.occurred_at|date:'Y-m-d' }}"
                         data-account="{{ item.account|unlocalize }}"
+                        {% if item.account %}data-account-locked{% endif %}
                         data-card="{{ item.card|unlocalize }}"
                         data-category="{{ item.category|unlocalize }}"
                         data-description="{{ item.description }}"

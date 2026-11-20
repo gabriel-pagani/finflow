@@ -150,6 +150,12 @@ class OpenFinanceTransactionApproveView(ModalWriteMixin, CreateView):
         return 'Parcelamento lançado com sucesso.' if self.row.purchase_key else 'Transação lançada com sucesso.'
 
     def form_valid(self, form):
+        # O modal prende a conta; isto barra o POST montado à mão.
+        account = self.row.bank_account.connection.account
+        if account and form.cleaned_data['account'] != account:
+            form.add_error('account', f'A conta desta transação é a da conexão: {account}.')
+            return self.form_invalid(form)
+
         with transaction.atomic():
             response = super().form_valid(form)
 

@@ -181,6 +181,23 @@ def test_avisa_de_transacao_parecida_ja_lancada(logged, bank_account, make_trans
     assert 'Parecida com 12/11/2026' in logged.get(reverse('app:open_finance')).content.decode()
 
 
+def test_modal_prende_a_conta_da_conexao(logged, bank_account, syncs):
+    bank_row(bank_account)
+    assert 'data-account-locked' in logged.get(reverse('app:open_finance')).content.decode()
+
+
+def test_recusa_lancar_em_conta_diferente_da_conexao(logged, bank_account, other_account, other_debit_rule, syncs):
+    row = bank_row(bank_account)
+
+    response = approve(logged, row, account=other_account.pk, type='OUT', method='DEBIT', nature='REGULAR',
+                       value='42.00', occurred_at='2026-11-10')
+
+    assert not Transaction.objects.exists()
+    row.refresh_from_db()
+    assert row.status == Status.PENDING
+    assert [str(m) for m in get_messages(response.wsgi_request)] == ['A conta desta transação é a da conexão: Nubank.']
+
+
 def test_entrada_nao_e_parecida_com_saida_de_mesmo_valor(logged, bank_account, account, transfer_in_rule, make_transaction, syncs):
     # Aplicou 42 e recebeu 42 no mesmo dia: são movimentos opostos.
     make_transaction(type=Type.IN, method=Method.NOT_APPLICABLE, value=Decimal('42.00'), occurred_at=date(2026, 11, 10), account=account).save()
