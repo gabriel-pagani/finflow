@@ -1,5 +1,11 @@
 name: ${PROJECT_NAME:-finflow}
 
+# O json-file do Docker cresce sem limite; o gunicorn e o nginx registram cada acesso.
+x-logging: &logging
+  options:
+    max-size: 10m
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:18
@@ -21,6 +27,7 @@ services:
     networks:
       - backend
     restart: unless-stopped
+    logging: *logging
 
   redis:
     image: redis:8-alpine
@@ -42,6 +49,7 @@ services:
     networks:
       - backend
     restart: unless-stopped
+    logging: *logging
 
   django:
     build:
@@ -110,6 +118,7 @@ services:
       - backend
       - frontend
     restart: unless-stopped
+    logging: *logging
 
   # Scripts de manutenção (make protect-login, make create-app-role) precisam
   # de segredos que o app não recebe; só sobem quando chamados.
@@ -170,6 +179,7 @@ services:
     networks:
       - frontend
     restart: unless-stopped
+    logging: *logging
 
   cloudflare:
     image: cloudflare/cloudflared:2026.10.7
@@ -182,6 +192,7 @@ services:
     networks:
       - frontend
     restart: unless-stopped
+    logging: *logging
 
 volumes:
   static_volume:
