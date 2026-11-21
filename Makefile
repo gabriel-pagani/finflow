@@ -38,7 +38,7 @@ backup-system:
 # um .gpg (cópia do remoto) é decifrado antes, e pede a chave privada.
 check-backup:
 	@FILE="$${file:-$$(ls -t backups/finflow-2*.sql 2>/dev/null | head -1)}"; \
-	[ -s "$$FILE" ] || { echo "nenhum backup encontrado (use file=...)" >&2; exit 1; }; \
+	[ -s "$$FILE" ] || { echo "nenhum backup .sql em $(CURDIR)/backups (use file=...)" >&2; exit 1; }; \
 	case "$$FILE" in *.gpg) READ="gpg --quiet --decrypt" ;; *) READ="cat" ;; esac; \
 	NAME="finflow-check-backup-$$$$"; \
 	docker run -d --rm --name "$$NAME" --network none -e POSTGRES_PASSWORD=check postgres:18 >/dev/null || exit 1; \

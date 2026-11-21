@@ -94,3 +94,8 @@ jobs:
         run: |
           git pull --ff-only
           make build-system
+
+      # O build-system acabou de gerar um backup: confere se ele restaura.
+      - name: Check backup
+        working-directory: ${{ vars.DEPLOY_PATH }}
+        run: make check-backup
