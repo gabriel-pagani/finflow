@@ -209,6 +209,22 @@ EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
 
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'FinFlow <noreply@localhost>')
 
+# Com DEBUG desligado, o handler de console do Django só escreve em DEBUG e o
+# mail_admins só manda se houver ADMINS: sem isto, os 500 e os avisos do
+# django.security não aparecem em lugar nenhum. O logger django propaga para o root.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': 'INFO'},
+}
+
+# Recebem por e-mail cada erro 500 (lista separada por vírgula).
+ADMINS = [email.strip() for email in os.getenv('ADMINS', '').split(',') if email.strip()]
+
+# Remetente desses e-mails; o padrão root@localhost costuma ser recusado pelo SMTP.
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
 SECURE_CSP = {
     'default-src': [CSP.SELF],
     'script-src': [CSP.SELF],

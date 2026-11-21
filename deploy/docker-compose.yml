@@ -81,6 +81,7 @@ services:
       - EMAIL_USE_TLS
       - EMAIL_TIMEOUT
       - DEFAULT_FROM_EMAIL
+      - ADMINS
       - PLUGGY_CLIENT_ID
       - PLUGGY_CLIENT_SECRET
       - PLUGGY_WEBHOOK_SECRET
