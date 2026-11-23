@@ -22,6 +22,7 @@ class CardsListView(OwnedListView):
         return (
             super().get_queryset().select_related('account')
             .annotate(used=Sum(signed, filter=upcoming, default=0))
+            .annotate(available=F('limit') - F('used'))
             .order_by(*Card._meta.ordering)
         )
 

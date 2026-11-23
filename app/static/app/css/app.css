@@ -824,9 +824,14 @@
     box-shadow: 0 6px 16px rgb(0 0 0 / 0.18);
     /* o número escala com a largura do cartão em vez de estourar */
     container-type: inline-size;
-    overflow: hidden;
     cursor: pointer;
     transition: transform 0.15s, box-shadow 0.15s;
+}
+
+/* Texto longo no limite quebra a linha: o cartão cresce (sem overflow: hidden,
+   o aspect-ratio vira altura mínima) em vez de achatar o chip. */
+.credit-card > * {
+    flex-shrink: 0;
 }
 
 .credit-card:hover {
@@ -914,6 +919,10 @@
     border-radius: 3px;
     background: rgb(255 255 255 / 0.25);
     overflow: hidden;
+}
+
+.credit-card-limit-bar.is-negative {
+    background: var(--outcome);
 }
 
 .credit-card-limit-bar span {

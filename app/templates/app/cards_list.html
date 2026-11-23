@@ -47,10 +47,10 @@
                     </div>
                     {% if card.limit %}
                         <div class="credit-card-limit">
-                            <small>Limite usado</small>
-                            <span>{{ card.used|floatformat:2 }} de {{ card.limit|floatformat:2 }}</span>
-                            {% comment %}A trilha corta o que passar de 100%.{% endcomment %}
-                            <span class="credit-card-limit-bar"><span style="width: {% widthratio card.used card.limit 100 %}%"></span></span>
+                            <small>Limite disponível</small>
+                            <span>{{ card.available|floatformat:2 }} de {{ card.limit|floatformat:2 }}</span>
+                            {% comment %}Passou do limite, o disponível fica negativo: o clamp segura a barra em zero.{% endcomment %}
+                            <span class="credit-card-limit-bar{% if card.available < 0 %} is-negative{% endif %}"><span style="width: clamp(0%, {% widthratio card.available card.limit 100 %}%, 100%)"></span></span>
                         </div>
                     {% endif %}
                 </article>

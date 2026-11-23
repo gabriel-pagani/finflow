@@ -50,8 +50,26 @@ def test_barra_so_aparece_com_limite(logged, card, make_transaction):
     make_transaction(value=Decimal('250.00'), card=card, method=Method.CREDIT, occurred_at=timezone.localdate()).save()
     html = logged.get(reverse('app:cards_list')).content.decode()
 
-    assert '250,00 de 1.000,00' in html
-    assert 'style="width: 25%"' in html
+    assert 'Limite disponível' in html
+    assert '750,00 de 1.000,00' in html
+    assert 'style="width: clamp(0%, 75%, 100%)"' in html
+
+
+def test_passou_do_limite_o_disponivel_fica_negativo_e_a_barra_vazia(logged, limited, make_transaction):
+    make_transaction(value=Decimal('1200.00'), card=limited, method=Method.CREDIT, occurred_at=timezone.localdate()).save()
+    html = logged.get(reverse('app:cards_list')).content.decode()
+
+    assert '-200,00 de 1.000,00' in html
+    assert 'style="width: clamp(0%, -20%, 100%)"' in html
+    assert 'credit-card-limit-bar is-negative' in html
+
+
+def test_barra_so_fica_vermelha_quando_negativo(logged, limited, make_transaction):
+    make_transaction(value=Decimal('1000.00'), card=limited, method=Method.CREDIT, occurred_at=timezone.localdate()).save()
+    html = logged.get(reverse('app:cards_list')).content.decode()
+
+    assert '0,00 de 1.000,00' in html
+    assert 'is-negative' not in html
 
 
 def test_limite_e_salvo_pelo_formulario(logged, account, credit_rule):
