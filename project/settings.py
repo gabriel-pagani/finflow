@@ -193,19 +193,20 @@ PLUGGY_WEBHOOK_SECRET = os.getenv('PLUGGY_WEBHOOK_SECRET', '')
 
 ASSISTANT_ATTACHMENT_RETENTION_DAYS = int(os.getenv('ASSISTANT_ATTACHMENT_RETENTION_DAYS', '30'))
 
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-
-EMAIL_HOST = os.getenv('EMAIL_HOST', '')
-
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', '1') == '1'
-
-EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
+# As variáveis EMAIL_* do .env continuam com os nomes de antes. As opções são
+# do SMTP: com MAILERS, outro backend (console, locmem) recusa o que não conhece.
+smtp_backend = 'django.core.mail.backends.smtp.EmailBackend'
+email_backend = os.getenv('EMAIL_BACKEND', smtp_backend)
+MAILERS = {'default': {'BACKEND': email_backend}}
+if email_backend == smtp_backend:
+    MAILERS['default']['OPTIONS'] = {
+        'host': os.getenv('EMAIL_HOST', ''),
+        'port': int(os.getenv('EMAIL_PORT', '587')),
+        'username': os.getenv('EMAIL_HOST_USER', ''),
+        'password': os.getenv('EMAIL_HOST_PASSWORD', ''),
+        'use_tls': os.getenv('EMAIL_USE_TLS', '1') == '1',
+        'timeout': int(os.getenv('EMAIL_TIMEOUT', '10')),
+    }
 
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'FinFlow <noreply@localhost>')
 
