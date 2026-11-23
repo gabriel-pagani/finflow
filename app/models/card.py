@@ -18,6 +18,7 @@ class Card(models.Model):
     due_day = models.PositiveSmallIntegerField(verbose_name='Dia de Vencimento')
     is_cancelled = models.BooleanField(default=False, verbose_name='Cancelado')
     is_main = models.BooleanField(default=False, verbose_name='Principal')
+    limit = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name='Limite')
 
     TYPE = Type.OUT
     METHOD = Method.CREDIT
@@ -83,6 +84,11 @@ class Card(models.Model):
                 condition=models.Q(is_main=True),
                 name='card_unique_main_per_user',
                 violation_error_message='Já existe um cartão principal. Desmarque-o antes de escolher outro.',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(limit__isnull=True) | models.Q(limit__gt=0),
+                name='card_limit_positive',
+                violation_error_message='O limite precisa ser maior que zero.',
             ),
             models.CheckConstraint(
                 condition=~models.Q(is_main=True, is_cancelled=True),

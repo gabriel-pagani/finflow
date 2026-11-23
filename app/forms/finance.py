@@ -52,11 +52,12 @@ class OwnedForm(forms.ModelForm):
 class CardForm(OwnedForm):
     class Meta:
         model = Card
-        fields = ('account', 'last_digits', 'closing_day', 'due_day', 'is_main', 'is_cancelled',)
+        fields = ('account', 'last_digits', 'closing_day', 'due_day', 'limit', 'is_main', 'is_cancelled',)
         widgets = {
             'last_digits': forms.TextInput(attrs={'inputmode': 'numeric', 'maxlength': '4', 'pattern': r'\d{4}'}),
             'closing_day': forms.NumberInput(attrs={'min': '1', 'max': '31', 'step': '1'}),
             'due_day': forms.NumberInput(attrs={'min': '1', 'max': '31', 'step': '1'}),
+            'limit': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
         }
 
 

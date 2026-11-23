@@ -1,7 +1,9 @@
+from django.db.models import Case, F, Q, Sum, When
+from django.utils import timezone
 from django.views.generic.edit import CreateView, UpdateView
 
 from ..forms.finance import CardForm
-from ..models import Card
+from ..models import Card, Method, Type
 from .mixins import ModalDeleteView, ModalWriteMixin, OwnedListView
 from .transactions import form_options
 
@@ -11,7 +13,17 @@ class CardsListView(OwnedListView):
     template_name = 'app/cards_list.html'
 
     def get_queryset(self):
-        return super().get_queryset().select_related('account')
+        # Limite usado: as compras que ainda vão vencer (as parcelas futuras
+        # são transações com o vencimento delas); o estorno no cartão devolve.
+        # Não confere se a fatura vencida foi paga.
+        upcoming = Q(transactions__method=Method.CREDIT, transactions__effective_at__gte=timezone.localdate())
+        signed = Case(When(transactions__type=Type.IN, then=-F('transactions__value')), default=F('transactions__value'))
+        # Com agregação o Django ignora o ordering do Meta: a ordem vai explícita.
+        return (
+            super().get_queryset().select_related('account')
+            .annotate(used=Sum(signed, filter=upcoming, default=0))
+            .order_by(*Card._meta.ordering)
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

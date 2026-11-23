@@ -28,6 +28,7 @@
                          data-last-digits="{{ card.last_digits }}"
                          data-closing-day="{{ card.closing_day|unlocalize }}"
                          data-due-day="{{ card.due_day|unlocalize }}"
+                         data-limit="{{ card.limit|stringformat:'.2f' }}"
                          data-is-main="{{ card.is_main|yesno:'true,false' }}"
                          data-is-cancelled="{{ card.is_cancelled|yesno:'true,false' }}"
                          data-label="{{ card }}"
@@ -44,6 +45,14 @@
                         <span><small>Vencimento</small>Dia {{ card.due_day|unlocalize }}</span>
                         <button type="button" class="credit-card-remove" data-row-delete title="Remover">Remover</button>
                     </div>
+                    {% if card.limit %}
+                        <div class="credit-card-limit">
+                            <small>Limite usado</small>
+                            <span>{{ card.used|floatformat:2 }} de {{ card.limit|floatformat:2 }}</span>
+                            {% comment %}A trilha corta o que passar de 100%.{% endcomment %}
+                            <span class="credit-card-limit-bar"><span style="width: {% widthratio card.used card.limit 100 %}%"></span></span>
+                        </div>
+                    {% endif %}
                 </article>
             {% empty %}
                 <p>Nenhum cartão cadastrado. Cadastre um para lançar compras no crédito.</p>
