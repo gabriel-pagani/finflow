@@ -881,7 +881,18 @@
     width: 42px;
     height: 32px;
     border-radius: 6px;
-    background: linear-gradient(135deg, #e8d18a, #b8963e);
+    /* Os riscos dos contatos: duas verticais em três colunas, dois horizontais
+       em cada coluna do lado e um no meio. Cada linha é um gradiente de 1px. */
+    --line: linear-gradient(rgb(90 65 10 / 0.5), rgb(90 65 10 / 0.5));
+    background:
+        var(--line) 33% 0 / 1px 100% no-repeat,
+        var(--line) 67% 0 / 1px 100% no-repeat,
+        var(--line) 0 33% / 33% 1px no-repeat,
+        var(--line) 0 67% / 33% 1px no-repeat,
+        var(--line) 100% 33% / 33% 1px no-repeat,
+        var(--line) 100% 67% / 33% 1px no-repeat,
+        var(--line) 50% 50% / 34% 1px no-repeat,
+        linear-gradient(135deg, #e8d18a, #b8963e);
 }
 
 .credit-card-number {
