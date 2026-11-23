@@ -6,3 +6,5 @@ CRON_TZ=America/Sao_Paulo
 # para a tela Open Finance abrir sem esperar a Pluggy.
 * * * * * python manage.py sync_banks
 
+# Apaga os anexos do assistente vencidos e os arquivos sem dono.
+0 3 * * * python manage.py prune_attachments

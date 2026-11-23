@@ -121,7 +121,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Roda as tarefas do deploy/crontab (busca no banco). Espera
+  # Roda as tarefas do deploy/crontab (busca no banco, limpeza de anexos). Espera
   # o django subir porque é ele quem roda as migrations.
   scheduler:
     build:
@@ -135,6 +135,9 @@ services:
         condition: service_healthy
     # -quiet tira a linha de cada execução; o log fica com a saída dos comandos e os erros.
     command: supercronic -quiet -passthrough-logs deploy/crontab
+    # O prune_attachments apaga os arquivos dos anexos.
+    volumes:
+      - media_volume:/app/media_root
     mem_limit: 256m
     cap_drop:
       - ALL
