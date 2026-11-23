@@ -21,6 +21,11 @@ RUN apt-get update && apt-get install -y libpq5 libsasl2-2 libldap2 --no-install
 
 COPY --from=builder /install /usr/local
 
+# Agendador do serviço scheduler (deploy/crontab).
+# ponytail: versão e checksum fixos à mão e só amd64; o Dependabot não vê o ADD.
+ADD --chmod=755 --checksum=sha256:cc232108374e8e2b537045f2d5eaa1229f619db314c3ba6a14d38b35dc0aa123 \
+    https://github.com/aptible/supercronic/releases/download/v0.2.51/supercronic-linux-amd64 /usr/local/bin/supercronic
+
 RUN groupadd --gid 1000 django && useradd --uid 1000 --gid django --create-home django
 
 # O código fica do root: o processo lê, mas não reescreve o próprio código.

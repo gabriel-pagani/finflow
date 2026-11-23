@@ -23,16 +23,15 @@ SIMILAR_WINDOW = timedelta(days=3)
 SYNC_ERROR = 'Não foi possível buscar as transações no banco agora. Tente de novo em alguns minutos.'
 
 
-def sync_connections(request, force=False):
+def sync_connections(request):
     """Devolve quantas transações novas chegaram, ou None se a busca falhou."""
     new = 0
     for connection in BankConnection.objects.filter(user=request.user):
-        if force or connection.is_stale:
-            try:
-                new += sync(connection)
-            except (PluggyError, KeyError):
-                messages.error(request, SYNC_ERROR)
-                return None
+        try:
+            new += sync(connection)
+        except (PluggyError, KeyError):
+            messages.error(request, SYNC_ERROR)
+            return None
     return new
 
 
@@ -108,15 +107,12 @@ def review_rows(user):
 class OpenFinanceView(LoginRequiredMixin, TemplateView):
     template_name = 'app/open_finance.html'
 
-    def get(self, request, *args, **kwargs):
-        sync_connections(request)
-        return super().get(request, *args, **kwargs)
-
-    # "Buscar agora": a busca automática espera 15 minutos entre uma e outra.
-    # Diz o resultado, senão o clique parece não ter feito nada quando o banco
-    # não tem novidade.
+    # Abrir a tela não busca no banco (era o que demorava): o comando
+    # sync_banks, em loop no compose, busca a cada 15 minutos ou quando o
+    # webhook avisa. "Buscar agora" busca na hora e diz o resultado, senão o
+    # clique parece não ter feito nada quando o banco não tem novidade.
     def post(self, request, *args, **kwargs):
-        new = sync_connections(request, force=True)
+        new = sync_connections(request)
         if new == 1:
             messages.success(request, '1 transação nova do banco.')
         elif new:

@@ -1,0 +1,8 @@
+# Tarefas do serviço scheduler (supercronic). O container roda em UTC; os
+# horários abaixo são de Brasília, como o resto do app.
+CRON_TZ=America/Sao_Paulo
+
+# Busca no banco as conexões vencidas (15 min, ou logo que o webhook avisa),
+# para a tela Open Finance abrir sem esperar a Pluggy.
+* * * * * python manage.py sync_banks
+

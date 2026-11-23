@@ -64,7 +64,8 @@ services:
       - media_volume:/app/media_root
     # Sem a senha do superusuário do Postgres (o app entra com o usuário restrito)
     # e sem os tokens da Cloudflare: quem invadisse o app não leva o túnel.
-    environment:
+    # O scheduler usa a mesma lista.
+    environment: &app-env
       - SECRET_KEY
       - DEBUG
       - ALLOWED_HOSTS
@@ -114,6 +115,32 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    networks:
+      - backend
+      - frontend
+    restart: unless-stopped
+    logging: *logging
+
+  # Roda as tarefas do deploy/crontab (busca no banco). Espera
+  # o django subir porque é ele quem roda as migrations.
+  scheduler:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+      target: production
+    image: ${PROJECT_NAME:-finflow}-django
+    environment: *app-env
+    depends_on:
+      django:
+        condition: service_healthy
+    # -quiet tira a linha de cada execução; o log fica com a saída dos comandos e os erros.
+    command: supercronic -quiet -passthrough-logs deploy/crontab
+    mem_limit: 256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # A backend alcança o banco; a frontend dá saída para a Pluggy.
     networks:
       - backend
       - frontend

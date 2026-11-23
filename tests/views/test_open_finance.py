@@ -17,7 +17,6 @@ Status = BankTransaction.Status
 
 @pytest.fixture
 def connection(user, account):
-    # Recém-buscada: a tela não vai à Pluggy, a não ser que o teste peça.
     return BankConnection.objects.create(user=user, account=account, item_id='item-1', since=date(2026, 11, 1), synced_at=timezone.now())
 
 
@@ -75,13 +74,11 @@ def test_menu_destaca_open_finance_na_pagina(logged, connection, syncs):
     assert f'href="{reverse("app:open_finance")}" class="active"' in html
 
 
-def test_busca_no_banco_so_quando_a_ultima_busca_envelheceu(logged, connection, syncs):
-    logged.get(reverse('app:open_finance'))
-    assert syncs == []
-
+def test_abrir_a_tela_nao_busca_no_banco_mesmo_vencida(logged, connection, syncs):
+    # Quem busca é o sync_banks em segundo plano; abrir a tela não espera a Pluggy.
     BankConnection.objects.filter(pk=connection.pk).update(synced_at=None)
     logged.get(reverse('app:open_finance'))
-    assert syncs == [connection]
+    assert syncs == []
 
 
 def test_buscar_agora_busca_mesmo_recente(logged, connection, syncs):
@@ -106,21 +103,6 @@ def test_falha_no_buscar_agora_so_mostra_o_erro(logged, connection, monkeypatch)
     response = logged.post(reverse('app:open_finance'))
 
     assert [str(m) for m in get_messages(response.wsgi_request)] == [open_finance.SYNC_ERROR]
-
-
-def test_falha_na_busca_avisa_e_mostra_o_que_ja_tem(logged, connection, bank_account, monkeypatch):
-    def broken(connection):
-        raise PluggyError('fora do ar')
-
-    monkeypatch.setattr(open_finance, 'sync', broken)
-    bank_row(bank_account)
-    BankConnection.objects.filter(pk=connection.pk).update(synced_at=None)
-
-    response = logged.get(reverse('app:open_finance'))
-
-    assert response.status_code == 200
-    assert [str(m) for m in get_messages(response.wsgi_request)] == [open_finance.SYNC_ERROR]
-    assert 'Padaria' in response.content.decode()
 
 
 def test_no_mesmo_dia_a_mais_recente_vem_primeiro(bank_account, syncs):
