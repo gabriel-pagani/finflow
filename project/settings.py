@@ -217,6 +217,9 @@ LOGGING = {
     'disable_existing_loggers': False,
     'handlers': {'console': {'class': 'logging.StreamHandler'}},
     'root': {'handlers': ['console'], 'level': 'INFO'},
+    # O axes anuncia a configuração a cada vez que o Django carrega: no
+    # scheduler, que roda um comando por minuto, seria uma linha por minuto.
+    'loggers': {'axes.apps': {'level': 'WARNING'}},
 }
 
 # Recebem por e-mail cada erro 500 (lista separada por vírgula).

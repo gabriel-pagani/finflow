@@ -19,3 +19,9 @@ def test_erro_500_vai_por_email_aos_admins(settings, mailoutbox):
     assert len(mailoutbox) == 1
     assert mailoutbox[0].to == ['eu@example.com']
     assert mailoutbox[0].from_email == settings.DEFAULT_FROM_EMAIL
+
+
+def test_inicio_do_axes_nao_vai_para_o_log():
+    # O scheduler carrega o Django a cada minuto; o anúncio do axes entupiria o log.
+    assert not logging.getLogger('axes.apps').isEnabledFor(logging.INFO)
+    assert logging.getLogger('axes.handlers').isEnabledFor(logging.INFO)
